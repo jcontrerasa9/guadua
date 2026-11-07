@@ -2,10 +2,9 @@
 
 <!-- Tarea de docs/plan.md (ID) y resumen breve -->
 
-## Checklist
+## Antes de fusionar
 
-- [ ] Corrí las pruebas: `ruff check . && ruff format --check . && pytest` y `node --test "tests/js/*.test.mjs"`
-- [ ] Contratos intactos (header, eventos, interfaces, `tests/fixtures/`), o el cambio se pidió explícitamente: <!-- enlace -->
-- [ ] Actualicé `docs/plan.md` (estado de la tarea)
-- [ ] Funciona sin Internet ni API key
-- [ ] No incluye `.env` ni secretos
+<!-- El CI ya corre ruff, pytest y las pruebas JS. Esto es lo que el CI no puede verificar. -->
+
+- [ ] Si toqué un contrato (cabecera, eventos, interfaces, `tests/fixtures/`), lo acordamos antes
+- [ ] Marqué la tarea en `docs/plan.md`

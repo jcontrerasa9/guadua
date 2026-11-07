@@ -95,8 +95,3 @@ Documentos de arquitectura, fichas de agentes (`docs/fichas/`), protocolo y resu
 - [ ] Texto del consejo de autoprotección del modo escombros.
 - [ ] Docker disponible en ambos equipos.
 - [ ] Criterios de evaluación del jurado.
-
-## Pendientes del repo
-
-- [ ] Reemplazar `@USUARIO_YO` y `@USUARIO_COMPANERO` en `.github/CODEOWNERS`.
-- [ ] Activar en GitHub la protección de `main` (CI en verde y revisión de CODEOWNERS), si se quiere que sea obligatoria.
