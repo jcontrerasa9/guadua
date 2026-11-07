@@ -1,0 +1,16 @@
+# Reemplaza los marcadores por los usuarios reales de GitHub.
+# Solo obliga a revisar si la protección de rama de main exige revisión de CODEOWNERS.
+# Lo que no aparece aquí (agents, classifier, knowledge, ...) todavía no tiene dueño: ver docs/plan.md.
+
+# Backend
+/src/sard/store/      @USUARIO_YO
+/src/sard/protocol/   @USUARIO_YO
+/src/sard/channel/    @USUARIO_YO
+
+# Interfaces
+/citizen/             @USUARIO_COMPANERO
+/src/sard/dashboard/  @USUARIO_COMPANERO
+
+# Compartido
+/tests/fixtures/      @USUARIO_YO @USUARIO_COMPANERO
+/docs/plan.md         @USUARIO_YO @USUARIO_COMPANERO
