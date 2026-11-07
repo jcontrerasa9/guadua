@@ -17,6 +17,7 @@ cp .env.example .env   # opcional: solo para usar un LLM
 ```bash
 ruff check . && ruff format --check .
 pytest
+node --test "tests/js/*.test.mjs"
 ```
 
 ## Ejecutar

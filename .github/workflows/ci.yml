@@ -27,9 +27,4 @@ jobs:
         with:
           node-version: "22"
       - name: Pruebas JS
-        run: |
-          if ls tests/js/*.test.mjs >/dev/null 2>&1; then
-            node --test tests/js/
-          else
-            echo "Sin pruebas JS todavía"
-          fi
+        run: node --test "tests/js/*.test.mjs"

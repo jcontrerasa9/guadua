@@ -1,0 +1,235 @@
+{
+  "description": "Vectores compartidos de la cabecera de 21 B (docs/diseno.md §5.2). Python y JS deben pasar todos. CONTRATO: no editar sin pedirlo explícitamente.",
+  "valid": [
+    {
+      "name": "reporte_colapso_gps",
+      "fields": {
+        "msg_type": 0,
+        "device_id": 16909060,
+        "seq": 1,
+        "device_time": 3600,
+        "incident": 1,
+        "people": 1,
+        "flags": 96,
+        "geohash": "d2fkcdc"
+      },
+      "hex": "10010203040000000100000e10010160609d25b160"
+    },
+    {
+      "name": "sos_escombros",
+      "fields": {
+        "msg_type": 1,
+        "device_id": 2712847316,
+        "seq": 7,
+        "device_time": 86400,
+        "incident": 0,
+        "people": 0,
+        "flags": 225,
+        "geohash": "d2fkcdc"
+      },
+      "hex": "11a1b2c3d400000007000151800000e1609d25b160"
+    },
+    {
+      "name": "sin_gps_con_barrio",
+      "fields": {
+        "msg_type": 0,
+        "device_id": 42,
+        "seq": 2,
+        "device_time": 120,
+        "incident": 3,
+        "people": 2,
+        "flags": 40,
+        "barrio": 17
+      },
+      "hex": "100000002a00000002000000780302280000000011"
+    },
+    {
+      "name": "estoy_a_salvo",
+      "fields": {
+        "msg_type": 4,
+        "device_id": 99,
+        "seq": 3,
+        "device_time": 7200,
+        "incident": 6,
+        "people": 0,
+        "flags": 32,
+        "barrio": 5
+      },
+      "hex": "14000000630000000300001c200600200000000005"
+    },
+    {
+      "name": "todas_las_banderas",
+      "fields": {
+        "msg_type": 0,
+        "device_id": 1,
+        "seq": 1,
+        "device_time": 1,
+        "incident": 2,
+        "people": 3,
+        "flags": 255,
+        "geohash": "zzzzzzz"
+      },
+      "hex": "100000000100000001000000010203ffffffffffe0"
+    },
+    {
+      "name": "geohash_minimo",
+      "fields": {
+        "msg_type": 0,
+        "device_id": 1,
+        "seq": 1,
+        "device_time": 0,
+        "incident": 4,
+        "people": 4,
+        "flags": 64,
+        "geohash": "0000000"
+      },
+      "hex": "100000000100000001000000000404400000000000"
+    },
+    {
+      "name": "todo_en_cero",
+      "fields": {
+        "msg_type": 0,
+        "device_id": 0,
+        "seq": 0,
+        "device_time": 0,
+        "incident": 0,
+        "people": 0,
+        "flags": 0,
+        "barrio": 0
+      },
+      "hex": "100000000000000000000000000000000000000000"
+    },
+    {
+      "name": "valores_maximos",
+      "fields": {
+        "msg_type": 8,
+        "device_id": 4294967295,
+        "seq": 4294967295,
+        "device_time": 4294967295,
+        "incident": 6,
+        "people": 4,
+        "flags": 191,
+        "barrio": 1099511627775
+      },
+      "hex": "18ffffffffffffffffffffffff0604bfffffffffff"
+    }
+  ],
+  "invalid_decode": [
+    {
+      "name": "muy_corto",
+      "hex": "10010203040000000100000e10010160609d25b1"
+    },
+    {
+      "name": "version_2",
+      "hex": "20010203040000000100000e10010160609d25b160"
+    },
+    {
+      "name": "tipo_de_mensaje_desconocido",
+      "hex": "1f010203040000000100000e10010160609d25b160"
+    },
+    {
+      "name": "incidente_desconocido",
+      "hex": "10010203040000000100000e10070160609d25b160"
+    },
+    {
+      "name": "personas_desconocidas",
+      "hex": "10010203040000000100000e10010560609d25b160"
+    },
+    {
+      "name": "relleno_de_geohash_no_cero",
+      "hex": "10010203040000000100000e10010160609d25b161"
+    }
+  ],
+  "invalid_encode": [
+    {
+      "name": "gps_sin_geohash",
+      "fields": {
+        "msg_type": 0,
+        "device_id": 16909060,
+        "seq": 1,
+        "device_time": 3600,
+        "incident": 1,
+        "people": 1,
+        "flags": 96
+      }
+    },
+    {
+      "name": "geohash_con_caracter_invalido",
+      "fields": {
+        "msg_type": 0,
+        "device_id": 16909060,
+        "seq": 1,
+        "device_time": 3600,
+        "incident": 1,
+        "people": 1,
+        "flags": 96,
+        "geohash": "d29a000"
+      }
+    },
+    {
+      "name": "geohash_corto",
+      "fields": {
+        "msg_type": 0,
+        "device_id": 16909060,
+        "seq": 1,
+        "device_time": 3600,
+        "incident": 1,
+        "people": 1,
+        "flags": 96,
+        "geohash": "d29"
+      }
+    },
+    {
+      "name": "sin_gps_con_geohash",
+      "fields": {
+        "msg_type": 0,
+        "device_id": 16909060,
+        "seq": 1,
+        "device_time": 3600,
+        "incident": 1,
+        "people": 1,
+        "flags": 32,
+        "geohash": "d2fkcdc"
+      }
+    },
+    {
+      "name": "barrio_demasiado_grande",
+      "fields": {
+        "msg_type": 0,
+        "device_id": 42,
+        "seq": 2,
+        "device_time": 120,
+        "incident": 3,
+        "people": 2,
+        "flags": 40,
+        "barrio": 1099511627776
+      }
+    },
+    {
+      "name": "dispositivo_negativo",
+      "fields": {
+        "msg_type": 0,
+        "device_id": -1,
+        "seq": 1,
+        "device_time": 3600,
+        "incident": 1,
+        "people": 1,
+        "flags": 96,
+        "geohash": "d2fkcdc"
+      }
+    },
+    {
+      "name": "banderas_mayores_a_un_byte",
+      "fields": {
+        "msg_type": 0,
+        "device_id": 16909060,
+        "seq": 1,
+        "device_time": 3600,
+        "incident": 1,
+        "people": 1,
+        "flags": 320,
+        "geohash": "d2fkcdc"
+      }
+    }
+  ]
+}

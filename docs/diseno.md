@@ -182,6 +182,26 @@ Todo es **Python 3.13**, salvo la PWA ciudadana y el tablero, que son **HTML5 \+
 * **Fragmentos y ACK.** Si un mensaje o una foto supera la trama del perfil activo, se parte en fragmentos con el ID (8 B), su índice (1 B) y el total (1 B). El ACK lleva el ID y un mapa de bits de lo recibido; el emisor reenvía **solo lo que falta**. Una copia repetida se reconoce por su ID y no se guarda dos veces.  
 * **Reintentos** con esperas que crecen exponencialmente, con un tope y algo de aleatoriedad. El tope es menor para los críticos.
 
+#### **Contrato de la cabecera (decidido el 7 de noviembre de 2026)**
+
+La cabecera se implementa igual en Python (`src/sard/protocol/header.py`) y en JavaScript (`citizen/protocol/header.js`). Los vectores de `tests/fixtures/header_vectors.json` verifican que ambos producen los mismos bytes. Cambiar cualquier punto de esta lista rompe la compatibilidad entre el celular y los nodos, así que solo se cambia por decisión explícita del equipo.
+
+| Bytes | Campo | Codificación |
+| :---- | :---- | :---- |
+| 0 | Versión \+ tipo | 4 bits altos: versión (hoy 1). 4 bits bajos: tipo de mensaje |
+| 1–4 | Dispositivo | Entero sin signo de 32 bits |
+| 5–8 | Consecutivo | Entero sin signo de 32 bits |
+| 9–12 | Hora del dispositivo | Segundos desde el 1 de enero de 2026, 00:00 UTC (entero sin signo de 32 bits) |
+| 13 | Tipo de incidente | 0 atrapados · 1 colapso · 2 incendio · 3 fuga de gas · 4 herido · 5 vía bloqueada · 6 otro |
+| 14 | Personas | 0 una · 1 de 2 a 5 · 2 de 6 a 20 · 3 más de 20 · 4 no sé |
+| 15 | Banderas | Bits 0–7 como en la tabla anterior |
+| 16–20 | Ubicación | Con el bit 6 (GPS) encendido: geohash de 7 caracteres en 35 bits, seguido de 5 bits en cero. Con el bit 6 apagado: código de barrio (entero sin signo de 40 bits) |
+
+* **Orden de bytes:** big-endian (primero el byte más significativo), el estándar en redes.
+* **Tipos de mensaje:** 0 reporte · 1 SOS escombros · 2 fragmento · 3 ACK · 4 "Estoy a salvo" · 5 lote de eventos · 6 pregunta · 7 respuesta · 8 fragmento de foto.
+* **Se rechaza** una cabecera con versión desconocida, con menos de 21 B, con valores fuera de las listas, con GPS sin geohash, con geohash sin GPS o con bits de relleno distintos de cero.
+* **Texto opcional:** va después de los 21 B. Su compresión con diccionario, los fragmentos y el ACK se definen aparte.
+
 ### **5.3. Perfiles del canal simulado**
 
 | Perfil | Trama | Comportamiento | Representa |
