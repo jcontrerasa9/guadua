@@ -431,7 +431,7 @@ guadua/
 
 * **CI (GitHub Actions):** `ruff`, `pytest` y las pruebas de JS (`node --test`) en cada push y pull request. Las pruebas usan un LLM simulado y un clasificador entrenado con datos fijos, así que no dependen de ninguna API.  
 * **Contrato compartido del protocolo:** pruebas que verifican que el codificador en JS y el de Python producen los mismos bytes.  
-* **Ramas:** ramas cortas por funcionalidad, merge a `main` con el CI en verde y rama `dev` desde la primera versión de punta a punta.  
+* **Ramas:** `main` guarda siempre una versión demostrable y `dev` integra el trabajo diario. Cada tarea va en una rama corta creada desde `dev` (con el ID del plan en el nombre, p. ej. `n4-sqlite-store`) y vuelve a `dev` por pull request con el CI en verde. `dev` se fusiona en `main` cuando corre de punta a punta.  
 * **Colaboración:** el reparto de tareas vive en `docs/plan.md`; no se usa CODEOWNERS porque el equipo es de dos personas. La plantilla de pull request solo pide lo que el CI no verifica (contratos acordados y plan actualizado), y `pre-commit` revisa formato y bloquea `.env` antes de cada commit.  
 * **Asistentes de IA:** cada integrante puede usar el asistente que prefiera; todos siguen `AGENTS.md`. La responsabilidad del código y de las decisiones es de las personas del equipo.  
 * **Secretos:** la API key del LLM va en `.env`, ignorado por git. Sin ella, los agentes usan Ollama. Sin Ollama, el sistema sigue funcionando con reglas, clasificador y plantillas, y los casos dudosos van a revisión humana.  
@@ -497,16 +497,16 @@ Los valores reales, los errores observados y las limitaciones van al documento d
 | **2\. Diferenciadores** | Modo escombros \+ baliza acústica; "Estoy a salvo" y registro de personas; consideración del riesgo para rescatistas en triaje y coordinación; confianza y rumores a fondo con correlación agéntica; preguntas de seguimiento; vigía; radio VHF; RAG y recursos; barra de simulación para el jurado |
 | **3\. Extras** | Miniatura de foto; variante del clasificador con embeddings; detección por agitar el teléfono; mula de datos entre particiones; portal cautivo simulado; varias entidades con índices propios |
 
-**Reparto propuesto (versión v3.0, pendiente de ajustar; ver decisiones abiertas):**
+**Reparto (detalle por tarea en `docs/plan.md`):**
 
-* **Integrante 1 (backend):** registro de eventos, nodo dueño y gossip; protocolo binario, diccionario, canal y cola; reglas, clasificador, ciclo de agentes en LangGraph y script de métricas.  
-* **Integrante 2 (interfaces y campo):** PWA de 3 bloques con modo escombros, baliza, "Estoy a salvo", "¿lo estás viendo?" y foto; tablero con tarjetas, advertencia de riesgo, desplegable de evidencia, cambio de nodo y mapa offline; radio con faster-whisper; `adb reverse` y `mkcert` en el celular.
+* **Jacobo (backend):** registro de eventos, nodo dueño y gossip; protocolo binario, diccionario, canal y cola; reglas, clasificador, agente de triaje (ciclo en LangGraph) y script de métricas.  
+* **Oscar (interfaces, campo y coordinación):** PWA de 3 bloques con modo escombros, baliza, "Estoy a salvo", "¿lo estás viendo?" y foto; codificador binario en JS; tablero con tarjetas, advertencia de riesgo, desplegable de evidencia, cambio de nodo, mapa offline, registro de personas y barra de simulación; agentes de correlación y coordinación; radio con faster-whisper; `adb reverse` y `mkcert` en el celular.
 
 ---
 
 ## **18\. Decisiones abiertas**
 
-* \[ \] **Equilibrar el reparto y asignar lo que falta:** agentes de correlación, coordinación y vigía; RAG, matriz y recursos; codificador binario en JS. El Integrante 1 concentra demasiado.  
+* \[x\] **Equilibrar el reparto:** correlación, coordinación, codificador JS, registro de personas y barra de simulación pasan a Oscar. **Queda por asignar** (al terminar el nivel 1): agente de recepción, vigía, RAG y recursos.  
 * \[ \] **Tope para reportes de segunda mano** en la fórmula de confianza, si las pruebas muestran que muchos rumores redactados distinto suben demasiado la confianza.  
 * \[ \] **Documentos oficiales** (EMRE, matriz de responsabilidades, PMGRD y otros): solicitados al organizador. Al recibirlos, decidir qué entra al RAG y qué entidades son reales.  
 * \[ \] **Modelo de Gemini** disponible en la capa gratuita al momento de construir.  
