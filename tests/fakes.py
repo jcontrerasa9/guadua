@@ -7,9 +7,9 @@ import hashlib
 from collections import deque
 from collections.abc import Sequence
 
-from sard.knowledge.retriever import Passage
-from sard.providers.llm import LLMReply, LLMUnavailable, Message, ToolSpec
-from sard.store.events import Event, EventId, VersionVector
+from guadua.knowledge.retriever import Passage
+from guadua.providers.llm import LLMReply, LLMUnavailable, Message, ToolSpec
+from guadua.store.events import Event, EventId, VersionVector
 
 
 class InMemoryEventStore:

@@ -2,12 +2,12 @@
 
 import os
 
-from sard import __version__
+from guadua import __version__
 
 
 def main() -> None:
     node_id = os.environ.get("SARD_NODE_ID", "A")
-    print(f"sard {__version__} · nodo {node_id} (sin funcionalidades todavía)")
+    print(f"guadua {__version__} · nodo {node_id} (sin funcionalidades todavía)")
 
 
 if __name__ == "__main__":

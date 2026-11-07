@@ -184,7 +184,7 @@ Todo es **Python 3.13**, salvo la PWA ciudadana y el tablero, que son **HTML5 \+
 
 #### **Contrato de la cabecera (decidido el 7 de noviembre de 2026)**
 
-La cabecera se implementa igual en Python (`src/sard/protocol/header.py`) y en JavaScript (`citizen/protocol/header.js`). Los vectores de `tests/fixtures/header_vectors.json` verifican que ambos producen los mismos bytes. Cambiar cualquier punto de esta lista rompe la compatibilidad entre el celular y los nodos, así que solo se cambia por decisión explícita del equipo.
+La cabecera se implementa igual en Python (`src/guadua/protocol/header.py`) y en JavaScript (`citizen/protocol/header.js`). Los vectores de `tests/fixtures/header_vectors.json` verifican que ambos producen los mismos bytes. Cambiar cualquier punto de esta lista rompe la compatibilidad entre el celular y los nodos, así que solo se cambia por decisión explícita del equipo.
 
 | Bytes | Campo | Codificación |
 | :---- | :---- | :---- |
@@ -407,8 +407,9 @@ El Agente 6 arma una ficha para que decida una persona:
 
 ```
 guadua/
-├── citizen/          # PWA ciudadana, baliza acústica, miniatura de foto
-├── src/sard/
+├── .github/          # CI (GitHub Actions) y plantilla de pull request
+├── citizen/          # PWA ciudadana, baliza acústica, miniatura de foto; protocol/ con el códec JS
+├── src/guadua/
 │   ├── agents/       # recepción, triaje, correlación, coordinación, vigía (pizarra + LangGraph)
 │   ├── services/     # comunicación y resiliencia (sin LLM), transcripción de radio
 │   ├── classifier/   # reglas, clasificador, calibración y evaluación
@@ -419,16 +420,20 @@ guadua/
 │   ├── providers/    # interfaces + implementaciones (LLM, embeddings, transporte)
 │   └── dashboard/    # tablero con cambio de nodo y mapa offline
 ├── data/             # datos sintéticos, clips VHF, diccionario, barrios, mapas, documentos
-├── tests/            # pruebas unitarias y banco de fallos
+├── tests/            # pruebas de Python, js/ (pruebas de JS), fixtures/ (datos compartidos) y banco de fallos
 ├── docs/             # diseño, plan, fichas, protocolo, resultados
+├── AGENTS.md         # reglas para los asistentes de IA (CLAUDE.md lo importa)
+├── Dockerfile
 ├── docker-compose.yml
 ├── pyproject.toml
-└── README.md         # instalación y reproducción en pocos pasos
+└── README.md         # instalación, reproducción y guía de carpetas
 ```
 
-* **CI (GitHub Actions):** `ruff` y `pytest` en cada push. Las pruebas usan un LLM simulado y un clasificador entrenado con datos fijos, así que no dependen de ninguna API.  
+* **CI (GitHub Actions):** `ruff`, `pytest` y las pruebas de JS (`node --test`) en cada push y pull request. Las pruebas usan un LLM simulado y un clasificador entrenado con datos fijos, así que no dependen de ninguna API.  
 * **Contrato compartido del protocolo:** pruebas que verifican que el codificador en JS y el de Python producen los mismos bytes.  
 * **Ramas:** ramas cortas por funcionalidad, merge a `main` con el CI en verde y rama `dev` desde la primera versión de punta a punta.  
+* **Colaboración:** el reparto de tareas vive en `docs/plan.md`; no se usa CODEOWNERS porque el equipo es de dos personas. La plantilla de pull request solo pide lo que el CI no verifica (contratos acordados y plan actualizado), y `pre-commit` revisa formato y bloquea `.env` antes de cada commit.  
+* **Asistentes de IA:** cada integrante puede usar el asistente que prefiera; todos siguen `AGENTS.md`. La responsabilidad del código y de las decisiones es de las personas del equipo.  
 * **Secretos:** la API key del LLM va en `.env`, ignorado por git. Sin ella, los agentes usan Ollama. Sin Ollama, el sistema sigue funcionando con reglas, clasificador y plantillas, y los casos dudosos van a revisión humana.  
 * **Entrega:** repositorio accesible al jurado, con dependencias fijadas y un script para descargar los modelos (clasificador, embeddings, Whisper).
 

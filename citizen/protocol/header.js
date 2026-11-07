@@ -1,5 +1,5 @@
 // Cabecera binaria de 21 B. CONTRATO: ver docs/diseno.md §5.2 (Contrato de la cabecera).
-// Debe producir los mismos bytes que src/sard/protocol/header.py
+// Debe producir los mismos bytes que src/guadua/protocol/header.py
 // (tests/fixtures/header_vectors.json).
 
 export const HEADER_SIZE = 21;

@@ -1,7 +1,8 @@
-# Esqueleto: tres nodos con el mismo código. El comando real se define en la tarea de nodos.
+# Levanta un esqueleto: tres nodos con el mismo código. El comando real se define en la tarea de nodos.
+
 x-node: &node
   build: .
-  command: ["python", "-m", "sard"]
+  command: ["python", "-m", "guadua"]
 
 services:
   node-a:

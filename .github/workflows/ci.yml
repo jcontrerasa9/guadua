@@ -1,3 +1,6 @@
+# En cada push y pull request se corren ruff (linter), pytest (pruebas de Python)
+# y las pruebas de JS con node --test (incluido en Node, sin npm).
+
 name: CI
 
 on:

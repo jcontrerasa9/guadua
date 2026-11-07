@@ -1,3 +1,8 @@
+# Esta configuración implementa tres capas de protección:
+# 1. Calidad del código: Ruff mantiene el código Python limpio y consistente.
+# 2. Integridad del proyecto: los hooks generales verifican que los archivos tengan formatos válidos.
+# 3. Seguridad: se evita subir accidentalmente archivos .env que puedan contener credenciales.
+
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.17.4

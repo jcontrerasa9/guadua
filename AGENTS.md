@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Reglas para los agentes de código (Claude Code y Antigravity) en este repo. Diseño: `docs/diseno.md`. Tareas: `docs/plan.md`.
+Reglas que deben seguir los asistentes de IA que usamos en este repo (Claude Code, Antigravity u otros). Los responsables del código son las personas del equipo; los asistentes son herramientas. Diseño: `docs/diseno.md`. Tareas: `docs/plan.md`.
 
 ## Comandos
 
@@ -14,10 +14,7 @@ node --test "tests/js/*.test.mjs"       # pruebas del codificador JS
 
 ## Estructura
 
-- `citizen/` PWA ciudadana (HTML + JS sin frameworks)
-- `src/sard/` `agents/`, `services/`, `classifier/`, `protocol/`, `channel/`, `store/`, `knowledge/`, `providers/`, `dashboard/`
-- `tests/` pruebas; `tests/fixtures/` datos compartidos entre Python y JS
-- `data/` datos sintéticos, diccionario, barrios, mapas; `docs/` diseño, plan, fichas
+Guía completa de carpetas en `README.md` (sección "Guía de carpetas"). Resumen: `citizen/` PWA, `src/guadua/` backend, `src/guadua/dashboard/` tablero, `tests/` pruebas (`js/` y `fixtures/`), `data/` datos, `docs/` diseño y plan.
 
 ## Reglas que no se pueden romper
 
@@ -26,6 +23,6 @@ node --test "tests/js/*.test.mjs"       # pruebas del codificador JS
 3. **Todo funciona sin Internet ni API key.** Las pruebas usan LLM simulado; sin LLM, el caso va a revisión humana.
 4. **Cada componente va detrás de una interfaz** (`Retriever`, proveedor de LLM, transporte, almacenamiento). Nada depende de una implementación concreta.
 5. **Toda funcionalidad lleva pruebas** y deja `ruff` y `pytest` en verde.
-6. **No se cambian contratos sin pedirlo explícitamente:** `src/sard/protocol/header.py`, `citizen/protocol/header.js`, `src/sard/store/events.py`, `src/sard/classifier/urgency.py`, las interfaces en `providers/`, `knowledge/` y `store/`, y todo `tests/fixtures/`.
+6. **No se cambian contratos sin pedirlo explícitamente:** `src/guadua/protocol/header.py`, `citizen/protocol/header.js`, `src/guadua/store/events.py`, `src/guadua/classifier/urgency.py`, las interfaces en `providers/`, `knowledge/` y `store/`, y todo `tests/fixtures/`.
 7. **Solo se trabaja en las tareas asignadas** en `docs/plan.md`; al terminar, se marca la tarea ahí.
 8. **Nunca se lee ni se sube `.env`.** Usa `.env.example` como referencia.

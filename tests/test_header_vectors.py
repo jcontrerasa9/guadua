@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from sard.protocol.header import HEADER_SIZE, Header, HeaderError, decode, encode
+from guadua.protocol.header import HEADER_SIZE, Header, HeaderError, decode, encode
 
 VECTORS = json.loads((Path(__file__).parent / "fixtures" / "header_vectors.json").read_text())
 

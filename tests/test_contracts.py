@@ -3,11 +3,11 @@ import asyncio
 import pytest
 from pydantic import ValidationError
 
-from sard.classifier.urgency import Urgency, apply_floor
-from sard.knowledge.retriever import Passage, Retriever
-from sard.providers.llm import LLMProvider, LLMReply, LLMUnavailable, Message
-from sard.providers.transport import Transport
-from sard.store.events import Event, EventCategory, EventStore
+from guadua.classifier.urgency import Urgency, apply_floor
+from guadua.knowledge.retriever import Passage, Retriever
+from guadua.providers.llm import LLMProvider, LLMReply, LLMUnavailable, Message
+from guadua.providers.transport import Transport
+from guadua.store.events import Event, EventCategory, EventStore
 from tests.fakes import (
     InMemoryEventStore,
     LoopbackTransport,
