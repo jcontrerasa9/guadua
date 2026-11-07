@@ -18,7 +18,9 @@ repos:
       - id: end-of-file-fixer
       - id: trailing-whitespace
         exclude: ^docs/diseno\.md$
+      # Límite de 500 KB, excepto los PDF oficiales que alimentan el RAG (data/fuentes/).
       - id: check-added-large-files
+        exclude: ^data/fuentes/.*\.pdf$
       - id: detect-private-key
   - repo: local
     hooks:
