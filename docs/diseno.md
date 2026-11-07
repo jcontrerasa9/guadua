@@ -418,10 +418,11 @@ guadua/
 │   ├── store/        # registro de eventos, vectores de versión, gossip
 │   ├── knowledge/    # matriz EMRE, recursos, RAG híbrido
 │   ├── providers/    # interfaces + implementaciones (LLM, embeddings, transporte)
+│   ├── node/         # aplicación FastAPI del nodo y contrato de su API HTTP
 │   └── dashboard/    # tablero con cambio de nodo y mapa offline
 ├── data/             # datos sintéticos, clips VHF, diccionario, barrios, mapas, documentos
 ├── tests/            # pruebas de Python, js/ (pruebas de JS), fixtures/ (datos compartidos) y banco de fallos
-├── docs/             # diseño, plan, fichas, protocolo, resultados
+├── docs/             # diseño, plan, contratos, fichas, protocolo, resultados
 ├── AGENTS.md         # reglas para los asistentes de IA (CLAUDE.md lo importa)
 ├── Dockerfile
 ├── docker-compose.yml
