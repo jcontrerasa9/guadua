@@ -24,7 +24,7 @@
 14. Repositorio, CI y secretos  
 15. Ejecución, pruebas y métricas objetivo  
 16. Ruta a producción  
-17. Niveles de prioridad, calendario y reparto  
+17. Niveles de prioridad y reparto  
 18. Decisiones abiertas
 
 ---
@@ -126,11 +126,11 @@ Cada tarjeta de la lista corta muestra cuatro cosas a primera vista: prioridad y
 
 ## **4\. Stack tecnológico**
 
-Todo es **Python 3.11+**, salvo la PWA ciudadana y el tablero, que son **HTML5 \+ JavaScript sin frameworks pesados** servidos por los nodos.
+Todo es **Python 3.13**, salvo la PWA ciudadana y el tablero, que son **HTML5 \+ JavaScript sin frameworks pesados** servidos por los nodos.
 
 | Capa | Prototipo | Para qué | Por qué |
 | :---- | :---- | :---- | :---- |
-| Lenguaje | Python 3.11+, `venv` \+ `pip`, dependencias fijadas | Nodos, agentes, clasificador, canal, radio, pruebas | Un solo lenguaje que ambos dominan |
+| Lenguaje | Python 3.13, `venv` \+ `pip`, dependencias fijadas | Nodos, agentes, clasificador, canal, radio, pruebas | Un solo lenguaje que ambos dominan |
 | Captura ciudadana | PWA en HTML \+ JS, IndexedDB, Service Worker, Web Audio API, `<canvas>` | Formulario offline, baliza acústica, miniatura de foto | Pocos KB, poca batería, sin librerías externas |
 | Nodo | FastAPI \+ SQLite (modo WAL) | Recibe reportes, guarda eventos, ejecuta agentes, sirve las vistas | Un archivo local por nodo, sin servidor central |
 | Formato del mensaje | Cabecera binaria de 21 B (`struct` / `DataView`) \+ texto con diccionario (`zlib zdict` / `pako`) | Reporte mínimo y compresión del texto | Cabe en un SMS |
@@ -386,7 +386,7 @@ El Agente 6 arma una ficha para que decida una persona:
 ## **14\. Repositorio, CI y secretos**
 
 ```
-sard-cortex/
+guadua/
 ├── citizen/          # PWA ciudadana, baliza acústica, miniatura de foto
 ├── src/sard/
 │   ├── agents/       # recepción, triaje, correlación, coordinación, vigía (pizarra + LangGraph)
@@ -462,7 +462,7 @@ Los valores reales, los errores observados y las limitaciones van al documento d
 
 ---
 
-## **17\. Niveles de prioridad, calendario y reparto**
+## **17\. Niveles de prioridad y reparto**
 
 > **Regla:** no se empieza un nivel mientras el anterior no corra de punta a punta.
 
@@ -471,15 +471,6 @@ Los valores reales, los errores observados y las limitaciones van al documento d
 | **1\. Núcleo** | PWA con los 3 bloques y cola local; binario de 21 B con ACK; canal con perfiles; nodos con eventos y gossip (`A ↔ B ↔ C`); reglas \+ clasificador; correlación básica; agente de triaje con ciclo en la zona gris; agente de coordinación con matriz y aprobación humana; tablero con tarjetas, cambio de nodo y mapa offline; caída y recuperación de un nodo; banco de fallos con métricas |
 | **2\. Diferenciadores** | Modo escombros \+ baliza acústica; "Estoy a salvo" y registro de personas; consideración del riesgo para rescatistas en triaje y coordinación; confianza y rumores a fondo con correlación agéntica; preguntas de seguimiento; vigía; radio VHF; RAG y recursos; barra de simulación para el jurado |
 | **3\. Extras** | Miniatura de foto; variante del clasificador con embeddings; detección por agitar el teléfono; mula de datos entre particiones; portal cautivo simulado; varias entidades con índices propios |
-
-**Calendario:**
-
-| Cuándo | Meta |
-| :---- | :---- |
-| Sábado | Contratos (formato binario, esquema de eventos, interfaces) en `main`; protocolo, canal, nodos y gossip; reglas \+ clasificador; PWA y tablero mínimos. **Meta: los 8 pasos de punta a punta el sábado en la noche** |
-| Domingo | Nivel 2: escombros y baliza, "Estoy a salvo", riesgo para rescatistas, Reto 4, agentes en la zona gris con Ollama sin Internet, radio, RAG |
-| Lunes | **Congelar funcionalidades a mediodía.** Banco de fallos, métricas, documentos (arquitectura, fichas, protocolo, resultados) y pitch |
-| Martes temprano | Ensayo con la red desconectada |
 
 **Reparto propuesto (versión v3.0, pendiente de ajustar; ver decisiones abiertas):**
 

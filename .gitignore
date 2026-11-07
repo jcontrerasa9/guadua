@@ -1,0 +1,29 @@
+# Secretos
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+
+# Datos generados y modelos descargados
+*.sqlite
+*.sqlite-*
+*.db
+data/models/
+
+# Node
+node_modules/
+
+# Editores y sistema
+.vscode/
+.idea/
+.DS_Store

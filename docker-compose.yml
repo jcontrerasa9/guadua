@@ -1,0 +1,15 @@
+# Esqueleto: tres nodos con el mismo código. El comando real se define en la tarea de nodos.
+x-node: &node
+  build: .
+  command: ["python", "-m", "sard"]
+
+services:
+  node-a:
+    <<: *node
+    environment: { SARD_NODE_ID: A, SARD_PEERS: B }
+  node-b:
+    <<: *node
+    environment: { SARD_NODE_ID: B, SARD_PEERS: "A,C" }
+  node-c:
+    <<: *node
+    environment: { SARD_NODE_ID: C, SARD_PEERS: B }
