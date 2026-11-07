@@ -1,0 +1,358 @@
+{
+  "description": "Un ejemplo válido por tipo de evento y casos que deben rechazarse (docs/contratos.md). CONTRATO.",
+  "valid": [
+    {
+      "origin_node": "A",
+      "seq": 1,
+      "category": "hecho",
+      "type": "reporte",
+      "payload": {
+        "report_id": "a1b2c3d4-7",
+        "msg_type": 0,
+        "incident": 1,
+        "people": 1,
+        "flags": 97,
+        "geohash": "d2fkcdc",
+        "device_time": 27345600,
+        "text": "colapso casa 3 atrapados huele a gas",
+        "channel": "wifi",
+        "raw_hex": "10a1b2c3d40000000701a142c0010161609d25b160"
+      },
+      "refs": [],
+      "received_at": 1794573600.0
+    },
+    {
+      "origin_node": "A",
+      "seq": 2,
+      "category": "derivado",
+      "type": "reporte_normalizado",
+      "payload": {
+        "report_id": "a1b2c3d4-7",
+        "incident": 1,
+        "people": 1,
+        "location": {
+          "geohash": "d2fkcdc",
+          "radius_m": 150,
+          "label": "El Cable"
+        },
+        "direct_observation": true,
+        "vital_signs": [
+          "atrapados"
+        ],
+        "risk_signals": [
+          "gas"
+        ],
+        "text": "colapso casa 3 atrapados huele a gas",
+        "unknown_fields": []
+      },
+      "refs": [
+        [
+          "A",
+          1
+        ]
+      ],
+      "received_at": 1794573600.0
+    },
+    {
+      "origin_node": "A",
+      "seq": 3,
+      "category": "derivado",
+      "type": "urgencia_estimada",
+      "payload": {
+        "report_id": "a1b2c3d4-7",
+        "level": 4,
+        "floor": 4,
+        "source": "reglas",
+        "probabilities": {
+          "critica": 0.81,
+          "alta": 0.15,
+          "media": 0.03,
+          "baja": 0.01
+        },
+        "rules": [
+          "atrapados → crítica"
+        ],
+        "risk_signals": [
+          "gas"
+        ],
+        "verify_now": false,
+        "ambiguous": false,
+        "steps": []
+      },
+      "refs": [
+        [
+          "A",
+          2
+        ]
+      ],
+      "received_at": 1794573600.0
+    },
+    {
+      "origin_node": "A",
+      "seq": 4,
+      "category": "derivado",
+      "type": "incidente_agrupado",
+      "payload": {
+        "incident_id": "a1b2c3d4-7",
+        "report_ids": [
+          "a1b2c3d4-7"
+        ],
+        "link": "nuevo",
+        "confidence": 0.6,
+        "rumor": false,
+        "contradictions": []
+      },
+      "refs": [
+        [
+          "A",
+          1
+        ]
+      ],
+      "received_at": 1794573600.0
+    },
+    {
+      "origin_node": "B",
+      "seq": 31,
+      "category": "derivado",
+      "type": "ficha",
+      "payload": {
+        "incident_id": "a1b2c3d4-7",
+        "responsible": "Bomberos Manizales",
+        "units_available": 2,
+        "risk_warning": "Fuga de gas reportada: HazMat antes que ambulancia estándar.",
+        "message": "Colapso en El Cable, 3 atrapados, precaución por fuga de gas.",
+        "citations": [
+          {
+            "document": "EMRE Manizales",
+            "section": "4.2",
+            "version": "ejemplo",
+            "is_example": true
+          }
+        ],
+        "from_template": true
+      },
+      "refs": [
+        [
+          "A",
+          4
+        ]
+      ],
+      "received_at": 1794573600.0
+    },
+    {
+      "origin_node": "A",
+      "seq": 58,
+      "category": "decision",
+      "type": "decision",
+      "payload": {
+        "action": "aprobar",
+        "operator": "comandante-1"
+      },
+      "refs": [
+        [
+          "B",
+          31
+        ]
+      ],
+      "received_at": 1794573600.0
+    },
+    {
+      "origin_node": "C",
+      "seq": 5,
+      "category": "hecho",
+      "type": "a_salvo",
+      "payload": {
+        "report_id": "00000063-3",
+        "name": "Ana",
+        "barrio": 12
+      },
+      "refs": [],
+      "received_at": 1794573600.0
+    },
+    {
+      "origin_node": "C",
+      "seq": 6,
+      "category": "hecho",
+      "type": "transcripcion_radio",
+      "payload": {
+        "audio_id": "clip-03",
+        "text": "estamos en el sitio, dos atrapados",
+        "direct": true
+      },
+      "refs": [],
+      "received_at": 1794573600.0
+    },
+    {
+      "origin_node": "A",
+      "seq": 7,
+      "category": "hecho",
+      "type": "respuesta_seguimiento",
+      "payload": {
+        "question_id": "q-1",
+        "answer": true
+      },
+      "refs": [],
+      "received_at": 1794573600.0
+    },
+    {
+      "origin_node": "B",
+      "seq": 9,
+      "category": "hecho",
+      "type": "confirmacion_campo",
+      "payload": {
+        "incident_id": "a1b2c3d4-7",
+        "confirmed": true,
+        "note": null
+      },
+      "refs": [],
+      "received_at": 1794573600.0
+    }
+  ],
+  "invalid": [
+    {
+      "name": "tipo_desconocido",
+      "event": {
+        "origin_node": "A",
+        "seq": 1,
+        "category": "hecho",
+        "type": "chisme",
+        "payload": {},
+        "refs": [],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "categoria_incorrecta",
+      "event": {
+        "origin_node": "A",
+        "seq": 1,
+        "category": "hecho",
+        "type": "urgencia_estimada",
+        "payload": {
+          "report_id": "a1b2c3d4-7",
+          "level": 4,
+          "floor": 4,
+          "source": "reglas"
+        },
+        "refs": [],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "urgencia_bajo_el_piso",
+      "event": {
+        "origin_node": "A",
+        "seq": 3,
+        "category": "derivado",
+        "type": "urgencia_estimada",
+        "payload": {
+          "report_id": "a1b2c3d4-7",
+          "level": 2,
+          "floor": 4,
+          "source": "agente"
+        },
+        "refs": [],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "decision_sin_ficha_en_refs",
+      "event": {
+        "origin_node": "A",
+        "seq": 58,
+        "category": "decision",
+        "type": "decision",
+        "payload": {
+          "action": "aprobar",
+          "operator": "comandante-1"
+        },
+        "refs": [],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "editar_sin_mensaje",
+      "event": {
+        "origin_node": "A",
+        "seq": 58,
+        "category": "decision",
+        "type": "decision",
+        "payload": {
+          "action": "editar",
+          "operator": "comandante-1"
+        },
+        "refs": [
+          [
+            "B",
+            31
+          ]
+        ],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "report_id_mal_formado",
+      "event": {
+        "origin_node": "A",
+        "seq": 1,
+        "category": "hecho",
+        "type": "reporte",
+        "payload": {
+          "report_id": "7",
+          "msg_type": 0,
+          "incident": 1,
+          "people": 1,
+          "flags": 97,
+          "geohash": "d2fkcdc",
+          "device_time": 27345600,
+          "text": "colapso casa 3 atrapados huele a gas",
+          "channel": "wifi",
+          "raw_hex": "10a1b2c3d40000000701a142c0010161609d25b160"
+        },
+        "refs": [],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "campo_desconocido_en_payload",
+      "event": {
+        "origin_node": "A",
+        "seq": 1,
+        "category": "hecho",
+        "type": "reporte",
+        "payload": {
+          "report_id": "a1b2c3d4-7",
+          "msg_type": 0,
+          "incident": 1,
+          "people": 1,
+          "flags": 97,
+          "geohash": "d2fkcdc",
+          "device_time": 27345600,
+          "text": "colapso casa 3 atrapados huele a gas",
+          "channel": "wifi",
+          "raw_hex": "10a1b2c3d40000000701a142c0010161609d25b160",
+          "prioridad": "alta"
+        },
+        "refs": [],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "grupo_sin_reportes",
+      "event": {
+        "origin_node": "A",
+        "seq": 4,
+        "category": "derivado",
+        "type": "incidente_agrupado",
+        "payload": {
+          "incident_id": "x",
+          "report_ids": [],
+          "link": "nuevo",
+          "confidence": 0.5
+        },
+        "refs": [],
+        "received_at": 1794573600.0
+      }
+    }
+  ]
+}

@@ -28,7 +28,7 @@ docker compose up
 
 ## Guía de carpetas
 
-¿Dónde va cada cosa? Quién hace cada tarea está en [docs/plan.md](docs/plan.md). Los archivos marcados como **contrato** no se cambian sin acordarlo entre los dos.
+¿Dónde va cada cosa? Quién hace cada tarea está en [docs/plan.md](docs/plan.md). Los archivos marcados como **contrato** no se cambian sin acordarlo entre los dos; la lista y los formatos están en [docs/contratos.md](docs/contratos.md).
 
 ```
 guadua/
@@ -37,19 +37,20 @@ guadua/
 ├── src/guadua/           Backend en Python: lo que corre en cada nodo
 │   ├── protocol/         Formato binario: cabecera (header.py, contrato), diccionario, fragmentos, ACK
 │   ├── channel/          Canal simulado (Wi-Fi, radio/LoRa, SMS) y proxy que inyecta fallos
-│   ├── store/            Registro de eventos (events.py, contrato), SQLite y gossip entre nodos
+│   ├── store/            Eventos (events.py y event_types.py, contrato), SQLite y gossip entre nodos
 │   ├── classifier/       Urgencia (urgency.py, contrato: el piso nunca baja), reglas y clasificador
 │   ├── agents/           Agentes con LLM: recepción, triaje, correlación, coordinación, vigía
 │   ├── services/         Servicios sin LLM: cola de comunicación, resiliencia, transcripción de radio
 │   ├── knowledge/        Matriz EMRE, recursos y RAG (retriever.py, contrato)
 │   ├── providers/        Interfaces de LLM y transporte (contrato) y sus implementaciones
+│   ├── node/             Nodo FastAPI; api.py: rutas y formatos que usan la PWA y el tablero (contrato)
 │   └── dashboard/        Tablero del comandante (HTML + JS servido por los nodos)
 ├── tests/                Pruebas de Python (pytest)
 │   ├── js/               Pruebas de JS (node --test)
 │   ├── fixtures/         Ejemplos compartidos por Python y JS (contrato)
 │   └── fakes.py          Versiones falsas de las interfaces para probar sin red
 ├── data/                 Datos sintéticos, diccionario, barrios, mapas, clips de radio, documentos
-├── docs/                 diseno.md (qué y por qué), plan.md (quién y cuándo), fichas/ de los agentes
+├── docs/                 diseno.md (qué y por qué), plan.md (quién y qué), contratos.md, fichas/
 ├── .github/              CI y plantilla de pull request
 ├── AGENTS.md             Reglas para los asistentes de IA (CLAUDE.md lo importa)
 ├── pyproject.toml        Dependencias y configuración de ruff y pytest

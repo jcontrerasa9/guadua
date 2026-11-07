@@ -21,6 +21,7 @@ Un frente es un grupo de tareas que toca sus propias carpetas. Los frentes no co
 | D · Correlación y coordinación | Oscar | `agents/correlacion*`, `agents/coordinacion*`, `knowledge/` | N9, N10 |
 
 - **Desde el inicio** avanzan A y B (Jacobo) y C o D (Oscar). N9 y N10 no esperan a N4: se desarrollan contra `InMemoryEventStore` de `tests/fakes.py`, que cumple el mismo contrato.
+- **N13 y N14 no esperan a N6:** usan `tests/fixtures/api_examples.json` como respuestas simuladas del nodo; al terminar N6 se prueban contra el nodo real.
 - **Dentro de A**, N1, N2 y N3 son independientes entre sí. N15 (banco de fallos) cierra el nivel 1.
 - **En `agents/`** trabajan los dos, pero cada agente en su propio archivo.
 
@@ -29,20 +30,21 @@ Un frente es un grupo de tareas que toca sus propias carpetas. Los frentes no co
 | ID | Tarea | Responsable | Depende de | Terminado cuando | Estado |
 | :---- | :---- | :---- | :---- | :---- | :---- |
 | N0 | Contratos: cabecera 21 B (Python + JS), eventos, interfaces, vectores | Jacobo | — | Vectores pasan en pytest y `node --test` | ✅ |
+| N0b | Contratos: API HTTP del nodo y catálogo de tipos de evento (`docs/contratos.md`) | Jacobo | N0 | Ejemplos de `api_examples.json` y `event_examples.json` pasan en pytest | ✅ |
 | N1 | Texto con diccionario (`zlib zdict`) y diccionario de Manizales en `data/` | Jacobo | N0 | Vectores de texto en `tests/fixtures/`; ahorro medido frente a no comprimir | ☐ |
 | N2 | Fragmentos y ACK con mapa de bits | Jacobo | N0 | Una foto de 3 KB se reconstruye con 60 % de pérdida reenviando solo lo que falta | ☐ |
 | N3 | Canal simulado con perfiles (Wi-Fi, radio/LoRa, SMS) y proxy de fallos | Jacobo | N0 | Implementa `Transport`; con semilla fija, la pérdida medida coincide con la configurada (±5 %) | ☐ |
 | N4 | Registro de eventos en SQLite (WAL) | Jacobo | N0 | Se agrega a `STORES` en `tests/test_contracts.py` y pasa todas las pruebas de contrato | ☐ |
 | N5 | Gossip con vectores de versión, topología `A ↔ B ↔ C` | Jacobo | N3, N4 | Lo que entra por A llega a C; los 3 hashes coinciden tras 60 % de pérdida | ☐ |
-| N6 | Nodo FastAPI: recibe reportes, guarda eventos, sirve las vistas; `docker compose up` | Jacobo | N4 | `docker compose up` levanta 3 nodos sin Internet ni `.env` | ☐ |
+| N6 | Nodo FastAPI: implementa las rutas de nivel 1 de `docs/contratos.md`, valida eventos con `validate_event`, sirve las vistas | Jacobo | N0b, N4 | `docker compose up` levanta 3 nodos sin Internet ni `.env`; cada ruta responde con el formato de `api_examples.json` | ☐ |
 | N7 | Reglas de prioridad mínima + clasificador calibrado + datos sintéticos | Jacobo | N0 | Reglas < 1 ms y clasificador < 2 ms por reporte; sensibilidad en críticos reportada con conjunto de prueba separado | ☐ |
 | N8 | Agente de triaje con ciclo en la zona gris (LangGraph) | Jacobo | N7 | Con `NullLLM` el caso queda "ambiguo, revisar"; nunca baja el piso (`apply_floor`); máximo 6 pasos | ☐ |
-| N9 | Correlación básica (agrupación contra el centro del grupo) | Oscar | N0 | Duplicados vinculados sin efecto cadena en datos sintéticos | ☐ |
-| N10 | Agente de coordinación con matriz EMRE y aprobación humana | Oscar | N0 | Ficha queda pendiente hasta Aprobar / Editar / Rechazar; sin LLM usa plantilla | ☐ |
+| N9 | Correlación básica (agrupación contra el centro del grupo) | Oscar | N0b | Publica `incidente_agrupado` válido; duplicados vinculados sin efecto cadena en datos sintéticos | ☐ |
+| N10 | Agente de coordinación con matriz EMRE y aprobación humana | Oscar | N0b | Publica `ficha` válida que queda pendiente hasta una `decision`; sin LLM usa plantilla | ☐ |
 | N11 | Cola de comunicación con envejecimiento (Agente 4) | Jacobo | N2, N3 | Críticos salen primero; espera máxima de los bajos medida y acotada | ☐ |
 | N12 | Resiliencia: latidos, caída de un nodo, reasignación del dueño, recuperación | Jacobo | N5 | Al apagar A, B toma sus pendientes; A vuelve y converge; tiempo medido | ☐ |
-| N13 | PWA ciudadana: 3 bloques, cola local (IndexedDB), estado Guardado → Enviando → Recibido | Oscar | N0, N6 | Un reporte hecho sin red se envía solo al volver la conexión; usa `citizen/protocol/header.js` | ☐ |
-| N14 | Tablero: tarjetas, cambio automático de nodo, mapa offline | Oscar | N6 | Al apagar el nodo conectado, cambia solo al siguiente y lo indica | ☐ |
+| N13 | PWA ciudadana: 3 bloques, cola local (IndexedDB), estado Guardado → Enviando → Recibido | Oscar | N0b | Un reporte hecho sin red se envía solo al volver la conexión; usa `citizen/protocol/header.js` | ☐ |
+| N14 | Tablero: tarjetas, cambio automático de nodo, mapa offline | Oscar | N0b | Al apagar el nodo conectado, cambia solo al siguiente y lo indica | ☐ |
 | N15 | Banco de fallos con métricas (pérdida 0/30/60 %, partición, caída) | Jacobo | N5, N11, N12 | Un comando produce la tabla de métricas de §15 con semillas fijas | ☐ |
 | N16 | Códec JS: texto con diccionario (`pako`) y fragmentos | Oscar | N1, N2 | Pasa los mismos vectores de `tests/fixtures/` que Python | ☐ |
 
