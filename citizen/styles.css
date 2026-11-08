@@ -1,0 +1,438 @@
+/* Estilos de la PWA Ciudadana - Guadua (SARD) */
+/* Fondo negro OLED de alto contraste, diseñado para estrés, batería baja y sin internet */
+
+:root {
+  --bg-black: #000000;
+  --surface-dark: #121212;
+  --surface-border: #2a2a2a;
+  --text-primary: #ffffff;
+  --text-secondary: #a3a3a3;
+  --text-muted: #737373;
+
+  --accent-red: #ef4444;
+  --accent-red-hover: #dc2626;
+  --accent-amber: #f59e0b;
+  --accent-green: #22c55e;
+  --accent-blue: #3b82f6;
+
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --touch-min: 52px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background-color: var(--bg-black);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  line-height: 1.4;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 2rem;
+}
+
+/* Barra superior mínima */
+.header-bar {
+  background-color: #0a0a0a;
+  border-bottom: 1px solid var(--surface-border);
+  padding: 0.75rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.875rem;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.offline-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--accent-green);
+  font-weight: 600;
+}
+
+.battery-indicator {
+  color: var(--text-secondary);
+}
+
+/* Contenedor principal centrado para celular */
+.app-container {
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Estilo común de bloques */
+.block-section {
+  background-color: var(--surface-dark);
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.block-title {
+  font-size: 0.8125rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--surface-border);
+  padding-bottom: 0.5rem;
+}
+
+/* BLOQUE 1: Botones de vida o muerte */
+.btn-sos-escombros {
+  background-color: #7f1d1d;
+  color: #ffffff;
+  border: 2px solid var(--accent-red);
+  padding: 1rem;
+  border-radius: 10px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  text-align: center;
+  cursor: pointer;
+  min-height: var(--touch-min);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.btn-sos-escombros:active {
+  background-color: var(--accent-red);
+}
+
+.btn-sos-subtitle {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #fca5a5;
+}
+
+.btn-a-salvo {
+  background-color: #064e3b;
+  color: #ffffff;
+  border: 2px solid var(--accent-green);
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+  min-height: var(--touch-min);
+}
+
+.btn-a-salvo:active {
+  background-color: var(--accent-green);
+}
+
+/* BLOQUE 2: Reportar en 3 toques */
+.step-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.step-label {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #e5e5e5;
+}
+
+/* Grid de los 6 incidentes */
+.incident-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.6rem;
+}
+
+.incident-btn {
+  background-color: #1a1a1a;
+  color: var(--text-primary);
+  border: 1px solid #333333;
+  border-radius: 8px;
+  padding: 0.75rem 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  min-height: var(--touch-min);
+  transition: all 0.15s ease;
+}
+
+.incident-btn:active {
+  background-color: #262626;
+}
+
+.incident-btn.selected {
+  background-color: #2e1065;
+  border-color: #a855f7;
+  color: #ffffff;
+  box-shadow: 0 0 0 2px #a855f7;
+}
+
+.incident-btn[data-id="colapso"].selected,
+.incident-btn[data-id="atrapados"].selected {
+  background-color: #450a0a;
+  border-color: var(--accent-red);
+  box-shadow: 0 0 0 2px var(--accent-red);
+}
+
+.incident-btn[data-id="incendio"].selected,
+.incident-btn[data-id="fuga_gas"].selected {
+  background-color: #451a03;
+  border-color: var(--accent-amber);
+  box-shadow: 0 0 0 2px var(--accent-amber);
+}
+
+/* Paso 2: Observación y banderas */
+.observation-toggle {
+  display: flex;
+  gap: 0.75rem;
+  background-color: #171717;
+  padding: 0.5rem;
+  border-radius: 8px;
+}
+
+.radio-pill {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.5rem 0.25rem;
+  border-radius: 6px;
+  user-select: none;
+}
+
+.radio-pill input[type="radio"] {
+  accent-color: var(--accent-blue);
+  width: 18px;
+  height: 18px;
+}
+
+.checkbox-flags {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  user-select: none;
+  background-color: #171717;
+  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid #262626;
+}
+
+.checkbox-label input[type="checkbox"] {
+  accent-color: var(--accent-amber);
+  width: 20px;
+  height: 20px;
+}
+
+/* Paso 3: Ubicación y nota */
+.location-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.gps-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #171717;
+  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid #262626;
+}
+
+.gps-info {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.gps-btn {
+  background-color: #262626;
+  color: var(--text-primary);
+  border: 1px solid #404040;
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gps-btn.active {
+  background-color: #1e3a8a;
+  border-color: var(--accent-blue);
+  color: #93c5fd;
+}
+
+select.barrio-select {
+  width: 100%;
+  background-color: #1a1a1a;
+  color: var(--text-primary);
+  border: 1px solid #333333;
+  padding: 0.75rem;
+  border-radius: 8px;
+  font-size: 0.9375rem;
+  outline: none;
+  min-height: var(--touch-min);
+}
+
+.note-input-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+textarea.note-input {
+  width: 100%;
+  background-color: #1a1a1a;
+  color: var(--text-primary);
+  border: 1px solid #333333;
+  padding: 0.75rem;
+  border-radius: 8px;
+  font-size: 0.9375rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 70px;
+  outline: none;
+}
+
+textarea.note-input:focus {
+  border-color: var(--accent-blue);
+}
+
+.byte-counter {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: right;
+  transition: color 0.2s ease;
+}
+
+.byte-counter.warning {
+  color: var(--accent-amber);
+  font-weight: 700;
+}
+
+.byte-counter.danger {
+  color: var(--accent-red);
+  font-weight: 800;
+}
+
+/* BLOQUE 3: Pedir ayuda ahora y estado */
+.btn-pedir-ayuda {
+  background-color: var(--accent-red);
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 1.1rem;
+  font-size: 1.25rem;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  cursor: pointer;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4);
+}
+
+.btn-pedir-ayuda:active {
+  background-color: var(--accent-red-hover);
+  transform: scale(0.98);
+}
+
+.btn-pedir-ayuda:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Indicador de estados: Guardado -> Enviando -> Recibido */
+.status-pipeline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #0f0f0f;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #262626;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.status-step {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #525252;
+  transition: color 0.3s ease;
+}
+
+.status-step.active {
+  color: #ffffff;
+}
+
+.status-step.completed {
+  color: var(--accent-green);
+}
+
+.status-dot-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: currentColor;
+}
+
+.status-arrow {
+  color: #404040;
+}
+
+/* Notificación o toast */
+.app-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #1e293b;
+  color: #ffffff;
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  border: 1px solid #334155;
+  font-size: 0.875rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  max-width: 90%;
+  text-align: center;
+}

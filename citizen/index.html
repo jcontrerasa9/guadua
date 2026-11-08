@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <title>Guadua — Emergencias</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Barra de estado superior -->
+  <header class="header-bar">
+    <div class="offline-pill" id="conn-status">
+      <span style="font-size: 0.8rem;">🟢</span>
+      <span id="conn-text">Listo sin internet</span>
+    </div>
+    <div class="battery-indicator" id="battery-status">
+      <span id="battery-text">🔋 100%</span>
+    </div>
+  </header>
+
+  <main class="app-container">
+    <!-- BLOQUE 1: Si estás atrapado o a salvo -->
+    <section class="block-section" aria-label="Bloque 1: Si estás atrapado o a salvo">
+      <h2 class="block-title">BLOQUE 1: SI ESTÁS ATRAPADO O A SALVO</h2>
+      
+      <button id="btn-sos-escombros" class="btn-sos-escombros">
+        <span>🚨 ESTOY ATRAPADO BAJO ESCOMBROS (SOS + SONIDO)</span>
+        <span class="btn-sos-subtitle">(o agita el celular / toca 5 veces sin mirar)</span>
+      </button>
+
+      <button id="btn-a-salvo" class="btn-a-salvo">
+        ✅ ESTOY A SALVO (avisar a familia y Bomberos)
+      </button>
+    </section>
+
+    <!-- BLOQUE 2: Reportar en 3 toques -->
+    <section class="block-section" aria-label="Bloque 2: Reportar en 3 toques">
+      <h2 class="block-title">BLOQUE 2: REPORTAR EN 3 TOQUES</h2>
+
+      <!-- Paso 1: ¿Qué pasa? -->
+      <div class="step-group">
+        <label class="step-label">Paso 1: ¿Qué pasa?</label>
+        <div class="incident-grid" role="radiogroup" aria-label="Tipo de incidente">
+          <button type="button" class="incident-btn" data-id="colapso">🏚️ Derrumbe</button>
+          <button type="button" class="incident-btn" data-id="incendio">🔥 Incendio</button>
+          <button type="button" class="incident-btn" data-id="fuga_gas">⚠️ Fuga de gas</button>
+          <button type="button" class="incident-btn" data-id="herido">🩸 Herido</button>
+          <button type="button" class="incident-btn" data-id="via_bloqueada">🚧 Vía cerrada</button>
+          <button type="button" class="incident-btn" data-id="atrapados">🆘 Atrapados</button>
+        </div>
+      </div>
+
+      <!-- Paso 2: Observación y banderas -->
+      <div class="step-group">
+        <label class="step-label">Paso 2: ¿Lo estás viendo tú?</label>
+        <div class="observation-toggle">
+          <label class="radio-pill">
+            <input type="radio" name="observation" value="directa" checked>
+            <span>Sí, lo veo</span>
+          </label>
+          <label class="radio-pill">
+            <input type="radio" name="observation" value="segunda_mano">
+            <span>Me contaron</span>
+          </label>
+        </div>
+
+        <div class="checkbox-flags">
+          <label class="checkbox-label">
+            <input type="checkbox" id="check-gas-cables">
+            <span>Huele a gas / cables caídos</span>
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="check-no-respira">
+            <span>Alguien no respira o sangrado grave</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Paso 3: Ubicación y nota -->
+      <div class="step-group">
+        <label class="step-label">Paso 3: Ubicación y nota</label>
+        <div class="location-inputs">
+          <div class="gps-row">
+            <div class="gps-info">
+              <span id="gps-status-text">Sin GPS (usando barrio)</span>
+            </div>
+            <button type="button" id="btn-toggle-gps" class="gps-btn">
+              📍 Usar mi GPS
+            </button>
+          </div>
+
+          <div id="barrio-container">
+            <select id="barrio-select" class="barrio-select" aria-label="Seleccionar barrio">
+              <option value="" disabled selected>Seleccione el barrio...</option>
+            </select>
+          </div>
+
+          <div class="note-input-container">
+            <textarea id="note-input" class="note-input" placeholder="Nota opcional (ej. frente a la iglesia, piso 2)..." rows="2" maxlength="120"></textarea>
+            <div id="byte-counter" class="byte-counter">0 / 100 bytes</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BLOQUE 3: Pedir ayuda ahora y estado -->
+    <section class="block-section" aria-label="Bloque 3: Pedir ayuda ahora">
+      <h2 class="block-title">BLOQUE 3: PEDIR AYUDA Y ESTADO</h2>
+
+      <button type="button" id="btn-pedir-ayuda" class="btn-pedir-ayuda">
+        📢 PEDIR AYUDA AHORA
+      </button>
+
+      <!-- Indicador visual del pipeline de estados -->
+      <div class="status-pipeline" id="status-pipeline" aria-live="polite">
+        <div class="status-step" id="step-guardado">
+          <span class="status-dot-indicator"></span>
+          <span>Guardado</span>
+        </div>
+        <span class="status-arrow">──►</span>
+        <div class="status-step" id="step-enviando">
+          <span class="status-dot-indicator"></span>
+          <span>Enviando</span>
+        </div>
+        <span class="status-arrow">──►</span>
+        <div class="status-step" id="step-recibido">
+          <span class="status-dot-indicator"></span>
+          <span>Recibido</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Script principal como módulo ES -->
+  <script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+[
+  {
+    "code": 1,
+    "name": "El Cable",
+    "lat": null,
+    "lon": null
+  },
+  {
+    "code": 2,
+    "name": "Av. Santander",
+    "lat": null,
+    "lon": null
+  },
+  {
+    "code": 3,
+    "name": "Chipre",
+    "lat": null,
+    "lon": null
+  },
+  {
+    "code": 4,
+    "name": "Centro",
+    "lat": null,
+    "lon": null
+  },
+  {
+    "code": 5,
+    "name": "Palermo",
+    "lat": null,
+    "lon": null
+  },
+  {
+    "code": 6,
+    "name": "Milán",
+    "lat": null,
+    "lon": null
+  }
+]
