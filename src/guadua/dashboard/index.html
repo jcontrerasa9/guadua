@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SARD Guadua — Tablero del Comandante</title>
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Barra superior del sistema -->
+  <header class="topbar">
+    <div class="topbar-brand">
+      <h1>Guadua // Sistema SARD</h1>
+      <span class="badge-tag">Tablero de Comando</span>
+    </div>
+
+    <div class="topbar-meta">
+      <div class="node-status-pill" id="node-status-pill">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="node-status-text">Conectando...</span>
+      </div>
+
+      <div class="operator-badge">
+        <span>Operador:</span>
+        <strong id="operator-name">comandante-1</strong>
+        <button id="btn-change-operator" class="btn-secondary-sm" title="Cambiar nombre de operador">Cambiar</button>
+      </div>
+
+      <span id="last-update" style="color: #94a3b8; font-family: var(--font-mono); font-size: 0.75rem;"></span>
+    </div>
+  </header>
+
+  <!-- Contenedor principal de 2 columnas -->
+  <main class="dashboard-grid">
+    <!-- Columna izquierda: Lista ordenada de incidentes -->
+    <section class="feed-column">
+      <!-- Contenedor dinámico de alertas y errores (404, 409, etc.) -->
+      <div id="alert-container"></div>
+
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">Incidentes Prioritarios</h2>
+          <p class="section-subtitle">Nivel 4 (Crítica) y Nivel 3 (Alta) ordenados por gravedad y antigüedad</p>
+        </div>
+      </div>
+
+      <!-- Lista corta de incidentes críticos y altos -->
+      <div id="short-list" class="cards-list">
+        <div style="padding: 2rem; text-align: center; color: var(--text-muted);">
+          Cargando incidentes...
+        </div>
+      </div>
+
+      <!-- Desplegable con incidentes de menor prioridad (Nivel 2 y 1) -->
+      <details id="other-incidents-details" class="other-incidents-details">
+        <summary id="other-incidents-summary">+0 incidentes de prioridad media o baja</summary>
+        <div id="other-list" class="cards-list"></div>
+      </details>
+    </section>
+
+    <!-- Columna derecha: Mapa offline y ubicaciones por barrio -->
+    <section class="map-column">
+      <div class="map-header">
+        <h2>Mapa de Incidentes</h2>
+        <span style="font-size: 0.75rem; color: #94a3b8;">Manizales · Offline</span>
+      </div>
+
+      <!-- Contenedor del mapa Leaflet con fondo liso -->
+      <div id="map" class="map-container">
+        <div class="map-offline-notice">Modo offline · Fondo liso (Manizales)</div>
+      </div>
+
+      <!-- Incidentes georreferenciados solo por barrio (lat/lon null) -->
+      <div class="barrios-panel">
+        <h3>📍 Ubicación aproximada por barrio</h3>
+        <div id="barrios-list">
+          <p style="font-size: 0.8125rem; color: var(--text-muted);">No hay reportes aproximados por barrio pendientes.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal para editar mensaje de despacho -->
+  <div id="modal-edit" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-box">
+      <h3 id="modal-title">Editar mensaje de despacho</h3>
+      <p style="font-size: 0.875rem; color: var(--text-muted);">
+        Ajuste las instrucciones de salida antes de transmitir a la unidad asignada.
+      </p>
+      <textarea id="modal-edit-text" placeholder="Escriba el mensaje para el despacho..."></textarea>
+      <div class="modal-actions">
+        <button id="modal-edit-cancel" class="btn-secondary">Cancelar</button>
+        <button id="modal-edit-submit" class="btn-primary">Guardar y despachar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts locales -->
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
