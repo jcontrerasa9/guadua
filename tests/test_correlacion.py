@@ -16,9 +16,7 @@ import itertools
 import pytest
 
 from guadua.agents.correlacion import (
-    CONFIDENCE_DUDOSO,
     CONFIDENCE_NUEVO,
-    CONFIDENCE_SEGURO,
     Correlacionador,
     correlacionar_reporte,
     haversine_distance_m,
@@ -163,9 +161,9 @@ def test_vincula_duplicados_como_seguro() -> None:
     ev1 = agente.procesar_reporte_normalizado(r1, store)
     assert ev1 is not None
 
-    # Reporte 2: reporte cercano con tipo altamente compatible (atrapados)
+    # Reporte 2: reporte cercano con tipo altamente compatible (atrapados) desde otro dispositivo
     r2 = make_reporte_normalizado_event(
-        "a1b2c3d4-2",
+        "b2c3d4e5-1",
         Incident.ATRAPADOS,
         geohash=gh,
         radius_m=80,
@@ -178,9 +176,10 @@ def test_vincula_duplicados_como_seguro() -> None:
     payload = validate_event(ev2)
     assert isinstance(payload, IncidenteAgrupado)
     assert payload.incident_id == "a1b2c3d4-1"  # Conserva el ID del primer reporte
-    assert payload.report_ids == ("a1b2c3d4-1", "a1b2c3d4-2")
+    assert payload.report_ids == ("a1b2c3d4-1", "b2c3d4e5-1")
     assert payload.link == "seguro"
-    assert payload.confidence == CONFIDENCE_SEGURO
+    # Dos testigos directos independientes: 1 - 0.40^2 = 0.84
+    assert payload.confidence == 0.84
 
 
 # --- Prueba de No Efecto Cadena (anti-chaining) ----------------------------------------
@@ -402,7 +401,8 @@ def test_barrio_contra_geohash_resulta_dudoso() -> None:
     assert ev2 is not None
     p2 = validate_event(ev2)
     assert p2.link == "dudoso"
-    assert p2.confidence == CONFIDENCE_DUDOSO
+    # Ciudadano directo (p=0.6) con ubicación dudosa (ind=0.5): 1 - (1 - 0.3) = 0.30
+    assert p2.confidence == 0.30
     assert p2.incident_id == "00000002-2"
 
 
