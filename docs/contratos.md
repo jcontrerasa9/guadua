@@ -7,6 +7,7 @@ Un contrato es un acuerdo entre partes que se construyen por separado. Cada cont
 | Cabecera binaria de 21 B | `src/guadua/protocol/header.py`, `citizen/protocol/header.js` | `header_vectors.json` | PWA ↔ nodo |
 | Texto comprimido con diccionario (≤ 100 B tras la cabecera) | `src/guadua/protocol/text.py`, `data/diccionario_manizales.txt` | `text_vectors.json` | PWA ↔ nodo |
 | Fragmentos y ACK con mapa de bits | `src/guadua/protocol/fragments.py` | `fragment_vectors.json` | Nodo ↔ nodo, PWA ↔ nodo |
+| Mensajes de gossip (vector y evento) | `src/guadua/store/gossip.py` | — | Nodo ↔ nodo |
 | Evento (forma general) | `src/guadua/store/events.py` | — | Todos los nodos |
 | Catálogo de tipos de evento | `src/guadua/store/event_types.py` | `event_examples.json` | Agentes, nodo, tablero |
 | API HTTP del nodo | `src/guadua/node/api.py` | `api_examples.json` | PWA, tablero ↔ nodo |
@@ -32,6 +33,18 @@ El formato byte por byte de la cabecera está en `docs/diseno.md` §5.2.
 - Un mensaje que cabe en una trama no se fragmenta y se confirma con total 1 y mapa `01`.
 - El emisor reenvía solo los fragmentos que ningún ACK ha confirmado. Un fragmento repetido no se guarda dos veces.
 - **Se rechaza** un fragmento sin datos, con índice ≥ total o total 0, y un ACK con mapa de otro tamaño o relleno distinto de cero.
+
+**Gossip.** Los nodos se sincronizan con mensajes de tipo 5 ("lote de eventos"): el byte 0 es `0x15` y le sigue un mapa MessagePack.
+
+| Mensaje | Mapa | Para qué |
+| :-- | :-- | :-- |
+| Vector | `{"k": "v", "vv": {"A": 12, "B": 8}, "d": <8 B>}` | Lo que tiene el nodo: por origen, el último consecutivo sin huecos, y los primeros 8 bytes de su `digest()`. Si el digest coincide, no se envía nada |
+| Evento | `{"k": "e", "ev": {…}}` | Un evento que le falta al vecino, como `Event.model_dump(mode="json")` |
+
+- Un mensaje que no cabe en la trama se parte con los fragmentos de arriba. El ID del fragmento sale del ID del evento: dispositivo = CRC32 del nodo de origen, consecutivo = `seq`. Así el mismo evento, reenviado en otra ronda, completa los pedazos que faltaban.
+- Cada evento recibido se valida con `validate_event` antes de guardarlo. Lo que no se puede leer o no cumple el catálogo se descarta y se cuenta.
+- No hay ACK: lo que se pierde se vuelve a pedir en la ronda siguiente, porque el vector sigue mostrando el hueco.
+- Se rechazan los campos desconocidos y cualquier `k` distinto de `"v"` o `"e"`.
 
 ## Convenciones
 
