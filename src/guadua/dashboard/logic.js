@@ -286,3 +286,33 @@ export function updateNodeHealth(state, healthResult) {
     totalFailures,
   };
 }
+
+/**
+ * Decide y estructura los datos para la franja visible de advertencia de riesgo de una tarjeta.
+ *
+ * Reglas (docs/diseno.md §3.2, §11 y contratos):
+ * - Solo es visible si risk_warning no es null, undefined ni cadena vacía tras trim.
+ * - Retorna { show: boolean, icon: string, title: string, text: string | null }.
+ * - No altera ni depende de la urgencia ni de la prioridad del incidente.
+ *
+ * @param {string | null | undefined | { risk_warning?: string | null }} input - Texto de advertencia o tarjeta de incidente
+ * @returns {{ show: boolean, icon: string, title: string, text: string | null }}
+ */
+export function computeRiskWarning(input) {
+  const raw = typeof input === "object" && input !== null ? input.risk_warning : input;
+  if (typeof raw !== "string" || !raw.trim()) {
+    return {
+      show: false,
+      icon: "",
+      title: "",
+      text: null,
+    };
+  }
+  const text = raw.trim();
+  return {
+    show: true,
+    icon: "⚠️",
+    title: "RIESGO PARA RESCATISTAS:",
+    text,
+  };
+}
