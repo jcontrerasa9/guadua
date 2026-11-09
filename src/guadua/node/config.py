@@ -13,6 +13,7 @@ Variables (todas opcionales; sin ninguna, arranca un nodo "A" solo, en memoria):
     SARD_CHANNEL_PROFILE  fallos del canal: wifi, lora, sms…      (ninguno)
     SARD_CHANNEL_SEED     semilla de los fallos                   0
     SARD_GOSSIP_INTERVAL  segundos entre rondas                   2.0
+    SARD_PEER_TIMEOUT     segundos sin latidos → vecino caído     10.0
 """
 
 from __future__ import annotations
@@ -40,6 +41,7 @@ class NodeConfig:
     channel_profile: str | None = None
     channel_seed: int = 0
     gossip_interval: float = 2.0
+    peer_timeout: float = 10.0
 
     def __post_init__(self) -> None:
         if not self.node_id.isalnum():
@@ -75,6 +77,7 @@ class NodeConfig:
             channel_profile=env.get("SARD_CHANNEL_PROFILE") or None,
             channel_seed=int(number("SARD_CHANNEL_SEED", "0", int)),
             gossip_interval=float(number("SARD_GOSSIP_INTERVAL", "2.0", float)),
+            peer_timeout=float(number("SARD_PEER_TIMEOUT", "10.0", float)),
         )
 
 

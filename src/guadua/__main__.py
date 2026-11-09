@@ -30,7 +30,14 @@ def build_node(config: NodeConfig) -> Node:
     logging.getLogger("guadua").info(
         "LLM del agente de triaje: %s", llm.name if llm else "ninguno (ambiguo → revisar)"
     )
-    return Node(config.node_id, store, transport=transport, peers=config.peers, llm=llm)
+    return Node(
+        config.node_id,
+        store,
+        transport=transport,
+        peers=config.peers,
+        llm=llm,
+        peer_timeout=config.peer_timeout,
+    )
 
 
 def main() -> None:

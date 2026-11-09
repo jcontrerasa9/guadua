@@ -9,6 +9,12 @@
 #
 # El gossip viaja por UDP con tramas de 200 B (como LoRa). Para simular pérdida entre nodos:
 #   SARD_CHANNEL_PROFILE=lora docker compose up
+#
+# Caída de un nodo (N12): un vecino que calla SARD_PEER_TIMEOUT s (10) se da por caído y el
+# de id más bajo que lo oía toma su trabajo pendiente. Para probarlo:
+#   docker compose stop node-a     # B publica una reasignación y termina lo de A
+#   docker compose start node-a    # A se pone al día desde su SQLite y el gossip
+#   docker compose logs node-a node-b | grep -E "tomó|recuperado"
 
 # LLM del agente de triaje (N8), opcional. Sin estas variables no hay LLM y los casos dudosos
 # quedan "ambiguo, revisar". Ejemplo con Ollama corriendo en el equipo:
@@ -34,6 +40,7 @@ services:
     environment:
       <<: *llm
       SARD_NODE_ID: A
+      SARD_PEER_TIMEOUT: ${SARD_PEER_TIMEOUT:-10}
       SARD_PEERS: B
       SARD_PEER_ADDRS: B=node-b:9000
       SARD_CHANNEL_PROFILE: ${SARD_CHANNEL_PROFILE:-}
@@ -45,6 +52,7 @@ services:
     environment:
       <<: *llm
       SARD_NODE_ID: B
+      SARD_PEER_TIMEOUT: ${SARD_PEER_TIMEOUT:-10}
       SARD_PEERS: A,C
       SARD_PEER_ADDRS: A=node-a:9000,C=node-c:9000
       SARD_CHANNEL_PROFILE: ${SARD_CHANNEL_PROFILE:-}
@@ -56,6 +64,7 @@ services:
     environment:
       <<: *llm
       SARD_NODE_ID: C
+      SARD_PEER_TIMEOUT: ${SARD_PEER_TIMEOUT:-10}
       SARD_PEERS: B
       SARD_PEER_ADDRS: B=node-b:9000
       SARD_CHANNEL_PROFILE: ${SARD_CHANNEL_PROFILE:-}

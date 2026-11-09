@@ -15,6 +15,9 @@ node/api.py. Reglas:
 - Un reporte que la correlación todavía no agrupó es su propio incidente, con su report_id.
 - Estado: sin ficha · pendiente · aprobada / editada / rechazada · conflicto si hay dos
   decisiones distintas sobre la misma ficha.
+- **Tras una partición** (N12) dos nodos pueden haber agrupado o fichado el mismo caso. Un
+  reporte va solo en el primer incidente que lo agrupó, y una ficha anterior sin decisión
+  (paralela, no replaneada) se muestra en los pasos; vale la más reciente.
 """
 
 from __future__ import annotations
@@ -122,8 +125,12 @@ class _Log:
         """incident_id → (último incidente_agrupado o None, reportes)."""
         groups: dict[str, tuple[Event | None, list[_Report]]] = {}
         claimed: set[str] = set()
-        for iid, event in self.incidents.items():
-            members = [self.reports[r] for r in event.payload["report_ids"] if r in self.reports]
+        for iid, event in sorted(self.incidents.items(), key=lambda item: _key(item[1])):
+            members = [
+                self.reports[r]
+                for r in event.payload["report_ids"]
+                if r in self.reports and r not in claimed  # ya está en otro (partición)
+            ]
             if members:
                 groups[iid] = (event, members)
                 claimed.update(event.payload["report_ids"])
@@ -235,6 +242,10 @@ def _build(iid: str, incident_event: Event | None, members: list[_Report], log: 
         who = old.payload["responsible"] or "sin responsable"
         detail = f"ficha {event_id_str(old)} ({who}) rechazada por {decision.payload['operator']}"
         steps.append(AgentStep(agent="coordinacion", detail=detail))
+    for old in fichas[:-1]:
+        if not log.decisions.get(old.id):
+            detail = f"ficha paralela {event_id_str(old)} sin decisión: vale la más reciente"
+            steps.append(AgentStep(agent="coordinacion", detail=detail))
     if ficha:
         origin = "plantilla" if ficha.from_template else "redactada con LLM"
         detail = f"ficha {event_id_str(ficha_event)}: {_suggestion(ficha)}; {origin}"

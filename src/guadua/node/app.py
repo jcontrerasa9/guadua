@@ -51,22 +51,25 @@ def _error(message: str, status: int) -> JSONResponse:
 
 
 def create_app(node: Node, *, gossip_interval: float | None = 2.0) -> FastAPI:
-    """`gossip_interval=None` no arranca el ciclo de gossip (útil en pruebas)."""
+    """`gossip_interval=None` no arranca el ciclo de gossip ni el de resiliencia (útil en
+    pruebas). La resiliencia (N12) hace una ronda con la misma frecuencia que el gossip."""
 
     @contextlib.asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         stop = asyncio.Event()
-        task = None
+        tasks: list[asyncio.Task] = []
         transport = node.gossip.transport if node.gossip else None
         if transport is not None and hasattr(transport, "start"):
             await transport.start()
         if node.gossip is not None and gossip_interval is not None:
-            task = asyncio.create_task(node.gossip.run(gossip_interval, stop))
+            tasks.append(asyncio.create_task(node.gossip.run(gossip_interval, stop)))
+        if gossip_interval is not None:
+            tasks.append(asyncio.create_task(node.resilience.run(gossip_interval, stop)))
         try:
             yield
         finally:
             stop.set()
-            if task is not None:
+            for task in tasks:
                 await asyncio.wait_for(task, timeout=5)
             if transport is not None and hasattr(transport, "close"):
                 transport.close()

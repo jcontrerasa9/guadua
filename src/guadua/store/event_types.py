@@ -18,6 +18,7 @@ type ReportId = str
 """Identificador de un reporte: dispositivo en 8 dígitos hex + "-" + consecutivo (a1b2c3d4-7)."""
 
 REPORT_ID_PATTERN = r"^[0-9a-f]{8}-[0-9]+$"
+NODE_ID_PATTERN = r"^[A-Za-z0-9]+$"
 EVENT_ID_PATTERN = r"^[A-Za-z0-9]+:[1-9][0-9]*$"
 
 type Channel = Literal["wifi", "radio", "sms", "vhf"]
@@ -108,6 +109,15 @@ class ConfirmacionCampo(Payload):
     note: str | None = None
 
 
+class Reasignacion(Payload):
+    """Agente 5 (resiliencia). Quien lo publica dejó de oír a `from_node` y toma su trabajo
+    pendiente hasta `up_to_seq`. El evento lleva `refs[0] = (from_node, up_to_seq)`."""
+
+    from_node: str = Field(pattern=NODE_ID_PATTERN)
+    up_to_seq: int = Field(ge=1)
+    silent_s: float = Field(ge=0)  # segundos sin oír a `from_node` al decidir
+
+
 # --- Derivados: solo los crea el nodo dueño del reporte --------------------------------
 
 
@@ -192,6 +202,7 @@ CATALOG: dict[str, tuple[EventCategory, type[Payload]]] = {
     "transcripcion_radio": (EventCategory.HECHO, TranscripcionRadio),
     "respuesta_seguimiento": (EventCategory.HECHO, RespuestaSeguimiento),
     "confirmacion_campo": (EventCategory.HECHO, ConfirmacionCampo),
+    "reasignacion": (EventCategory.HECHO, Reasignacion),
     "reporte_normalizado": (EventCategory.DERIVADO, ReporteNormalizado),
     "urgencia_estimada": (EventCategory.DERIVADO, UrgenciaEstimada),
     "incidente_agrupado": (EventCategory.DERIVADO, IncidenteAgrupado),
@@ -215,6 +226,12 @@ def validate_event(event: Event) -> Payload:
     if event.type == "decision" and not event.refs:
         raise EventTypeError("una decisión debe referenciar la ficha en refs[0]")
     try:
-        return model.model_validate(event.payload)
+        payload = model.model_validate(event.payload)
     except ValidationError as exc:
         raise EventTypeError(f"payload inválido para {event.type}: {exc}") from exc
+    if isinstance(payload, Reasignacion):
+        if payload.from_node == event.origin_node:
+            raise EventTypeError("un nodo no puede reasignarse su propio trabajo")
+        if event.refs[:1] != ((payload.from_node, payload.up_to_seq),):
+            raise EventTypeError("una reasignación debe referenciar (from_node, up_to_seq)")
+    return payload

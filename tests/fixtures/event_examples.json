@@ -206,6 +206,24 @@
       },
       "refs": [],
       "received_at": 1794573600.0
+    },
+    {
+      "origin_node": "B",
+      "seq": 12,
+      "category": "hecho",
+      "type": "reasignacion",
+      "payload": {
+        "from_node": "A",
+        "up_to_seq": 5,
+        "silent_s": 12.4
+      },
+      "refs": [
+        [
+          "A",
+          5
+        ]
+      ],
+      "received_at": 1794573600.0
     }
   ],
   "invalid": [
@@ -352,6 +370,64 @@
         },
         "refs": [],
         "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "reasignacion_a_si_mismo",
+      "event": {
+        "origin_node": "A",
+        "seq": 12,
+        "category": "hecho",
+        "type": "reasignacion",
+        "received_at": 1794573600.0,
+        "payload": {
+          "from_node": "A",
+          "up_to_seq": 5,
+          "silent_s": 12.4
+        },
+        "refs": [
+          [
+            "A",
+            5
+          ]
+        ]
+      }
+    },
+    {
+      "name": "reasignacion_sin_refs",
+      "event": {
+        "origin_node": "B",
+        "seq": 12,
+        "category": "hecho",
+        "type": "reasignacion",
+        "received_at": 1794573600.0,
+        "payload": {
+          "from_node": "A",
+          "up_to_seq": 5,
+          "silent_s": 12.4
+        },
+        "refs": []
+      }
+    },
+    {
+      "name": "reasignacion_refs_distintas",
+      "event": {
+        "origin_node": "B",
+        "seq": 12,
+        "category": "hecho",
+        "type": "reasignacion",
+        "received_at": 1794573600.0,
+        "payload": {
+          "from_node": "A",
+          "up_to_seq": 5,
+          "silent_s": 12.4
+        },
+        "refs": [
+          [
+            "A",
+            4
+          ]
+        ]
       }
     }
   ]

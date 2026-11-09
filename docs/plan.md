@@ -42,7 +42,7 @@ Un frente es un grupo de tareas que toca sus propias carpetas. Los frentes no co
 | N9 | Correlación básica (agrupación contra el centro del grupo) | Oscar | N0b | Publica `incidente_agrupado` válido; duplicados vinculados sin efecto cadena en datos sintéticos | ✅ |
 | N10 | Agente de coordinación con matriz EMRE y aprobación humana | Oscar | N0b | Publica `ficha` válida que queda pendiente hasta una `decision`; sin LLM usa plantilla | ✅ |
 | N11 | Cola de comunicación con envejecimiento (Agente 4) | Jacobo | N2, N3 | Críticos salen primero; espera máxima de los bajos medida y acotada | ✅ |
-| N12 | Resiliencia: latidos, caída de un nodo, reasignación del dueño, recuperación | Jacobo | N5 | Al apagar A, B toma sus pendientes; A vuelve y converge; tiempo medido | ☐ |
+| N12 | Resiliencia: latidos, caída de un nodo, reasignación del dueño, recuperación | Jacobo | N5 | Al apagar A, B toma sus pendientes; A vuelve y converge; tiempo medido | ✅ |
 | N13 | PWA ciudadana: 3 bloques, cola local (IndexedDB), estado Guardado → Enviando → Recibido | Oscar | N0b | Un reporte hecho sin red se envía solo al volver la conexión; usa `citizen/protocol/header.js` | ✅ |
 | N14 | Tablero: tarjetas, cambio automático de nodo, mapa offline | Oscar | N0b | Al apagar el nodo conectado, cambia solo al siguiente y lo indica | ✅ |
 | N15 | Banco de fallos con métricas (pérdida 0/30/60 %, partición, caída) | Jacobo | N5, N11, N12 | Un comando produce la tabla de métricas de §15 con semillas fijas | ☐ |
@@ -58,7 +58,7 @@ Lo que N8 dejó fuera a propósito y en qué tarea va. Ficha completa: `docs/fic
 | Herramienta `respuesta_seguimiento` | D5a | Que el agente de recepción haga preguntas y existan respuestas |
 | Herramienta `solicitar_verificacion_campo` | D6 o tarea nueva | Un tipo de evento nuevo (cambio de contrato). Mientras tanto, `marcar_verificar_ya` |
 | Disparador por palabras de duda ("no sé", "creo", "dicen"…) | Tarea nueva, **SIN ASIGNAR** (frente B) | Hoy N8 solo ve lo que N7 marca `ambiguous`: en el conjunto `ambiguo`, 176 de 318 casos salen mal sin marcar. Calibrar con un conjunto distinto de `ambiguo` |
-| Retomar casos que el agente no terminó porque el nodo se cayó | N12 o D6 | El caso queda con la urgencia de N7 ("ambiguo, revisar"), que es segura |
+| ~~Retomar casos que el agente no terminó porque el nodo se cayó~~ | N12 ✅ | Al volver, el nodo retoma el triaje cortado; si otro nodo tomó el caso, lo hace ese (`docs/fichas/resiliencia.md`) |
 | Elegir los modelos de Gemini y Ollama | Decisión abierta (diseño §18) | Medir con `python -m guadua.agents.triaje_eval --todos` |
 
 ## Nivel 2 · Diferenciadores

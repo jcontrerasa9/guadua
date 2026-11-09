@@ -94,7 +94,10 @@ Cada nodo valida un evento con `validate_event` antes de guardarlo. El tipo fija
 | `transcripcion_radio` | hecho | Nodo | Clip, texto, si es observación directa | 2 |
 | `respuesta_seguimiento` | hecho | Nodo | Pregunta, respuesta | 2 |
 | `confirmacion_campo` | hecho | Nodo | Incidente, confirmado, nota | 2 |
+| `reasignacion` | hecho | Agente 5 · resiliencia, en el nodo que toma el trabajo | Nodo caído, hasta qué consecutivo, segundos sin latidos. `refs[0]` = `(from_node, up_to_seq)` | 1 |
 
 **Cómo se encadenan:** `reporte` → `reporte_normalizado` → `urgencia_estimada` → `incidente_agrupado` → `ficha` → `decision`. Cada evento derivado apunta en `refs` al evento en el que se basa. Los eventos no se editan: si cambia la urgencia o un grupo, se publica un evento nuevo, y vale el más reciente.
+
+**Dueño del trabajo:** lo que dispara un evento lo hace su `origin_node`, salvo que una `reasignacion` lo cubra (mismo origen que `from_node` y `seq ≤ up_to_seq`). En ese caso lo hace quien la publicó, y si hay varias, el de id más bajo. Una reasignación nunca la publica el propio `from_node`. Detalle en `docs/fichas/resiliencia.md`.
 
 **Pendiente de definir** (se agrega al catálogo cuando llegue su tarea): las solicitudes entre agentes del vigía (D6) y las preguntas de seguimiento como evento (D5a).
