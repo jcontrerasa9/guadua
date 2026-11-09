@@ -7,6 +7,7 @@ import { test } from "node:test";
 import { decodeGeohash } from "../../src/guadua/dashboard/geohash.js";
 import {
   computeConfidence,
+  computeRiskWarning,
   createInitialNodeState,
   formatDecisionRequest,
   formatTimeAgo,
@@ -305,4 +306,110 @@ test("si cae el nodo propio, el tablero pasa al siguiente y lo dice", () => {
   assert.equal(state.connectedNode, "http://localhost:8000");
   state = updateNodeHealth(state, { ok: true, node: "A" });
   assert.equal(state.statusText, "Conectado al nodo A");
+});
+
+// --- Pruebas de la franja de advertencia de riesgo (D3c) -----------------------
+
+test("computeRiskWarning: advertencia presente devuelve show=true, icono, titulo y texto recortado", () => {
+  const warningText = "Fuga de gas y cables caídos reportados. No ingresar sin HazMat.";
+  const res1 = computeRiskWarning(warningText);
+
+  assert.equal(res1.show, true);
+  assert.equal(res1.icon, "⚠️");
+  assert.equal(res1.title, "RIESGO PARA RESCATISTAS:");
+  assert.equal(res1.text, warningText);
+
+  // Funciona pasando directamente el objeto incidente con espacios recortados
+  const res2 = computeRiskWarning({
+    incident_id: "inc-1",
+    risk_warning: "   Posible gas en la zona.   ",
+  });
+
+  assert.equal(res2.show, true);
+  assert.equal(res2.icon, "⚠️");
+  assert.equal(res2.title, "RIESGO PARA RESCATISTAS:");
+  assert.equal(res2.text, "Posible gas en la zona.");
+});
+
+test("computeRiskWarning: cuando risk_warning es null, undefined, vacio o no-string devuelve show=false", () => {
+  // null y undefined
+  assert.deepEqual(computeRiskWarning(null), {
+    show: false,
+    icon: "",
+    title: "",
+    text: null,
+  });
+  assert.deepEqual(computeRiskWarning(undefined), {
+    show: false,
+    icon: "",
+    title: "",
+    text: null,
+  });
+
+  // Cadenas vacías o con solo espacios
+  assert.equal(computeRiskWarning("").show, false);
+  assert.equal(computeRiskWarning("   \n\t  ").show, false);
+  assert.equal(computeRiskWarning("").text, null);
+
+  // Objeto incidente sin riesgo o con risk_warning null
+  assert.equal(computeRiskWarning({ incident_id: "inc-2", risk_warning: null }).show, false);
+  assert.equal(computeRiskWarning({ incident_id: "inc-3" }).show, false);
+
+  // Tipos no string
+  assert.equal(computeRiskWarning(123).show, false);
+  assert.equal(computeRiskWarning(true).show, false);
+  assert.equal(computeRiskWarning(false).show, false);
+});
+
+test("invariante: el riesgo no cambia el orden de prioridad ni la urgencia en partitionAndSortIncidents", () => {
+  // Inc-1: nivel 2 con riesgo severo
+  // Inc-2: nivel 4 sin riesgo
+  // Inc-3: nivel 3 sin riesgo
+  // Inc-4: nivel 3 con riesgo (recibido más tarde que inc-3)
+  const incidents = [
+    {
+      incident_id: "inc-1",
+      level: 2,
+      received_at: 100,
+      risk_warning: "Peligro inminente: gas y cables de alta tensión",
+    },
+    {
+      incident_id: "inc-2",
+      level: 4,
+      received_at: 200,
+      risk_warning: null,
+    },
+    {
+      incident_id: "inc-3",
+      level: 3,
+      received_at: 150,
+      risk_warning: null,
+    },
+    {
+      incident_id: "inc-4",
+      level: 3,
+      received_at: 250,
+      risk_warning: "Fuga de gas menor",
+    },
+  ];
+
+  const { shortList, otherList, allSorted } = partitionAndSortIncidents(incidents);
+
+  // shortList solo tiene niveles 4 y 3
+  assert.equal(shortList.length, 3);
+  // El nivel 4 va primero, independientemente de que no tenga riesgo
+  assert.equal(shortList[0].incident_id, "inc-2");
+  // Los de nivel 3 se ordenan por received_at (más antiguo primero), sin importar risk_warning
+  assert.equal(shortList[1].incident_id, "inc-3");
+  assert.equal(shortList[2].incident_id, "inc-4");
+
+  // El incidente de nivel 2 queda estrictamente en otherList pese a tener riesgo
+  assert.equal(otherList.length, 1);
+  assert.equal(otherList[0].incident_id, "inc-1");
+
+  // allSorted respeta orden: nivel 4 -> nivel 3 -> nivel 2
+  assert.deepEqual(
+    allSorted.map((i) => i.incident_id),
+    ["inc-2", "inc-3", "inc-4", "inc-1"],
+  );
 });

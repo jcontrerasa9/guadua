@@ -340,19 +340,40 @@ body {
   color: #991b1b;
 }
 
-/* Advertencia de riesgo */
+/* Advertencia de riesgo para rescatistas (franja visible de alto contraste) */
 .risk-box {
   background-color: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #991b1b;
+  border: 1px solid #f87171;
+  border-left: 5px solid #dc2626;
+  color: #7f1d1d;
   padding: 0.75rem 1rem;
   border-radius: 6px;
   font-size: 0.875rem;
+  line-height: 1.45;
+  box-shadow: 0 1px 2px rgba(220, 38, 38, 0.08);
 }
 
-.risk-box strong {
-  display: block;
+.risk-stripe-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   margin-bottom: 0.25rem;
+}
+
+.risk-icon {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.risk-title {
+  color: #991b1b;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.risk-message {
+  color: #7f1d1d;
+  font-weight: 500;
 }
 
 /* Sugerencia y qué decir */

@@ -4,6 +4,7 @@
 import { decodeGeohash } from "./geohash.js";
 import {
   computeConfidence,
+  computeRiskWarning,
   createInitialNodeState,
   formatDecisionRequest,
   formatTimeAgo,
@@ -343,6 +344,7 @@ function getPriorityLabel(level) {
 
 function renderIncidentCardHtml(inc) {
   const conf = computeConfidence(inc.confidence, inc.verify_now, inc.rumor);
+  const risk = computeRiskWarning(inc);
   const timeAgo = formatTimeAgo(inc.received_at);
   const priorityText = getPriorityLabel(inc.level);
   const hasFicha = Boolean(inc.ficha_id);
@@ -379,10 +381,13 @@ function renderIncidentCardHtml(inc) {
         </div>
       </div>
 
-      ${inc.risk_warning ? `
-        <div class="risk-box">
-          <strong>⚠️ RIESGO PARA RESCATISTAS:</strong>
-          <span>${escapeHtml(inc.risk_warning)}</span>
+      ${risk.show ? `
+        <div class="risk-box" role="alert">
+          <div class="risk-stripe-header">
+            <span class="risk-icon" aria-hidden="true">${risk.icon}</span>
+            <strong class="risk-title">${escapeHtml(risk.title)}</strong>
+          </div>
+          <div class="risk-message">${escapeHtml(risk.text)}</div>
         </div>` : ""}
 
       ${(inc.suggestion || inc.message) ? `
