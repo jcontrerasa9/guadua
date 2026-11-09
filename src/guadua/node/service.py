@@ -6,10 +6,11 @@ asignación de consecutivos y las escrituras no compiten entre sí.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from collections.abc import Callable
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from guadua import __version__
 from guadua.agents.coordinacion import AgenteCoordinacion
@@ -18,10 +19,14 @@ from guadua.classifier.triage import UrgencyClassifier, default_classifier
 from guadua.node.api import DecisionAck, DecisionRequest, Health, MessageAck
 from guadua.node.intake import parse_message, reporte_event
 from guadua.node.pipeline import normalized_event, urgency_event
+from guadua.providers.llm import LLMProvider
 from guadua.providers.transport import Transport
-from guadua.store.event_types import Decision, event_id_str, validate_event
+from guadua.store.event_types import Decision, UrgenciaEstimada, event_id_str, validate_event
 from guadua.store.events import Event, EventCategory, EventId, EventStore
 from guadua.store.gossip import GossipNode
+
+if TYPE_CHECKING:
+    from guadua.agents.triaje import AgenteTriaje, TriageCase
 
 logger = logging.getLogger("guadua.node")
 
@@ -49,11 +54,15 @@ class Node:
         peers: tuple[str, ...] = (),
         clock: Callable[[], float] = time.time,
         classifier: UrgencyClassifier | None | Literal["default"] = "default",
+        llm: LLMProvider | None = None,
     ) -> None:
         """`classifier="default"` entrena el de data/sinteticos (una vez por proceso);
-        None deja solo las reglas."""
+        None deja solo las reglas. Sin `llm` no hay agente de triaje (N8): los casos dudosos
+        quedan "ambiguo, revisar" con la urgencia de N7."""
         self.node_id = node_id
         self.classifier = default_classifier() if classifier == "default" else classifier
+        self.triaje = _agente_triaje(llm)
+        self.agent_tasks: set[asyncio.Future] = set()  # ciclos del agente en curso
         self.store = store
         self.clock = clock
         self._seq = self._max_own_seq()
@@ -145,6 +154,8 @@ class Node:
             grouped = correlacionar_reporte(event, self.store, self.node_id, self.next_seq)
             if grouped is not None:
                 self._after_append(grouped)  # el agente ya lo guardó
+        elif event.type == "urgencia_estimada" and event.origin_node == self.node_id:
+            self._start_triage(event)
         elif event.type == "incidente_agrupado" and event.origin_node == self.node_id:
             self.coordinacion.procesar_incidente(event, self.store)
         elif event.type == "decision":
@@ -165,3 +176,52 @@ class Node:
             )
         except Exception:
             logger.exception("%s: falló el triaje del evento %s:%s", self.node_id, *normalized.id)
+
+    def _start_triage(self, urgency: Event) -> None:
+        """Agente de triaje (N8) sobre una urgencia ambigua de N7.
+
+        El ciclo llama al LLM y puede tardar (Ollama en CPU), así que corre en otro hilo:
+        el ACK y la correlación no lo esperan. El caso se arma aquí, con una copia del
+        registro, y el resultado se guarda de vuelta en el hilo del nodo. Sin bucle de
+        asyncio (pruebas, scripts) corre en línea. Una falla nunca tumba el nodo.
+        """
+        if self.triaje is None:
+            return
+        case = self.triaje.prepare(urgency, self.store)
+        if case is None:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._publish_triage(case, self.triaje.run(case))
+            return
+        future = loop.run_in_executor(None, self.triaje.run, case)
+        self.agent_tasks.add(future)
+
+        def done(f: asyncio.Future) -> None:
+            self.agent_tasks.discard(f)
+            if f.cancelled():
+                return
+            if (exc := f.exception()) is not None:
+                logger.error("%s: falló el agente de triaje: %r", self.node_id, exc)
+                return
+            self._publish_triage(case, f.result())
+
+        future.add_done_callback(done)
+
+    def _publish_triage(self, case: TriageCase, payload: UrgenciaEstimada) -> None:
+        try:
+            self.record(self.triaje.event(case, payload, node_id=self.node_id, seq=self.next_seq()))
+        except Exception:
+            logger.exception("%s: no se pudo publicar el triaje del agente", self.node_id)
+
+
+def _agente_triaje(llm: LLMProvider | None) -> AgenteTriaje | None:
+    if llm is None:
+        return None
+    try:
+        from guadua.agents.triaje import AgenteTriaje
+    except ImportError:
+        logger.warning("sin LangGraph (extra agents): no hay agente de triaje")
+        return None
+    return AgenteTriaje(llm)

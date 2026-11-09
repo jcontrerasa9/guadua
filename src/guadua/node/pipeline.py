@@ -2,11 +2,14 @@
 armar la ficha.
 
     reporte → reporte_normalizado (reglas simples) ─┬→ urgencia_estimada (N7)
+                                                    │     └→ (si es ambigua) urgencia_estimada
+                                                    │        del agente de triaje (N8)
                                                     └→ incidente_agrupado (N9) → ficha (N10)
 
 Solo el nodo dueño (el que recibió el reporte) crea los eventos derivados; los demás los
 reciben por gossip y no recalculan (docs/diseno.md §9). La urgencia sale de reglas +
-clasificador (classifier/triage.py); el agente de triaje (N8) solo podrá subirla.
+clasificador (classifier/triage.py); el agente de triaje (N8, agents/triaje.py) la revisa en
+la zona gris con los límites de la regla 1.
 
 La normalización es la de "reglas simples mientras no exista el Agente 1"
 (docs/contratos.md): sale solo de la cabecera, sin interpretar el texto.

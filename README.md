@@ -19,6 +19,7 @@ ruff check . && ruff format --check .
 pytest
 node --test "tests/js/*.test.mjs"
 python -m guadua.classifier.evaluate    # sensibilidad en críticos, matriz y tiempos del triaje
+python -m guadua.agents.triaje_eval     # cuánto llega al agente de triaje; con LLM, cómo resuelve
 ```
 
 ## Ejecutar
@@ -26,6 +27,8 @@ python -m guadua.classifier.evaluate    # sensibilidad en críticos, matriz y ti
 ```bash
 docker compose up
 ```
+
+Sin variables no hay LLM: los casos dudosos quedan "ambiguo, revisar". Para activar el agente de triaje se exportan las variables de `.env.example` (`LLM_PROVIDER`, `GEMINI_*`, `OLLAMA_*`) antes de `docker compose up`; el orden es Gemini (nube) → Ollama (local) → ninguno.
 
 ## Guía de carpetas
 

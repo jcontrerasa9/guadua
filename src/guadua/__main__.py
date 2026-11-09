@@ -9,6 +9,7 @@ from guadua.channel.profiles import profile_by_name
 from guadua.node.config import NodeConfig
 from guadua.node.service import Node
 from guadua.node.udp import UdpTransport
+from guadua.providers.fallback import llm_from_env
 from guadua.store.sqlite import SQLiteEventStore
 
 
@@ -25,7 +26,11 @@ def build_node(config: NodeConfig) -> Node:
             profile=profile,
             seed=config.channel_seed,
         )
-    return Node(config.node_id, store, transport=transport, peers=config.peers)
+    llm = llm_from_env()  # LLM_PROVIDER, GEMINI_*, OLLAMA_* del entorno; None sin ninguno
+    logging.getLogger("guadua").info(
+        "LLM del agente de triaje: %s", llm.name if llm else "ninguno (ambiguo → revisar)"
+    )
+    return Node(config.node_id, store, transport=transport, peers=config.peers, llm=llm)
 
 
 def main() -> None:

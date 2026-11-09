@@ -5,7 +5,8 @@
 
 El **piso** es duro: nadie automático lo baja, tampoco el agente de triaje (regla 1 de
 AGENTS.md). Lo que el clasificador agregó por encima del piso es una sugerencia: el agente de
-triaje (N8, con LLM) podrá bajarla, un nivel por vez, con motivo y nunca por debajo del piso.
+triaje (N8, agents/triaje.py) puede bajarla, un nivel por vez, con motivo y nunca por debajo
+del piso.
 La decisión final siempre es de una persona.
 
 - `source` dice qué capa fijó el nivel: "reglas" si se activó alguna (o si no hay
@@ -13,8 +14,8 @@ La decisión final siempre es de una persona.
 - **Zona gris** → `ambiguous=True` ("ambiguo, revisar"): ninguna regla se activó y el
   clasificador duda (probabilidad máxima < 0,5 o las dos primeras a menos de 0,15), o no
   hay clasificador, o el texto tiene muchas palabras que el clasificador nunca vio (no
-  entiende significado: ver `Vocabulary` en model.py). Mientras N8 no exista, ese caso lo
-  revisa una persona.
+  entiende significado: ver `Vocabulary` en model.py). Esos casos los investiga el agente de
+  triaje (N8); sin LLM, los revisa una persona.
 - Si el clasificador falla o no está instalado (extra `ml`), quedan las reglas.
 """
 

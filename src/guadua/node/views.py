@@ -2,10 +2,12 @@
 
 No guarda nada: cada consulta recorre los eventos y arma las tarjetas con los modelos de
 node/api.py. Reglas:
-- **Nivel:** el mayor de todas las urgencias de los reportes del incidente. Tras una
-  partición, eso conserva la urgencia más alta (diseño §9). Cuando el agente de triaje (N8)
-  pueda bajar la sugerencia del clasificador, aquí se tomará la urgencia más reciente de
-  cada reporte, sin quedar nunca bajo su piso (regla 1 y diseño §11).
+- **Nivel de un reporte:** vale la urgencia más reciente de su cadena de `refs`. Una
+  urgencia queda **reemplazada** si otra la referencia (el agente de triaje, N8, publica la
+  suya con `refs` a la de N7 y puede bajar la sugerencia del clasificador). Si quedan varias
+  sin reemplazar (conclusiones paralelas tras una partición), se conserva la más alta
+  (diseño §9). Nunca queda bajo el piso más alto visto (regla 1).
+- **Nivel del incidente:** el mayor de sus reportes.
 - **Sin triaje todavía** (aún no llega la `urgencia_estimada` de N7, o el triaje falló): el
   incidente se muestra como crítico, de forma provisional y avisándolo en los pasos. No se
   guarda ningún evento.
@@ -131,6 +133,18 @@ class _Log:
         return groups
 
 
+def _current(urgencies: list[Event]) -> list[UrgenciaEstimada]:
+    """Las urgencias de un reporte que ninguna otra reemplaza (ninguna las referencia)."""
+    replaced = {ref for u in urgencies for ref in u.refs}
+    return [UrgenciaEstimada.model_validate(u.payload) for u in urgencies if u.id not in replaced]
+
+
+def _report_level(urgencies: list[Event]) -> Urgency:
+    """La más alta de las vigentes, sin bajar nunca del piso más alto visto."""
+    floor = max(Urgency(u.payload["floor"]) for u in urgencies)
+    return max([floor, *(u.level for u in _current(urgencies))])
+
+
 def _title(data: ReporteNormalizado) -> str:
     title = INCIDENT_TITLES[data.incident]
     people = PEOPLE_LABELS.get(data.people)
@@ -163,9 +177,12 @@ def _suggestion(ficha: Ficha) -> str:
 def _build(iid: str, incident_event: Event | None, members: list[_Report], log: _Log) -> dict:
     members = sorted(members, key=lambda r: _key(r.reporte))
     first = members[0].data
-    urgencies = [u for r in members for u in r.urgencies]
+    urgencies = sorted((u for r in members for u in r.urgencies), key=_key)
     parsed = [UrgenciaEstimada.model_validate(u.payload) for u in urgencies]
-    level = max((u.level for u in parsed), default=PROVISIONAL_LEVEL)
+    current = [c for r in members for c in _current(r.urgencies)]
+    level = max(
+        (_report_level(r.urgencies) for r in members if r.urgencies), default=PROVISIONAL_LEVEL
+    )
     group = IncidenteAgrupado.model_validate(incident_event.payload) if incident_event else None
 
     fichas = sorted(log.fichas.get(iid, []), key=_key)
@@ -210,6 +227,7 @@ def _build(iid: str, incident_event: Event | None, members: list[_Report], log: 
         detail = f"{u.source}: nivel {u.level.name.lower()}"
         detail += "".join(f"; {r}" for r in u.rules) + ("; ambiguo, revisar" if u.ambiguous else "")
         steps.append(AgentStep(agent="triaje", detail=detail))
+        steps.extend(AgentStep(agent="triaje", detail=f"agente · {s}") for s in u.steps)
     if group:
         detail = f"vínculo {group.link}, confianza {group.confidence:.2f}"
         steps.append(AgentStep(agent="correlacion", detail=detail))
@@ -222,7 +240,7 @@ def _build(iid: str, incident_event: Event | None, members: list[_Report], log: 
         detail = f"ficha {event_id_str(ficha_event)}: {_suggestion(ficha)}; {origin}"
         steps.append(AgentStep(agent="coordinacion", detail=detail))
 
-    top = max(parsed, key=lambda u: u.level, default=None)
+    top = max(current, key=lambda u: u.level, default=None)
     return {
         "incident_id": iid,
         "level": level,
@@ -231,7 +249,7 @@ def _build(iid: str, incident_event: Event | None, members: list[_Report], log: 
         "location": first.location,
         "confidence": group.confidence if group else None,
         "rumor": group.rumor if group else False,
-        "verify_now": any(u.verify_now for u in parsed),
+        "verify_now": any(u.verify_now for u in current),
         "risk_warning": risk_warning,
         "suggestion": suggestion,
         "message": message,
@@ -267,6 +285,15 @@ def incident_cards(events: Iterable[Event]) -> list[IncidentCard]:
         for iid, (ev, members) in log.groups().items()
     ]
     return sorted(cards, key=lambda c: (-c.level, c.received_at, c.incident_id))
+
+
+def incident_details(events: Iterable[Event]) -> list[IncidentDetail]:
+    """Todos los incidentes con su detalle (lo usa la herramienta `incidentes_cercanos`)."""
+    log = _Log.read(events)
+    return [
+        IncidentDetail(**_build(iid, ev, members, log))
+        for iid, (ev, members) in log.groups().items()
+    ]
 
 
 def incident_detail(events: Iterable[Event], incident_id: str) -> IncidentDetail | None:

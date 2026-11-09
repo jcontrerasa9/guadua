@@ -10,16 +10,29 @@
 # El gossip viaja por UDP con tramas de 200 B (como LoRa). Para simular pérdida entre nodos:
 #   SARD_CHANNEL_PROFILE=lora docker compose up
 
+# LLM del agente de triaje (N8), opcional. Sin estas variables no hay LLM y los casos dudosos
+# quedan "ambiguo, revisar". Ejemplo con Ollama corriendo en el equipo:
+#   LLM_PROVIDER=ollama OLLAMA_MODEL=qwen2.5:3b OLLAMA_HOST=http://host.docker.internal:11434 \
+#     docker compose up
+x-llm: &llm
+  LLM_PROVIDER: ${LLM_PROVIDER:-auto}
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  GEMINI_MODEL: ${GEMINI_MODEL:-}
+  OLLAMA_HOST: ${OLLAMA_HOST:-}
+  OLLAMA_MODEL: ${OLLAMA_MODEL:-}
+
 # Una sola imagen (guadua-node) para los tres nodos y el proxy: se construye una vez.
 x-node: &node
   image: guadua-node
   build: .
   restart: unless-stopped
+  extra_hosts: ["host.docker.internal:host-gateway"]  # para llegar a un Ollama del equipo
 
 services:
   node-a:
     <<: *node
     environment:
+      <<: *llm
       SARD_NODE_ID: A
       SARD_PEERS: B
       SARD_PEER_ADDRS: B=node-b:9000
@@ -30,6 +43,7 @@ services:
   node-b:
     <<: *node
     environment:
+      <<: *llm
       SARD_NODE_ID: B
       SARD_PEERS: A,C
       SARD_PEER_ADDRS: A=node-a:9000,C=node-c:9000
@@ -40,6 +54,7 @@ services:
   node-c:
     <<: *node
     environment:
+      <<: *llm
       SARD_NODE_ID: C
       SARD_PEERS: B
       SARD_PEER_ADDRS: B=node-b:9000
