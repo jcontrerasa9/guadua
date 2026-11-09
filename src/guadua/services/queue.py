@@ -9,6 +9,9 @@ Ordena las transmisiones según la política de docs/diseno.md §8:
 - Desempate a igual prioridad: sale primero el más pequeño (menor cantidad de bytes).
 - Envejecimiento: cada minuto en cola suma prioridad, acotando la espera máxima de los bajos.
 - Vencimiento sin borrado: tras superar `ttl_seconds` sin confirmación pasa a "por_confirmar".
+- Reintento con espera creciente (N11b): un mensaje enviado que espera su ACK no se vuelve a
+  elegir hasta que pase su espera: `retry_base_s` tras el primer envío, el doble en cada
+  reintento, hasta `retry_max_s`. Mientras tanto, la ventana es para el siguiente mensaje.
 - Integración con N2 (fragmentos/ACK) y N3 (Transport).
 """
 
@@ -42,6 +45,10 @@ CONTROL_WEIGHT: float = 110.0  # ACK, A_SALVO, SOS_ESCOMBROS
 PHOTO_WEIGHT: float = 5.0  # Los fragmentos de foto nunca retrasan un texto
 DEFAULT_AGING_FACTOR: float = 3.0  # puntos por minuto en cola
 DEFAULT_TTL_SECONDS: float = 7200.0  # 2 horas antes de pasar a "por_confirmar"
+DEFAULT_RETRY_BASE_S: float = 2.0  # espera antes del primer reintento sin ACK
+# Tope de la espera. Medido con el banco (N15, semillas 1–4 y 15): frente a 30 o 60 s gasta
+# las mismas tramas y acota mejor el p95 de los críticos con mucha pérdida.
+DEFAULT_RETRY_MAX_S: float = 16.0
 
 
 class ItemStatus(StrEnum):
@@ -88,15 +95,21 @@ class CommunicationQueue:
         *,
         aging_factor: float = DEFAULT_AGING_FACTOR,
         ttl_seconds: float = DEFAULT_TTL_SECONDS,
+        retry_base_s: float = DEFAULT_RETRY_BASE_S,
+        retry_max_s: float = DEFAULT_RETRY_MAX_S,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         if aging_factor <= 0:
             raise ValueError("aging_factor debe ser positivo")
         if ttl_seconds <= 0:
             raise ValueError("ttl_seconds debe ser positivo")
+        if retry_base_s <= 0 or retry_max_s < retry_base_s:
+            raise ValueError("se requiere 0 < retry_base_s <= retry_max_s")
         self.node_id = node_id
         self.aging_factor = aging_factor
         self.ttl_seconds = ttl_seconds
+        self.retry_base_s = retry_base_s
+        self.retry_max_s = retry_max_s
         self._clock = clock
         self._counter: int = 0
         self._seq_counter: int = 0
@@ -216,6 +229,21 @@ class CommunicationQueue:
         diff = URGENCY_WEIGHTS[target_urgency] - URGENCY_WEIGHTS[urgency]
         return max(0.0, diff / self.aging_factor)
 
+    def retry_wait(self, item: QueueItem) -> float:
+        """Segundos que espera `item` desde su último envío antes de reenviarse: 0 si nunca
+        salió; `retry_base_s` tras el primer envío y el doble en cada reintento, con tope."""
+        if item.attempts == 0:
+            return 0.0
+        doublings = min(item.attempts - 1, 32)  # el tope llega mucho antes; evita desbordes
+        return min(self.retry_base_s * 2**doublings, self.retry_max_s)
+
+    def waiting_ack(self, item: QueueItem, now: float | None = None) -> bool:
+        """¿Se envió hace menos de su espera y sigue sin ACK? Entonces no se reenvía aún."""
+        if item.last_attempt_at is None:
+            return False
+        current_time = self._clock() if now is None else now
+        return current_time - item.last_attempt_at < self.retry_wait(item)
+
     def check_timeouts(self, now: float | None = None) -> list[QueueItem]:
         """Pasa a 'por_confirmar' los mensajes que hayan superado su TTL."""
         current_time = self._clock() if now is None else now
@@ -239,6 +267,7 @@ class CommunicationQueue:
             for item in self._items.values()
             if item.status in (ItemStatus.ENCOLADO, ItemStatus.TRANSMITIENDO)
             and (item.sender is None or not item.sender.done)
+            and not self.waiting_ack(item, current_time)
         ]
         if not candidates:
             return None
