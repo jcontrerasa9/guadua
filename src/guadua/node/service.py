@@ -9,13 +9,15 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
+from typing import Literal
 
 from guadua import __version__
 from guadua.agents.coordinacion import AgenteCoordinacion
 from guadua.agents.correlacion import correlacionar_reporte
+from guadua.classifier.triage import UrgencyClassifier, default_classifier
 from guadua.node.api import DecisionAck, DecisionRequest, Health, MessageAck
 from guadua.node.intake import parse_message, reporte_event
-from guadua.node.pipeline import normalized_event
+from guadua.node.pipeline import normalized_event, urgency_event
 from guadua.providers.transport import Transport
 from guadua.store.event_types import Decision, event_id_str, validate_event
 from guadua.store.events import Event, EventCategory, EventId, EventStore
@@ -46,8 +48,12 @@ class Node:
         transport: Transport | None = None,
         peers: tuple[str, ...] = (),
         clock: Callable[[], float] = time.time,
+        classifier: UrgencyClassifier | None | Literal["default"] = "default",
     ) -> None:
+        """`classifier="default"` entrena el de data/sinteticos (una vez por proceso);
+        None deja solo las reglas."""
         self.node_id = node_id
+        self.classifier = default_classifier() if classifier == "default" else classifier
         self.store = store
         self.clock = clock
         self._seq = self._max_own_seq()
@@ -135,6 +141,7 @@ class Node:
             normalized = normalized_event(event, node_id=self.node_id, seq=self.next_seq())
             self.record(normalized)
         elif event.type == "reporte_normalizado" and event.origin_node == self.node_id:
+            self._estimate_urgency(event)
             grouped = correlacionar_reporte(event, self.store, self.node_id, self.next_seq)
             if grouped is not None:
                 self._after_append(grouped)  # el agente ya lo guardó
@@ -144,3 +151,17 @@ class Node:
             ficha = self.store.get(event.refs[0]) if event.refs else None
             if ficha is not None and ficha.origin_node == self.node_id:
                 self.coordinacion.procesar_decision(event, self.store)  # replanea si rechazan
+
+    def _estimate_urgency(self, normalized: Event) -> None:
+        """Publica `urgencia_estimada`. Si falla, la correlación y el resto siguen igual."""
+        try:
+            reporte = self.store.get(normalized.refs[0])
+            if reporte is None or reporte.type != "reporte":
+                return
+            self.record(
+                urgency_event(
+                    normalized, reporte, self.classifier, node_id=self.node_id, seq=self.next_seq()
+                )
+            )
+        except Exception:
+            logger.exception("%s: falló el triaje del evento %s:%s", self.node_id, *normalized.id)

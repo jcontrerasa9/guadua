@@ -1,10 +1,12 @@
-"""Lo que el nodo dueño hace con cada reporte: normalizar, agrupar y armar la ficha.
+"""Lo que el nodo dueño hace con cada reporte: normalizar, estimar la urgencia, agrupar y
+armar la ficha.
 
-    reporte → reporte_normalizado (reglas simples) → incidente_agrupado (N9) → ficha (N10)
+    reporte → reporte_normalizado (reglas simples) ─┬→ urgencia_estimada (N7)
+                                                    └→ incidente_agrupado (N9) → ficha (N10)
 
 Solo el nodo dueño (el que recibió el reporte) crea los eventos derivados; los demás los
-reciben por gossip y no recalculan (docs/diseno.md §9). La urgencia es de N7/N8: mientras no
-exista, el tablero muestra el incidente como crítico provisional (ver views.py).
+reciben por gossip y no recalculan (docs/diseno.md §9). La urgencia sale de reglas +
+clasificador (classifier/triage.py); el agente de triaje (N8) solo podrá subirla.
 
 La normalización es la de "reglas simples mientras no exista el Agente 1"
 (docs/contratos.md): sale solo de la cabecera, sin interpretar el texto.
@@ -16,6 +18,7 @@ import json
 from functools import cache
 from pathlib import Path
 
+from guadua.classifier.triage import UrgencyClassifier, triage
 from guadua.protocol.header import Flag, People
 from guadua.store.event_types import Location, Reporte, ReporteNormalizado
 from guadua.store.events import Event, EventCategory
@@ -74,4 +77,28 @@ def normalized_event(reporte_event: Event, *, node_id: str, seq: int) -> Event:
         payload=payload.model_dump(mode="json"),
         refs=(reporte_event.id,),
         received_at=reporte_event.received_at,
+    )
+
+
+def urgency_event(
+    normalized_event: Event,
+    reporte_event: Event,
+    classifier: UrgencyClassifier | None,
+    *,
+    node_id: str,
+    seq: int,
+) -> Event:
+    """`urgencia_estimada` del reporte; apunta en `refs` al `reporte_normalizado`."""
+    normalized = ReporteNormalizado.model_validate(normalized_event.payload)
+    payload = triage(
+        Reporte.model_validate(reporte_event.payload), classifier, normalized.risk_signals
+    )
+    return Event(
+        origin_node=node_id,
+        seq=seq,
+        category=EventCategory.DERIVADO,
+        type="urgencia_estimada",
+        payload=payload.model_dump(mode="json"),
+        refs=(normalized_event.id,),
+        received_at=normalized_event.received_at,
     )

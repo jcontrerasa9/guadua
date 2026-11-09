@@ -2,10 +2,14 @@
 
 No guarda nada: cada consulta recorre los eventos y arma las tarjetas con los modelos de
 node/api.py. Reglas:
-- **El nivel nunca baja** (regla 1): es el mayor de todas las urgencias de los reportes del
-  incidente. Tras una partición, eso conserva la urgencia más alta (diseño §9).
-- **Sin triaje todavía** (N7/N8 aún no publica `urgencia_estimada`): el incidente se muestra
-  como crítico, de forma provisional y avisándolo en los pasos. No se guarda ningún evento.
+- **Nivel:** el mayor de todas las urgencias de los reportes del incidente. Tras una
+  partición, eso conserva la urgencia más alta (diseño §9). Cuando el agente de triaje (N8)
+  pueda bajar la sugerencia del clasificador, aquí se tomará la urgencia más reciente de
+  cada reporte, sin quedar nunca bajo su piso (regla 1 y diseño §11).
+- **Sin triaje todavía** (aún no llega la `urgencia_estimada` de N7, o el triaje falló): el
+  incidente se muestra como crítico, de forma provisional y avisándolo en los pasos. No se
+  guarda ningún evento.
+- Una urgencia en la zona gris (`ambiguous`) lo dice en los pasos: "ambiguo, revisar".
 - Un reporte que la correlación todavía no agrupó es su propio incidente, con su report_id.
 - Estado: sin ficha · pendiente · aprobada / editada / rechazada · conflicto si hay dos
   decisiones distintas sobre la misma ficha.
@@ -204,7 +208,8 @@ def _build(iid: str, incident_event: Event | None, members: list[_Report], log: 
         steps.append(PROVISIONAL_STEP)
     for u in parsed:
         detail = f"{u.source}: nivel {u.level.name.lower()}"
-        steps.append(AgentStep(agent="triaje", detail=detail + "".join(f"; {r}" for r in u.rules)))
+        detail += "".join(f"; {r}" for r in u.rules) + ("; ambiguo, revisar" if u.ambiguous else "")
+        steps.append(AgentStep(agent="triaje", detail=detail))
     if group:
         detail = f"vínculo {group.link}, confianza {group.confidence:.2f}"
         steps.append(AgentStep(agent="correlacion", detail=detail))
