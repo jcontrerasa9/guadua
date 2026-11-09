@@ -35,7 +35,7 @@ La v3 junta dos aportes del equipo con lo que contó el comandante de Bomberos d
 
 **Motor distribuido y agéntico (base v2):**
 
-* **Piso determinista \+ agencia en la zona gris.** Reglas y un clasificador local propio (scikit-learn, TF-IDF de caracteres \+ regresión logística calibrada) procesan el 100 % de los reportes sin Internet. Los agentes con LLM (LangGraph con Gemini en la nube u Ollama en local) trabajan solo en la **zona gris**: casos ambiguos, vínculos dudosos, reportes incompletos e incidentes olvidados. Nunca bajan el piso de urgencia.  
+* **Piso determinista \+ agencia en la zona gris.** Reglas y un clasificador local propio (scikit-learn, TF-IDF de caracteres \+ regresión logística calibrada) procesan el 100 % de los reportes sin Internet. Los agentes con LLM (LangGraph con Gemini en la nube u Ollama en local) trabajan solo en la **zona gris**: casos ambiguos, vínculos dudosos, reportes incompletos e incidentes olvidados. Nunca bajan el piso de urgencia; el de triaje puede corregir la sugerencia del clasificador (§11). La decisión final siempre es de una persona.  
 * **Patrón pizarra y nodo dueño.** Cada nodo (FastAPI \+ SQLite) guarda un registro de eventos inmutable, identificados por `(nodo_origen, consecutivo)`. No hay orquestador central: los 7 agentes se coordinan leyendo y publicando eventos. Los nodos se sincronizan por **gossip** con vectores de versión sobre la topología `A ↔ B ↔ C`, sin enlace directo A–C.  
 * **Protocolo binario de 21 bytes \+ diccionario de Manizales.** Cabecera fija de 21 B más texto comprimido con un diccionario de jerga de emergencias y barrios. Cabe en un SMS (140 B) o en una trama LoRa (\~200 B). ACK con mapa de bits.
 
@@ -289,7 +289,7 @@ El diseño cumple la definición clásica de sistema multiagente (agentes autón
 | \# | Agente | Piso determinista | Agencia en la zona gris | Límite |
 | :---- | :---- | :---- | :---- | :---- |
 | 1 | **Recepción** | Desempaqueta el binario, normaliza celular y radio, ubica el barrio en el listado offline | Separa transmisiones de radio con varios incidentes, interpreta referencias ("frente a la iglesia de Chipre"), envía 1 pregunta de seguimiento | No inventa coordenadas ni completa datos que no llegaron; máximo 1 pregunta por reporte |
-| 2 | **Triaje** | Reglas de prioridad mínima \+ clasificador calibrado; marca las señales de riesgo en escena | Si el caso es ambiguo, investiga (`incidentes_cercanos`, `radio_en_zona`, `respuesta_seguimiento`) y decide subir la urgencia o marcar "verificar ya". Considera el riesgo para rescatistas al explicar | No diagnostica; **nunca baja el piso**; máximo 6 pasos |
+| 2 | **Triaje** | Reglas de prioridad mínima \+ clasificador calibrado; marca las señales de riesgo en escena | Si el caso es ambiguo, investiga (`incidentes_cercanos`, `radio_en_zona`, `respuesta_seguimiento`) y decide subir la urgencia, bajar la sugerencia del clasificador o marcar "verificar ya". Considera el riesgo para rescatistas al explicar | No diagnostica; **nunca baja el piso de las reglas**; baja como máximo un nivel, con motivo; máximo 6 pasos |
 | 3 | **Correlación** | Agrupa contra el centro del grupo; calcula la confianza | Ante un vínculo dudoso, propone unir o separar con justificación. Si llega una contradicción, reabre el grupo por iniciativa propia | No borra originales; las fusiones dudosas las confirma una persona |
 | 4 | **Comunicación** | *(Servicio sin LLM)* Cola con envejecimiento, fragmentos, ACK, fotos al final | — | Ningún caso bajo espera indefinidamente |
 | 5 | **Resiliencia** | *(Servicio sin LLM)* Latidos, caídas, reasignación del dueño, gossip | — | Ningún LLM decide sobre la infraestructura |
@@ -299,7 +299,7 @@ El diseño cumple la definición clásica de sistema multiagente (agentes autón
 **Herramientas permitidas (lista blanca):**
 
 * **Recepción:** `buscar_lugar`, `separar_transmision`, `enviar_pregunta_seguimiento`, `marcar_campo_desconocido`  
-* **Triaje:** `clasificar`, `incidentes_cercanos`, `radio_en_zona`, `respuesta_seguimiento`, `fijar_urgencia` (solo hacia arriba), `marcar_verificar_ya`, `solicitar_verificacion_campo`  
+* **Triaje:** `clasificar`, `incidentes_cercanos`, `radio_en_zona`, `respuesta_seguimiento`, `fijar_urgencia` (hacia arriba; hacia abajo solo un nivel, con motivo y nunca bajo el piso), `marcar_verificar_ya`, `solicitar_verificacion_campo`  
 * **Correlación:** `grupos_candidatos`, `linea_de_tiempo`, `similitud_textos`, `proponer_union`, `proponer_separacion`, `registrar_contradiccion`  
 * **Coordinación:** `responsable_por_tipo`, `recursos_disponibles`, `buscar_protocolo`, `evaluar_riesgo_escena`, `solicitar_revision_correlacion`, `crear_ficha`, `esperar_aprobacion`  
 * **Vigía:** `incidentes_sin_atender`, `evidencia_desde`, `solicitar_reevaluacion`, `alertar_tablero`
@@ -307,7 +307,7 @@ El diseño cumple la definición clásica de sistema multiagente (agentes autón
 **Límites comunes:**
 
 * Máximo de pasos (inicialmente 6\) y de tiempo por caso; al agotarse, el caso va a revisión humana.  
-* Ningún agente baja el piso de urgencia.  
+* Ningún agente baja el piso de urgencia. Solo el de triaje puede bajar la sugerencia del clasificador, con los límites de §11.  
 * Cada paso queda en el registro y se ve en el desplegable "por qué está aquí".  
 * Si el LLM no responde, devuelve algo inválido o pide una herramienta no permitida, el caso queda como "ambiguo, revisar".  
 * Las únicas acciones hacia afuera son las preguntas al ciudadano y las solicitudes de verificación, y ambas se ven en el tablero.  
@@ -324,7 +324,7 @@ Cada agente tendrá su ficha en `docs/fichas/` con los campos que pide el PDF: *
 | Salidas | Evento "urgencia estimada" (nivel, probabilidades, reglas activadas, señales de riesgo, evidencia, pasos); o "verificar ya"; o "solicitud de verificación en campo" |
 | Herramientas | Las de su lista blanca |
 | Memoria | Corto plazo: los pasos de la investigación en curso. Largo plazo: ninguna propia; el estado vive en el registro de eventos |
-| Límites | No diagnostica; no baja el piso; máximo 6 pasos |
+| Límites | No diagnostica; no baja el piso de las reglas; baja la sugerencia del clasificador como máximo un nivel y con motivo; máximo 6 pasos |
 | Errores | Si falla el clasificador, quedan las reglas. Si falla el LLM, el caso pasa a "ambiguo, revisar" |
 | Terminación | Urgencia publicada con confianza suficiente, escalamiento a revisión humana o presupuesto de pasos o de tiempo agotado |
 
@@ -332,11 +332,11 @@ Cada agente tendrá su ficha en `docs/fichas/` con los campos que pide el PDF: *
 
 ## **11\. Clasificación de urgencia y riesgo para rescatistas**
 
-Hay tres capas. Ninguna capa posterior puede bajar el piso que fija la anterior.
+Hay tres capas. El **piso** lo fijan solo las reglas y nadie automático lo baja. Encima del piso, el clasificador y el agente **sugieren** un nivel; la decisión final es de una persona.
 
 1. **Reglas de prioridad mínima.** Las señales vitales (atrapados, no respira, sangrado fuerte, inconsciente, incendio, SOS escombros) fijan el piso en **crítica**. Objetivo de tiempo: menos de 1 ms.  
-2. **Clasificador local calibrado.** TF-IDF de n-gramas de caracteres (tolera faltas de ortografía) \+ regresión logística con `CalibratedClassifierCV`, entrenado con reportes sintéticos en español colombiano. Puede subir la urgencia, nunca bajarla. Objetivo: menos de 2 ms por reporte.  
-3. **Agente de triaje (LLM) en la zona gris.** Actúa cuando la probabilidad máxima es baja (umbral inicial 0,5), cuando las dos categorías principales están muy parejas o cuando hay contradicciones. Los umbrales se ajustan con el conjunto de prueba.
+2. **Clasificador local calibrado.** TF-IDF de n-gramas de caracteres (tolera faltas de ortografía) \+ regresión logística con `CalibratedClassifierCV`, entrenado con reportes sintéticos en español colombiano. Sube el nivel sugerido por encima del piso, nunca lo deja por debajo. Si el texto tiene muchas palabras que nunca vio, el caso queda "ambiguo, revisar". Objetivo: menos de 2 ms por reporte.  
+3. **Agente de triaje (LLM) en la zona gris.** Actúa cuando la probabilidad máxima es baja (umbral inicial 0,5), cuando las dos categorías principales están muy parejas o cuando hay contradicciones. Los umbrales se ajustan con el conjunto de prueba. Puede subir el nivel, o bajar lo que agregó el clasificador cuando el texto lo contradice (p. ej., "un gato herido" marcado como "Herido"): un nivel por vez, con un motivo que cite el texto, nunca por debajo del piso y siempre visible en la tarjeta ("bajada por el agente"). Sin LLM no se baja nada: el caso queda "ambiguo, revisar". Cuando exista (N8), la tarjeta toma la urgencia más reciente de cada reporte en lugar de la mayor.
 
 **Riesgo para rescatistas (criterio, no regla).** Las señales de peligro en la escena (gas u olor a gas, cables caídos, cilindros expuestos, colapso secundario, vía bloqueada) se marcan como **señales de riesgo**. No cambian la urgencia por sí solas. Los agentes de triaje y coordinación **deben considerarlas**: la ficha muestra la advertencia en una franja visible y la recomendación tiene en cuenta el tipo de unidad adecuado (por ejemplo, HazMat antes que una ambulancia estándar). La decisión final es de la persona.
 
