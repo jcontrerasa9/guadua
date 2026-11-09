@@ -7,12 +7,14 @@ WORKDIR /app
 # 1) Dependencias, en su propia capa: solo se reinstalan si cambia pyproject.toml, no con
 #    cada cambio de código. La caché de pip sobrevive entre builds (BuildKit).
 #    Extra ml: el clasificador de urgencia (N7). Se entrena al arrancar con data/sinteticos.
+#    Extra agents: LangGraph para el agente de triaje (N8). Sin LLM configurado no se usa.
 #    hatchling y editables permiten instalar el código abajo sin descargar nada más.
 COPY pyproject.toml ./
 RUN --mount=type=cache,target=/root/.cache/pip \
     python -c "import tomllib; p = tomllib.load(open('pyproject.toml', 'rb')); \
 print('\n'.join(p['build-system']['requires'] + p['project']['dependencies'] \
-+ p['project']['optional-dependencies']['ml']))" > /tmp/requirements.txt \
++ p['project']['optional-dependencies']['ml'] \
++ p['project']['optional-dependencies']['agents']))" > /tmp/requirements.txt \
     && echo "editables==0.6" >> /tmp/requirements.txt \
     && pip install -r /tmp/requirements.txt
 # 2) El código. Instalación editable: el código encuentra data/ y citizen/ junto a src/,
