@@ -508,7 +508,7 @@ Los valores reales, los errores observados y las limitaciones van al documento d
 ## **18\. Decisiones abiertas**
 
 * \[x\] **Equilibrar el reparto:** correlación, coordinación, codificador JS, registro de personas y barra de simulación pasan a Oscar. **Queda por asignar** (al terminar el nivel 1): agente de recepción, vigía, RAG y recursos.  
-* \[ \] **Tope para reportes de segunda mano** en la fórmula de confianza, si las pruebas muestran que muchos rumores redactados distinto suben demasiado la confianza.  
+* \[x\] **Tope para reportes de segunda mano** en la fórmula de confianza: fijado en 0.25 para mantener rumores en confianza baja sin testigos directos.  
 * \[ \] **Documentos oficiales** (EMRE, matriz de responsabilidades, PMGRD y otros): solicitados al organizador. Al recibirlos, decidir qué entra al RAG y qué entidades son reales.  
 * \[ \] **Modelo de Gemini** disponible en la capa gratuita al momento de construir.  
 * \[ \] **Modelo de Ollama** para los agentes sin Internet (pequeño, con buen uso de herramientas, aceptable en CPU), elegido con la prueba de casos ambiguos.  
