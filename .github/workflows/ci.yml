@@ -1,11 +1,10 @@
-# En cada push y pull request se corren ruff (linter), pytest (pruebas de Python)
-# y las pruebas de JS con node --test (incluido en Node, sin npm).
+# En cada push se corren ruff (linter), pytest (pruebas de Python) y las pruebas
+# de JS con node --test (incluido en Node, sin npm).
 
 name: CI
 
 on:
   push:
-  pull_request:
 
 jobs:
   python:
