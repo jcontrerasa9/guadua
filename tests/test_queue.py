@@ -372,8 +372,9 @@ def test_transmit_next_fragmented_and_retransmits_only_missing() -> None:
         assert len(item.sender.pending()) == 1
         assert item.sender.pending()[0].index == 1
 
-        # Segundo intento: retransmite SOLO el fragmento 1 que faltaba
+        # Segundo intento, pasada la espera de reintento: retransmite SOLO el fragmento 1
         transport.sent.clear()
+        clock.advance(q.retry_wait(item))
         await q.transmit_next(transport)
         assert len(transport.sent) == 1
         frag1 = decode_fragment(transport.sent[0][1])
@@ -440,13 +441,15 @@ def test_queue_over_simulated_network_with_loss() -> None:
         reassembler = Reassembler()
         delivered_at_b: list[bytes] = []
 
-        # Bucle de retransmisión gestionado por la cola
-        for _ in range(100):
+        # Bucle de retransmisión gestionado por la cola: una ventana por segundo, así corre
+        # la espera de reintento (N11b)
+        for _ in range(400):
             if crit.status == ItemStatus.ENTREGADO and low.status == ItemStatus.ENTREGADO:
                 break
 
             # Transmitir el elemento prioritario
             await q.transmit_next(a_transport)
+            clock.advance(1.0)
 
             # B recibe y responde ACK
             while (packet := await b_transport.receive(timeout=0)) is not None:
@@ -503,3 +506,74 @@ def test_auto_detect_header_fields() -> None:
     assert item.device_id == 42
     assert item.seq == 1
     assert item.base_weight == CONTROL_WEIGHT
+
+
+# --- 10. Reintento con espera creciente (N11b) --------------------------------------------
+
+
+def test_no_reenvia_antes_de_la_espera_y_si_despues() -> None:
+    async def scenario() -> None:
+        clock = MockClock()
+        q = CommunicationQueue(clock=clock, retry_base_s=2.0)
+        transport = DummyTransport()
+        item = q.enqueue(b"reporte", destination="B", urgency=Urgency.CRITICA, device_id=1, seq=1)
+
+        assert await q.transmit_next(transport) is item
+        assert q.waiting_ack(item) and await q.transmit_next(transport) is None
+        clock.advance(1.999)
+        assert await q.transmit_next(transport) is None  # el ACK puede venir en camino
+        clock.advance(0.001)
+        assert await q.transmit_next(transport) is item
+        assert len(transport.sent) == 2 and item.attempts == 2
+
+    asyncio.run(scenario())
+
+
+def test_la_espera_se_duplica_hasta_el_tope() -> None:
+    q = CommunicationQueue(clock=MockClock(), retry_base_s=2.0, retry_max_s=10.0)
+    item = q.enqueue(b"x", destination="B", device_id=1, seq=1)
+    waits = []
+    for attempts in range(7):
+        item.attempts = attempts
+        waits.append(q.retry_wait(item))
+    assert waits == [0.0, 2.0, 4.0, 8.0, 10.0, 10.0, 10.0]
+    item.attempts = 10_000
+    assert q.retry_wait(item) == 10.0  # sin desbordes con muchos intentos
+
+
+def test_un_critico_que_espera_su_ack_deja_salir_a_un_bajo() -> None:
+    async def scenario() -> None:
+        clock = MockClock()
+        q = CommunicationQueue(clock=clock, retry_base_s=2.0)
+        transport = DummyTransport()
+        crit = q.enqueue(b"critico", destination="B", urgency=Urgency.CRITICA, device_id=1, seq=1)
+        low = q.enqueue(b"bajo", destination="B", urgency=Urgency.BAJA, device_id=1, seq=2)
+
+        assert await q.transmit_next(transport) is crit
+        assert await q.transmit_next(transport) is low  # la ventana no se desperdicia
+        assert await q.transmit_next(transport) is None  # los dos esperan su ACK
+        clock.advance(2.0)
+        assert await q.transmit_next(transport) is crit  # pasada la espera, el crítico primero
+
+    asyncio.run(scenario())
+
+
+def test_el_ack_corta_los_reintentos() -> None:
+    async def scenario() -> None:
+        clock = MockClock()
+        q = CommunicationQueue(clock=clock)
+        transport = DummyTransport()
+        item = q.enqueue(b"reporte", destination="B", urgency=Urgency.ALTA, device_id=7, seq=3)
+        await q.transmit_next(transport)
+        assert q.on_ack(Ack(item.msg_type, 7, 3, 1, frozenset({0})))
+        clock.advance(3600.0)
+        assert await q.transmit_next(transport) is None
+        assert len(transport.sent) == 1 and item.status == ItemStatus.ENTREGADO
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(("base", "maximum"), [(0.0, 10.0), (-1.0, 10.0), (5.0, 4.0)])
+def test_parametros_de_reintento_invalidos(base: float, maximum: float) -> None:
+    with pytest.raises(ValueError):
+        CommunicationQueue(retry_base_s=base, retry_max_s=maximum)
