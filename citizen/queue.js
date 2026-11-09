@@ -80,6 +80,22 @@ export class MemoryReportStore {
     this.meta.set("seq", next);
     return next;
   }
+
+  async saveLastLocation(location) {
+    this.meta.set("last_location", location ? { ...location } : null);
+  }
+
+  async getLastLocation() {
+    return this.meta.get("last_location") || null;
+  }
+
+  async saveLastBarrio(barrioCode) {
+    this.meta.set("last_barrio", barrioCode);
+  }
+
+  async getLastBarrio() {
+    return this.meta.get("last_barrio") ?? null;
+  }
 }
 
 /**
@@ -189,6 +205,50 @@ export class IndexedDbReportStore {
       req.onerror = () => reject(req.error);
     });
   }
+
+  async saveLastLocation(location) {
+    const db = await this._getDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction("meta", "readwrite");
+      const store = tx.objectStore("meta");
+      const req = store.put({ key: "last_location", value: location });
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async getLastLocation() {
+    const db = await this._getDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction("meta", "readonly");
+      const store = tx.objectStore("meta");
+      const req = store.get("last_location");
+      req.onsuccess = () => resolve(req.result ? req.result.value : null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async saveLastBarrio(barrioCode) {
+    const db = await this._getDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction("meta", "readwrite");
+      const store = tx.objectStore("meta");
+      const req = store.put({ key: "last_barrio", value: barrioCode });
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async getLastBarrio() {
+    const db = await this._getDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction("meta", "readonly");
+      const store = tx.objectStore("meta");
+      const req = store.get("last_barrio");
+      req.onsuccess = () => resolve(req.result ? req.result.value : null);
+      req.onerror = () => reject(req.error);
+    });
+  }
 }
 
 /**
@@ -212,6 +272,14 @@ export async function processQueue({
   const pending = await store.getPending();
   const now = clockFn();
   const processed = [];
+
+  // Los de mayor prioridad (SOS escombros) se procesan primero; a igual prioridad, el más viejo primero
+  pending.sort((a, b) => {
+    const prioA = Number(a?.priority ?? 0);
+    const prioB = Number(b?.priority ?? 0);
+    if (prioA !== prioB) return prioB - prioA;
+    return Number(a?.createdAt ?? 0) - Number(b?.createdAt ?? 0);
+  });
 
   for (const item of pending) {
     // Si ya está recibido, no se reenvía nunca
@@ -278,9 +346,12 @@ export function createReportQueue({
   let isRunning = false;
   let timerId = null;
 
-  async function enqueue({ headerFields, fullBytes }) {
+  async function enqueue({ headerFields, fullBytes, priority = null }) {
     const hexDevice = Number(headerFields.device_id).toString(16).padStart(8, "0");
     const id = `${hexDevice}-${headerFields.seq}`;
+    const itemPriority = priority !== null
+      ? priority
+      : (headerFields?.msg_type === 1 ? 1 : 0);
 
     const item = {
       id,
@@ -292,6 +363,7 @@ export function createReportQueue({
       nextRetry: 0,
       rawBytes: fullBytes,
       headerFields,
+      priority: itemPriority,
       ack: null,
     };
 
