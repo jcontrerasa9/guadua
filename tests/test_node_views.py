@@ -63,6 +63,42 @@ def test_level_never_drops_takes_highest_urgency() -> None:
     assert card.level == Urgency.CRITICA
 
 
+def agent(rid: str, seq: int, level: int, replaces: Event, floor: int = Urgency.BAJA) -> Event:
+    event = urgency(rid, seq, level, floor)
+    return event.model_copy(
+        update={"refs": (replaces.id,), "payload": {**event.payload, "source": "agente"}}
+    )
+
+
+def test_in_a_chain_the_most_recent_wins() -> None:
+    """N8: el agente referencia la urgencia de N7 y la reemplaza, aunque sea menor."""
+    n7 = urgency("0000beef-1", 12, Urgency.ALTA, Urgency.BAJA)
+    events = report("0000beef-1", 10, 100.0) + [n7, agent("0000beef-1", 13, Urgency.MEDIA, n7)]
+    (card,) = incident_cards(events)
+    assert card.level == Urgency.MEDIA
+    assert incident_cards(reversed(events)) == incident_cards(events)
+
+
+def test_parallel_conclusions_keep_the_highest() -> None:
+    """Diseño §9: tras una partición, dos agentes concluyen sin verse; vale la más alta."""
+    n7 = urgency("0000beef-1", 12, Urgency.ALTA, Urgency.BAJA)
+    events = report("0000beef-1", 10, 100.0) + [
+        n7,
+        agent("0000beef-1", 13, Urgency.MEDIA, n7),
+        agent("0000beef-1", 14, Urgency.CRITICA, n7).model_copy(update={"origin_node": "B"}),
+    ]
+    (card,) = incident_cards(events)
+    assert card.level == Urgency.CRITICA
+
+
+def test_never_below_the_highest_floor_seen() -> None:
+    n7 = urgency("0000beef-1", 12, Urgency.ALTA, Urgency.ALTA)
+    lowered = agent("0000beef-1", 13, Urgency.ALTA, n7, floor=Urgency.ALTA)
+    lowered = lowered.model_copy(update={"payload": {**lowered.payload, "floor": 1, "level": 1}})
+    (card,) = incident_cards(report("0000beef-1", 10, 100.0) + [n7, lowered])
+    assert card.level == Urgency.ALTA
+
+
 def test_no_triage_shows_provisional_critical() -> None:
     (card,) = incident_cards(report("0000beef-1", 10, 100.0))
     assert card.level == Urgency.CRITICA
