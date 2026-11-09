@@ -169,6 +169,25 @@ function getNodeIdentifier(node) {
 }
 
 /**
+ * Lista de nodos que empieza por el nodo que sirvió el tablero (`origin`).
+ *
+ * Así el tablero de cada nodo lee primero sus propios datos; los demás quedan de respaldo
+ * para el cambio automático si ese nodo cae. Si `origin` no es http(s) (p. ej. file://),
+ * la lista queda igual.
+ *
+ * @param {string} origin - p. ej. window.location.origin
+ * @param {string[]} nodes - URLs base de los nodos
+ * @returns {string[]}
+ */
+export function nodesStartingWith(origin, nodes = []) {
+  const clean = (url) => String(url).replace(/\/+$/, "");
+  const list = nodes.map(clean);
+  if (typeof origin !== "string" || !/^https?:\/\//.test(origin)) return list;
+  const own = clean(origin);
+  return [own, ...list.filter((node) => node !== own)];
+}
+
+/**
  * Crea el estado inicial para la selección y conmutación automática de nodos.
  *
  * @param {Array<string | Object>} nodes - Lista de nodos disponibles
