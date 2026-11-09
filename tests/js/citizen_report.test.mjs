@@ -7,12 +7,24 @@ import { test } from "node:test";
 
 import { decodeGeohash, encodeGeohash } from "../../citizen/geohash.js";
 import { decodeHeader, Flag, Incident, MessageType } from "../../citizen/protocol/header.js";
+import { decodeText, encodeText } from "../../citizen/protocol/text.js";
 import {
   buildReportBinary,
   buildReportHeaderFields,
+  encodedNoteBytes,
+  fitNote,
+  MAX_NOTE_BYTES,
   measureUtf8Bytes,
   truncateUtf8,
 } from "../../citizen/report.js";
+
+const DICT_BYTES = new Uint8Array(
+  readFileSync(new URL("../../citizen/diccionario_manizales.txt", import.meta.url)),
+);
+const TEXT_VECTORS = JSON.parse(
+  readFileSync(new URL("../fixtures/text_vectors.json", import.meta.url), "utf8"),
+);
+const toHex = (bytes) => Buffer.from(bytes).toString("hex");
 
 // --- Verificación de copia idéntica de barrios.json ---------------------------
 
@@ -59,6 +71,7 @@ test("el mensaje armado decodifica con decodeHeader() de header.js y devuelve lo
   const { fullBytes, headerBytes } = buildReportBinary({
     headerFields,
     noteText: "Colapso en primer piso",
+    dictionary: DICT_BYTES,
   });
 
   assert.equal(headerBytes.length, 21);
@@ -93,6 +106,7 @@ test("el mensaje armado decodifica con decodeHeader() de header.js y devuelve lo
   const { fullBytes } = buildReportBinary({
     headerFields,
     noteText: "Fuga fuerte en la esquina",
+    dictionary: DICT_BYTES,
   });
 
   const decoded = decodeHeader(fullBytes);
@@ -109,50 +123,86 @@ test("el mensaje armado decodifica con decodeHeader() de header.js y devuelve lo
   assert.ok(decoded.flags & Flag.NO_RESPIRA_O_SANGRADO);
 });
 
-// --- Pruebas de límite de texto de 100 bytes UTF-8 ----------------------------
+// --- Nota codificada con protocol/text.js (prefijo + comprimido, máx. 100 B) -----
 
-test("el texto de más de 100 bytes se corta de forma segura", () => {
-  // Cadena larga con tildes y caracteres multibyte
-  const longText = "Esta es una nota sumamente extensa con información detallada sobre el incidente en la montaña con árboles caídos y postes desplomados en la vía principal de la ciudad de Manizales";
-  assert.ok(measureUtf8Bytes(longText) > 100);
-
-  const truncated = truncateUtf8(longText, 100);
-  assert.ok(measureUtf8Bytes(truncated) <= 100);
-
-  // buildReportBinary trunca automáticamente por defecto
-  const headerFields = buildReportHeaderFields({
-    deviceId: 1,
-    seq: 1,
-    incidentKey: "colapso",
-    barrioCode: 1,
-  });
-
-  const { text, fullBytes } = buildReportBinary({
-    headerFields,
-    noteText: longText,
-    strict: false,
-  });
-
-  assert.ok(measureUtf8Bytes(text) <= 100);
-  assert.equal(fullBytes.length, 21 + measureUtf8Bytes(text));
+test("citizen/diccionario_manizales.txt es idéntico byte por byte a data/", () => {
+  const data = readFileSync(new URL("../../data/diccionario_manizales.txt", import.meta.url));
+  assert.ok(Buffer.from(DICT_BYTES).equals(data));
 });
 
-test("el texto de más de 100 bytes se rechaza en modo estricto", () => {
-  const longText = "A".repeat(101);
-  const headerFields = buildReportHeaderFields({
-    deviceId: 1,
-    seq: 1,
-    incidentKey: "colapso",
-    barrioCode: 1,
-  });
+test("la nota del reporte son los mismos bytes que produce Python (text_vectors.json)", () => {
+  const headerFields = buildReportHeaderFields({ deviceId: 1, seq: 1, incidentKey: "colapso", barrioCode: 1 });
+  for (const v of TEXT_VECTORS.valid.filter((c) => c.text && c.text.length <= 100)) {
+    const { fullBytes, textBytes } = buildReportBinary({ headerFields, noteText: v.text, dictionary: DICT_BYTES });
+    if (v.text.trim() !== v.text) continue; // la PWA recorta espacios de los extremos
+    assert.equal(toHex(textBytes), v.hex, v.name);
+    assert.equal(decodeText(fullBytes.subarray(21), DICT_BYTES), v.text);
+  }
+});
 
-  assert.throws(() => {
-    buildReportBinary({
-      headerFields,
-      noteText: longText,
-      strict: true,
-    });
-  }, /excede el límite de 100 bytes/);
+test("la nota viaja comprimida: ocupa menos que el texto plano", () => {
+  const headerFields = buildReportHeaderFields({ deviceId: 1, seq: 1, incidentKey: "colapso", barrioCode: 1 });
+  const note = "colapso casa 3 atrapados huele a gas";
+  const { textBytes, fullBytes } = buildReportBinary({ headerFields, noteText: note, dictionary: DICT_BYTES });
+  assert.ok(textBytes.length < measureUtf8Bytes(note));
+  assert.equal(fullBytes.length, 21 + textBytes.length);
+  assert.equal(textBytes[0] >> 4, 1); // prefijo: versión 1 del diccionario
+});
+
+test("la nota larga se recorta para que ya codificada quepa en 100 bytes", () => {
+  const longText = "Esta es una nota sumamente extensa con información detallada sobre el incidente en la montaña con árboles caídos y postes desplomados en la vía principal de la ciudad de Manizales, con humo y gente gritando 🆘🆘 por todas partes, xq7#Zk!9wQ zr8@pL";
+  const headerFields = buildReportHeaderFields({ deviceId: 1, seq: 1, incidentKey: "colapso", barrioCode: 1 });
+  const { text, textBytes, fullBytes } = buildReportBinary({ headerFields, noteText: longText, dictionary: DICT_BYTES });
+
+  assert.ok(textBytes.length <= MAX_NOTE_BYTES);
+  assert.ok(text.length > 0 && longText.startsWith(text));
+  assert.equal(fullBytes.length, 21 + textBytes.length);
+  assert.equal(decodeText(textBytes, DICT_BYTES), text);
+});
+
+test("fitNote nunca pasa de 100 B ni parte una tilde o un emoji", () => {
+  const samples = ["ñáéíóú".repeat(40), "🆘🚑🔥".repeat(60), "x#Q9!k@z".repeat(30), "atrapados ".repeat(80)];
+  for (const sample of samples) {
+    const fitted = fitNote(sample, DICT_BYTES);
+    assert.ok(encodedNoteBytes(fitted, DICT_BYTES) <= MAX_NOTE_BYTES);
+    assert.ok(sample.startsWith(fitted));
+    assert.equal(Array.from(fitted).join(""), fitted);
+    assert.ok(!fitted.includes("\uFFFD"));
+    // con una letra más ya no cabría
+    const next = Array.from(sample).slice(0, Array.from(fitted).length + 1).join("");
+    assert.ok(next === fitted || encodedNoteBytes(next, DICT_BYTES) === null);
+  }
+  assert.equal(fitNote("", DICT_BYTES), "");
+  assert.equal(fitNote("hola", null), "");
+});
+
+test("la nota que no cabe se rechaza en modo estricto", () => {
+  // 120 B pseudoaleatorios (sin repeticiones): no comprimen
+  let seed = 7;
+  const incompressible = Array.from({ length: 120 }, () => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return String.fromCharCode(33 + (seed % 94));
+  }).join("");
+  const headerFields = buildReportHeaderFields({ deviceId: 1, seq: 1, incidentKey: "colapso", barrioCode: 1 });
+  assert.throws(
+    () => buildReportBinary({ headerFields, noteText: incompressible, strict: true, dictionary: DICT_BYTES }),
+    /excede el límite de 100 bytes/,
+  );
+});
+
+test("sin diccionario el reporte sale igual, pero sin la nota", () => {
+  const headerFields = buildReportHeaderFields({ deviceId: 1, seq: 1, incidentKey: "colapso", barrioCode: 1 });
+  const { fullBytes, text, noteDropped } = buildReportBinary({ headerFields, noteText: "hay atrapados" });
+  assert.equal(fullBytes.length, 21);
+  assert.equal(text, "");
+  assert.equal(noteDropped, true);
+});
+
+test("truncateUtf8 sigue cortando sin romper caracteres", () => {
+  const truncated = truncateUtf8("ñ".repeat(80), 101);
+  assert.ok(measureUtf8Bytes(truncated) <= 101);
+  assert.ok(!truncated.includes("\uFFFD"));
+  assert.equal(encodeText("", DICT_BYTES).length, 0);
 });
 
 test("con batería crítica no se envía texto según el diseño", () => {
@@ -169,6 +219,7 @@ test("con batería crítica no se envía texto según el diseño", () => {
   const { text, fullBytes } = buildReportBinary({
     headerFields,
     noteText: "Nota que debe descartarse por batería baja",
+    dictionary: DICT_BYTES,
   });
 
   assert.equal(text, "");

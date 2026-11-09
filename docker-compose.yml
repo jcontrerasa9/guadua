@@ -1,16 +1,62 @@
-# Levanta un esqueleto: tres nodos con el mismo código. El comando real se define en la tarea de nodos.
+# Tres nodos A ↔ B ↔ C (sin enlace A–C) más el proxy de fallos delante de A. Sin Internet ni .env.
+#
+#   docker compose up --build
+#   Tablero:          http://localhost:8000/tablero/
+#   PWA ciudadana:    http://localhost:8000/ciudadano/      (directo al nodo A)
+#                     http://localhost:8080/ciudadano/      (a través del proxy de fallos)
+#   Nodos:            http://localhost:8000 · 8001 · 8002    (lo que espera el tablero)
+#   Proxy:            http://localhost:8080/_channel/stats
+#
+# El gossip viaja por UDP con tramas de 200 B (como LoRa). Para simular pérdida entre nodos:
+#   SARD_CHANNEL_PROFILE=lora docker compose up
 
 x-node: &node
   build: .
-  command: ["python", "-m", "guadua"]
+  restart: unless-stopped
 
 services:
   node-a:
     <<: *node
-    environment: { SARD_NODE_ID: A, SARD_PEERS: B }
+    environment:
+      SARD_NODE_ID: A
+      SARD_PEERS: B
+      SARD_PEER_ADDRS: B=node-b:9000
+      SARD_CHANNEL_PROFILE: ${SARD_CHANNEL_PROFILE:-}
+    ports: ["8000:8000"]
+    volumes: [node-a:/var/lib/sard]
+
   node-b:
     <<: *node
-    environment: { SARD_NODE_ID: B, SARD_PEERS: "A,C" }
+    environment:
+      SARD_NODE_ID: B
+      SARD_PEERS: A,C
+      SARD_PEER_ADDRS: A=node-a:9000,C=node-c:9000
+      SARD_CHANNEL_PROFILE: ${SARD_CHANNEL_PROFILE:-}
+    ports: ["8001:8000"]
+    volumes: [node-b:/var/lib/sard]
+
   node-c:
     <<: *node
-    environment: { SARD_NODE_ID: C, SARD_PEERS: B }
+    environment:
+      SARD_NODE_ID: C
+      SARD_PEERS: B
+      SARD_PEER_ADDRS: B=node-b:9000
+      SARD_CHANNEL_PROFILE: ${SARD_CHANNEL_PROFILE:-}
+    ports: ["8002:8000"]
+    volumes: [node-c:/var/lib/sard]
+
+  proxy:
+    <<: *node
+    command:
+      [
+        "python", "-m", "guadua.channel.proxy",
+        "--upstream", "http://node-a:8000",
+        "--profile", "wifi", "--host", "0.0.0.0", "--port", "8080",
+      ]
+    ports: ["8080:8080"]
+    depends_on: [node-a]
+
+volumes:
+  node-a:
+  node-b:
+  node-c:

@@ -174,6 +174,12 @@ class GossipNode:
         self.stats = GossipStats()
         self._reassemblers: dict[str, Reassembler] = {}
         self._pending: dict[str, int] = {}
+        self.last_seen: dict[str, float] = {}  # vecino → última vez que llegó algo suyo
+
+    def peers_alive(self, within: float = 10.0) -> tuple[str, ...]:
+        """Vecinos de los que llegó algo en los últimos `within` segundos."""
+        now = time.monotonic()
+        return tuple(p for p in self.peers if now - self.last_seen.get(p, -within - 1) <= within)
 
     async def tick(self) -> None:
         """Una ronda: le cuenta a cada vecino qué tiene."""
@@ -205,6 +211,8 @@ class GossipNode:
 
     async def handle(self, source: str, frame: bytes) -> None:
         """Atiende una trama. Nunca lanza por datos del canal: lo que no sirve se cuenta."""
+        if source in self.peers:
+            self.last_seen[source] = time.monotonic()
         if not frame:
             self.stats.garbage += 1
             return

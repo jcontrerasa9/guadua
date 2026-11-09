@@ -1,7 +1,8 @@
 // Service Worker de la PWA Ciudadana (Guadua)
 // Permite que la app abra y funcione completamente sin red ni internet.
 
-const CACHE_NAME = "guadua-citizen-v1";
+// v2: la nota va comprimida con el diccionario (protocol/text.js + pako).
+const CACHE_NAME = "guadua-citizen-v2";
 const ASSETS_TO_CACHE = [
   "./",
   "./index.html",
@@ -12,6 +13,9 @@ const ASSETS_TO_CACHE = [
   "./geohash.js",
   "./barrios.json",
   "./protocol/header.js",
+  "./protocol/text.js",
+  "./vendor/pako/pako.esm.mjs",
+  "./diccionario_manizales.txt",
   "./manifest.webmanifest",
 ];
 

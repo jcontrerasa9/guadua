@@ -1,5 +1,6 @@
 // Funciones puras para el armado del reporte ciudadano.
-// CONTRATO: Usa exactamente citizen/protocol/header.js (docs/diseno.md §5.2).
+// CONTRATO: Usa exactamente citizen/protocol/header.js (docs/diseno.md §5.2) y
+// citizen/protocol/text.js para la nota (prefijo + texto comprimido, docs/contratos.md).
 
 import {
   encodeHeader,
@@ -10,8 +11,9 @@ import {
   MessageType,
   People,
 } from "./protocol/header.js";
+import { encodeText, MAX_TEXT_BYTES } from "./protocol/text.js";
 
-export const MAX_NOTE_BYTES = 100;
+export const MAX_NOTE_BYTES = MAX_TEXT_BYTES; // ya codificada: prefijo + texto comprimido
 
 export const INCIDENT_BUTTONS = Object.freeze({
   colapso: { id: "colapso", label: "Derrumbe", incident: Incident.COLAPSO, icon: "🏚️" },
@@ -46,10 +48,11 @@ export function truncateUtf8(str, maxBytes = MAX_NOTE_BYTES) {
   const encoded = encoder.encode(str);
   if (encoded.length <= maxBytes) return str;
 
-  // Decodifica cortando en el byte exacto; 'fatal: false' descarta cualquier fragmento de byte incompleto
-  const slice = encoded.subarray(0, maxBytes);
-  const decoder = new TextDecoder("utf-8", { fatal: false, ignoreBOM: true });
-  return decoder.decode(slice);
+  // Retrocede hasta el inicio de un carácter: cortar a la mitad de una "ñ" metería el
+  // carácter de reemplazo "�" (3 B) y el resultado se pasaría del límite.
+  let end = maxBytes;
+  while (end > 0 && (encoded[end] & 0xc0) === 0x80) end -= 1;
+  return new TextDecoder("utf-8", { ignoreBOM: true }).decode(encoded.subarray(0, end));
 }
 
 /**
@@ -131,33 +134,88 @@ export function buildReportHeaderFields({
 }
 
 /**
+ * Bytes que ocupará la nota ya codificada (prefijo + texto comprimido), o null si no cabe
+ * en el límite o no hay diccionario.
+ *
+ * @param {string} text
+ * @param {Uint8Array | null} dictionary - bytes de diccionario_manizales.txt
+ * @returns {number | null}
+ */
+export function encodedNoteBytes(text, dictionary) {
+  if (!text) return 0;
+  if (!dictionary) return null;
+  try {
+    return encodeText(text, dictionary).length;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Recorta la nota, letra por letra y sin romper tildes ni emojis, hasta que ya codificada
+ * quepa en `maxBytes`. Como el texto se comprime, casi siempre caben más de 100 letras.
+ *
+ * @param {string} text
+ * @param {Uint8Array} dictionary
+ * @param {number} [maxBytes=MAX_NOTE_BYTES]
+ * @returns {string}
+ */
+export function fitNote(text, dictionary, maxBytes = MAX_NOTE_BYTES) {
+  if (typeof text !== "string" || !text || !dictionary) return "";
+  const fits = (candidate) => {
+    const size = encodedNoteBytes(candidate, dictionary);
+    return size !== null && size <= maxBytes;
+  };
+  if (fits(text)) return text;
+  const chars = Array.from(text); // puntos de código: no parte un emoji ni una tilde
+  let lo = 0;
+  let hi = chars.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (fits(chars.slice(0, mid).join(""))) lo = mid;
+    else hi = mid - 1;
+  }
+  // La compresión no crece exactamente con la longitud: se asegura que el resultado quepa.
+  while (lo > 0 && !fits(chars.slice(0, lo).join(""))) lo -= 1;
+  return chars.slice(0, lo).join("");
+}
+
+/**
  * Arma el paquete binario completo del reporte:
- * Cabecera de 21 B + texto UTF-8 opcional (máx. 100 B).
+ * Cabecera de 21 B + nota opcional codificada con protocol/text.js (máx. 100 B).
+ *
+ * Sin diccionario, el reporte sale sin la nota: el reporte es lo vital, la nota es opcional.
  *
  * @param {Object} params
  * @param {Object} params.headerFields - Objeto de campos de la cabecera
  * @param {string} [params.noteText=""] - Nota opcional
- * @param {boolean} [params.strict=false] - Si es true, lanza error si noteText > 100 bytes en vez de truncar
- * @returns {{ headerFields: Object, headerBytes: Uint8Array, textBytes: Uint8Array, fullBytes: Uint8Array, text: string }}
+ * @param {boolean} [params.strict=false] - Si es true, lanza error si la nota codificada no cabe en vez de recortarla
+ * @param {Uint8Array | null} [params.dictionary=null] - bytes de diccionario_manizales.txt
+ * @returns {{ headerFields: Object, headerBytes: Uint8Array, textBytes: Uint8Array, fullBytes: Uint8Array, text: string, noteDropped: boolean }}
  */
-export function buildReportBinary({ headerFields, noteText = "", strict = false }) {
+export function buildReportBinary({ headerFields, noteText = "", strict = false, dictionary = null }) {
   let text = typeof noteText === "string" ? noteText.trim() : "";
-  const byteLen = measureUtf8Bytes(text);
-
-  if (byteLen > MAX_NOTE_BYTES) {
-    if (strict) {
-      throw new Error(`El texto excede el límite de ${MAX_NOTE_BYTES} bytes UTF-8 (${byteLen} B)`);
-    }
-    text = truncateUtf8(text, MAX_NOTE_BYTES);
-  }
+  let noteDropped = false;
 
   // Si la batería es crítica, no se envía texto según el diseño (§5.2)
   if (headerFields.flags & Flag.BATERIA_CRITICA) {
     text = "";
   }
 
+  if (text && !dictionary) {
+    noteDropped = true;
+    text = "";
+  }
+
+  if (text && encodedNoteBytes(text, dictionary) === null) {
+    if (strict) {
+      throw new Error(`El texto excede el límite de ${MAX_NOTE_BYTES} bytes ya codificado`);
+    }
+    text = fitNote(text, dictionary);
+  }
+
   const headerBytes = encodeHeader(headerFields);
-  const textBytes = new TextEncoder().encode(text);
+  const textBytes = text ? encodeText(text, dictionary) : new Uint8Array(0);
 
   const fullBytes = new Uint8Array(HEADER_SIZE + textBytes.length);
   fullBytes.set(headerBytes, 0);
@@ -169,5 +227,6 @@ export function buildReportBinary({ headerFields, noteText = "", strict = false 
     textBytes,
     fullBytes,
     text,
+    noteDropped,
   };
 }

@@ -7,6 +7,7 @@ import {
   createInitialNodeState,
   formatDecisionRequest,
   formatTimeAgo,
+  nodesStartingWith,
   partitionAndSortIncidents,
   updateNodeHealth,
 } from "./logic.js";
@@ -21,7 +22,8 @@ export const DEFAULT_NODES = [
 
 // Estado global de la aplicación
 const state = {
-  nodeState: createInitialNodeState(DEFAULT_NODES),
+  // Primero el nodo que sirvió este tablero; los demás, de respaldo.
+  nodeState: createInitialNodeState(nodesStartingWith(window.location.origin, DEFAULT_NODES)),
   operator: localStorage.getItem("guadua_operator") || "comandante-1",
   barriosMap: new Map(), // code -> { code, name, lat, lon }
   incidents: [],
@@ -49,7 +51,7 @@ export async function fetchJson(endpoint, options = {}) {
     return fetchMockJson(endpoint, options);
   }
 
-  const activeNodeBase = state.nodeState.connectedNode || DEFAULT_NODES[0];
+  const activeNodeBase = state.nodeState.connectedNode || state.nodeState.nodes[0];
   const fullUrl = `${activeNodeBase.replace(/\/$/, "")}${endpoint}`;
 
   try {
@@ -391,15 +393,15 @@ function renderIncidentCardHtml(inc) {
 
       <!-- Botones de acción del comandante -->
       <div class="card-actions">
-        <button class="btn-primary ${!isActionable ? "btn-disabled" : ""}" 
+        <button class="btn-primary ${!isActionable ? "btn-disabled" : ""}"
           data-action="aprobar" data-ficha-id="${inc.ficha_id || ""}" ${!isActionable ? "disabled" : ""}>
           ✅ Aprobar
         </button>
-        <button class="btn-secondary ${!isActionable ? "btn-disabled" : ""}" 
+        <button class="btn-secondary ${!isActionable ? "btn-disabled" : ""}"
           data-action="editar" data-ficha-id="${inc.ficha_id || ""}" ${!isActionable ? "disabled" : ""}>
           ✏️ Editar mensaje
         </button>
-        <button class="btn-danger ${!isActionable ? "btn-disabled" : ""}" 
+        <button class="btn-danger ${!isActionable ? "btn-disabled" : ""}"
           data-action="rechazar" data-ficha-id="${inc.ficha_id || ""}" ${!isActionable ? "disabled" : ""}>
           ❌ Replanear
         </button>

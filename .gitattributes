@@ -1,2 +1,3 @@
 # El diccionario de texto es contrato byte por byte: git no debe convertir finales de línea.
 data/diccionario_manizales.txt -text
+citizen/diccionario_manizales.txt -text

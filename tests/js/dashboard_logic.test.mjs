@@ -10,6 +10,7 @@ import {
   createInitialNodeState,
   formatDecisionRequest,
   formatTimeAgo,
+  nodesStartingWith,
   partitionAndSortIncidents,
   updateNodeHealth,
 } from "../../src/guadua/dashboard/logic.js";
@@ -266,4 +267,42 @@ test("criterio de plan.md: al apagar el nodo conectado, cambia solo al siguiente
   assert.equal(state.connectedNode, "B");
   assert.equal(state.statusText, "Conectado al nodo B");
   assert.equal(state.consecutiveFailures, 0);
+});
+
+// --- Cada tablero empieza por el nodo que lo sirvió --------------------------
+
+const NODES = ["http://localhost:8000", "http://localhost:8001", "http://localhost:8002"];
+
+test("el tablero servido por C (8002) lee primero de C y deja A y B de respaldo", () => {
+  assert.deepEqual(nodesStartingWith("http://localhost:8002", NODES), [
+    "http://localhost:8002",
+    "http://localhost:8000",
+    "http://localhost:8001",
+  ]);
+  const state = createInitialNodeState(nodesStartingWith("http://localhost:8002", NODES));
+  assert.equal(state.connectedNode, "http://localhost:8002");
+});
+
+test("el tablero de A sigue empezando por A, sin repetir nodos", () => {
+  assert.deepEqual(nodesStartingWith("http://localhost:8000/", NODES), NODES);
+});
+
+test("un origen que no está en la lista (p. ej. el proxy) va primero", () => {
+  const list = nodesStartingWith("http://localhost:8080", NODES);
+  assert.equal(list[0], "http://localhost:8080");
+  assert.equal(list.length, 4);
+});
+
+test("sin origen http (file://) la lista no cambia", () => {
+  assert.deepEqual(nodesStartingWith("file://", NODES), NODES);
+  assert.deepEqual(nodesStartingWith(undefined, NODES), NODES);
+});
+
+test("si cae el nodo propio, el tablero pasa al siguiente y lo dice", () => {
+  let state = createInitialNodeState(nodesStartingWith("http://localhost:8002", NODES));
+  state = updateNodeHealth(state, { ok: false });
+  state = updateNodeHealth(state, { ok: false });
+  assert.equal(state.connectedNode, "http://localhost:8000");
+  state = updateNodeHealth(state, { ok: true, node: "A" });
+  assert.equal(state.statusText, "Conectado al nodo A");
 });
