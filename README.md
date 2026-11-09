@@ -20,6 +20,7 @@ pytest
 node --test "tests/js/*.test.mjs"
 python -m guadua.classifier.evaluate    # sensibilidad en críticos, matriz y tiempos del triaje
 python -m guadua.agents.triaje_eval     # cuánto llega al agente de triaje; con LLM, cómo resuelve
+python -m guadua.bench                  # banco de fallos: tabla de métricas de §15 (semilla fija, ~15 s)
 ```
 
 ## Ejecutar
@@ -45,6 +46,7 @@ guadua/
 │   ├── classifier/       Urgencia (urgency.py, contrato: el piso nunca baja), reglas y clasificador
 │   ├── agents/           Agentes con LLM: recepción, triaje, correlación, coordinación, vigía
 │   ├── services/         Servicios sin LLM: cola de comunicación, resiliencia, transcripción de radio
+│   ├── bench/            Banco de fallos (N15): pérdida, partición y caída sobre el canal simulado
 │   ├── knowledge/        Matriz EMRE, recursos y RAG (retriever.py, contrato)
 │   ├── providers/        Interfaces de LLM y transporte (contrato) y sus implementaciones
 │   ├── node/             Nodo FastAPI; api.py: rutas y formatos que usan la PWA y el tablero (contrato)
