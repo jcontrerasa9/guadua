@@ -162,7 +162,9 @@ class GossipNode:
         *,
         on_event: Callable[[Event], None] | None = None,
         max_events_per_reply: int = MAX_EVENTS_PER_REPLY,
+        monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
+        """`monotonic` es el reloj de los latidos (`last_seen`); se inyecta en pruebas."""
         if node_id in peers:
             raise ValueError("un nodo no puede ser su propio vecino")
         self.node_id = node_id
@@ -174,11 +176,14 @@ class GossipNode:
         self.stats = GossipStats()
         self._reassemblers: dict[str, Reassembler] = {}
         self._pending: dict[str, int] = {}
+        self.monotonic = monotonic
         self.last_seen: dict[str, float] = {}  # vecino → última vez que llegó algo suyo
+        # vecino → primera vez que su vector mostró que no nos falta nada de lo que él tiene
+        self.caught_up: dict[str, float] = {}
 
     def peers_alive(self, within: float = 10.0) -> tuple[str, ...]:
         """Vecinos de los que llegó algo en los últimos `within` segundos."""
-        now = time.monotonic()
+        now = self.monotonic()
         return tuple(p for p in self.peers if now - self.last_seen.get(p, -within - 1) <= within)
 
     async def tick(self) -> None:
@@ -212,7 +217,7 @@ class GossipNode:
     async def handle(self, source: str, frame: bytes) -> None:
         """Atiende una trama. Nunca lanza por datos del canal: lo que no sirve se cuenta."""
         if source in self.peers:
-            self.last_seen[source] = time.monotonic()
+            self.last_seen[source] = self.monotonic()
         if not frame:
             self.stats.garbage += 1
             return
@@ -239,7 +244,11 @@ class GossipNode:
             return  # solo se sincroniza con vecinos conocidos
         if bytes.fromhex(self.store.digest())[:DIGEST_PREFIX_BYTES] == message.digest_prefix:
             self.stats.in_sync_skips += 1
+            self.caught_up.setdefault(peer, self.monotonic())
             return
+        mine = self.store.version_vector()
+        if all(mine.get(origin, 0) >= seq for origin, seq in message.vector.items()):
+            self.caught_up.setdefault(peer, self.monotonic())
         for event in self.store.since(message.vector)[: self.max_events_per_reply]:
             await self._send_event(peer, event)
 
