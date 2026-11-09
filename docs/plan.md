@@ -34,7 +34,7 @@ Un frente es un grupo de tareas que toca sus propias carpetas. Los frentes no co
 | N1 | Texto con diccionario (`zlib zdict`) y diccionario de Manizales en `data/` | Jacobo | N0 | Vectores de texto en `tests/fixtures/`; ahorro medido frente a no comprimir | ✅ |
 | N2 | Fragmentos y ACK con mapa de bits | Jacobo | N0 | Una foto de 3 KB se reconstruye con 60 % de pérdida reenviando solo lo que falta | ✅ |
 | N3 | Canal simulado con perfiles (Wi-Fi, radio/LoRa, SMS) y proxy de fallos | Jacobo | N0 | Implementa `Transport`; con semilla fija, la pérdida medida coincide con la configurada (±5 %) | ✅ |
-| N4 | Registro de eventos en SQLite (WAL) | Jacobo | N0 | Se agrega a `STORES` en `tests/test_contracts.py` y pasa todas las pruebas de contrato | ☐ |
+| N4 | Registro de eventos en SQLite (WAL) | Jacobo | N0 | Se agrega a `STORES` en `tests/test_contracts.py` y pasa todas las pruebas de contrato | ✅ |
 | N5 | Gossip con vectores de versión, topología `A ↔ B ↔ C` | Jacobo | N3, N4 | Lo que entra por A llega a C; los 3 hashes coinciden tras 60 % de pérdida | ☐ |
 | N6 | Nodo FastAPI: implementa las rutas de nivel 1 de `docs/contratos.md`, valida eventos con `validate_event`, sirve las vistas | Jacobo | N0b, N4 | `docker compose up` levanta 3 nodos sin Internet ni `.env`; cada ruta responde con el formato de `api_examples.json` | ☐ |
 | N7 | Reglas de prioridad mínima + clasificador calibrado + datos sintéticos | Jacobo | N0 | Reglas < 1 ms y clasificador < 2 ms por reporte; sensibilidad en críticos reportada con conjunto de prueba separado | ☐ |
