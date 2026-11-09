@@ -46,7 +46,7 @@ Un frente es un grupo de tareas que toca sus propias carpetas. Los frentes no co
 | N13 | PWA ciudadana: 3 bloques, cola local (IndexedDB), estado Guardado → Enviando → Recibido | Oscar | N0b | Un reporte hecho sin red se envía solo al volver la conexión; usa `citizen/protocol/header.js` | ✅ |
 | N14 | Tablero: tarjetas, cambio automático de nodo, mapa offline | Oscar | N0b | Al apagar el nodo conectado, cambia solo al siguiente y lo indica | ✅ |
 | N15 | Banco de fallos con métricas (pérdida 0/30/60 %, partición, caída) | Jacobo | N5, N11, N12 | Un comando produce la tabla de métricas de §15 con semillas fijas | ☐ |
-| N16 | Códec JS: texto con diccionario (`pako`) y fragmentos | Oscar | N1, N2 | Pasa los mismos vectores de `tests/fixtures/` que Python | ☐ |
+| N16 | Códec JS: texto con diccionario (`pako`) y fragmentos | Oscar | N1, N2 | Pasa los mismos vectores de `tests/fixtures/` que Python | ✅ |
 
 ## Nivel 2 · Diferenciadores
 
