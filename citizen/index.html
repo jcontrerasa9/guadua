@@ -132,8 +132,34 @@
           <span>Recibido</span>
         </div>
       </div>
-    </section>
   </main>
+
+  <!-- Pantalla de MODO ESCOMBROS (oculta por defecto) -->
+  <aside id="debris-overlay" class="debris-overlay hidden" aria-live="assertive" role="alertdialog" aria-modal="true" aria-labelledby="debris-title">
+    <div class="debris-container">
+      <div class="debris-pulse-wrapper">
+        <div class="debris-circle" aria-hidden="true"></div>
+      </div>
+
+      <div class="debris-status-badge">
+        <span class="debris-status-icon">🚨</span>
+        <h1 id="debris-title" class="debris-title">ALERTA ENVIADA Y SONIDO ACTIVO</h1>
+      </div>
+
+      <div class="debris-advice-box">
+        <p id="debris-advice-text" class="debris-advice-text">
+          No enciendas fuego ni fósforos. Cubre tu nariz y boca. Si escuchas rescatistas o perros cerca, golpea una tubería o muro para que te ubiquen.
+        </p>
+      </div>
+
+      <div class="debris-exit-wrapper">
+        <button id="btn-debris-exit" type="button" class="btn-debris-exit" aria-label="Mantener presionado 3 segundos para salir">
+          <span class="exit-label">Mantener presionado 3 s para salir</span>
+          <div class="exit-progress-bar" id="debris-exit-progress"></div>
+        </button>
+      </div>
+    </div>
+  </aside>
 
   <!-- Script principal como módulo ES -->
   <script type="module" src="app.js"></script>
