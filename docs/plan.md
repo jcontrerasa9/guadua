@@ -38,7 +38,7 @@ Un frente es un grupo de tareas que toca sus propias carpetas. Los frentes no co
 | N5 | Gossip con vectores de versión, topología `A ↔ B ↔ C` | Jacobo | N3, N4 | Lo que entra por A llega a C; los 3 hashes coinciden tras 60 % de pérdida | ✅ |
 | N6 | Nodo FastAPI: implementa las rutas de nivel 1 de `docs/contratos.md`, valida eventos con `validate_event`, sirve las vistas | Jacobo | N0b, N4 | `docker compose up` levanta 3 nodos sin Internet ni `.env`; cada ruta responde con el formato de `api_examples.json` | ✅ |
 | N7 | Reglas de prioridad mínima + clasificador calibrado + datos sintéticos | Jacobo | N0 | Reglas < 1 ms y clasificador < 2 ms por reporte; sensibilidad en críticos reportada con conjunto de prueba separado | ✅ |
-| N8 | Agente de triaje con ciclo en la zona gris (LangGraph) | Jacobo | N7 | Con `NullLLM` el caso queda "ambiguo, revisar"; nunca baja el piso (`apply_floor`); máximo 6 pasos | ☐ |
+| N8 | Agente de triaje con ciclo en la zona gris (LangGraph) | Jacobo | N7 | Con `NullLLM` el caso queda "ambiguo, revisar"; nunca baja el piso (`apply_floor`); máximo 6 pasos | ✅ |
 | N9 | Correlación básica (agrupación contra el centro del grupo) | Oscar | N0b | Publica `incidente_agrupado` válido; duplicados vinculados sin efecto cadena en datos sintéticos | ✅ |
 | N10 | Agente de coordinación con matriz EMRE y aprobación humana | Oscar | N0b | Publica `ficha` válida que queda pendiente hasta una `decision`; sin LLM usa plantilla | ✅ |
 | N11 | Cola de comunicación con envejecimiento (Agente 4) | Jacobo | N2, N3 | Críticos salen primero; espera máxima de los bajos medida y acotada | ✅ |
@@ -47,6 +47,19 @@ Un frente es un grupo de tareas que toca sus propias carpetas. Los frentes no co
 | N14 | Tablero: tarjetas, cambio automático de nodo, mapa offline | Oscar | N0b | Al apagar el nodo conectado, cambia solo al siguiente y lo indica | ✅ |
 | N15 | Banco de fallos con métricas (pérdida 0/30/60 %, partición, caída) | Jacobo | N5, N11, N12 | Un comando produce la tabla de métricas de §15 con semillas fijas | ☐ |
 | N16 | Códec JS: texto con diccionario (`pako`) y fragmentos | Oscar | N1, N2 | Pasa los mismos vectores de `tests/fixtures/` que Python | ✅ |
+
+### Pendiente de N8 (agente de triaje)
+
+Lo que N8 dejó fuera a propósito y en qué tarea va. Ficha completa: `docs/fichas/triaje.md`.
+
+| Pendiente | Va con | Qué falta |
+| :---- | :---- | :---- |
+| Herramienta `radio_en_zona` | D7 | Que existan eventos `transcripcion_radio`; luego se agrega a `TOOLS` en `agents/triaje.py` |
+| Herramienta `respuesta_seguimiento` | D5a | Que el agente de recepción haga preguntas y existan respuestas |
+| Herramienta `solicitar_verificacion_campo` | D6 o tarea nueva | Un tipo de evento nuevo (cambio de contrato). Mientras tanto, `marcar_verificar_ya` |
+| Disparador por palabras de duda ("no sé", "creo", "dicen"…) | Tarea nueva, **SIN ASIGNAR** (frente B) | Hoy N8 solo ve lo que N7 marca `ambiguous`: en el conjunto `ambiguo`, 176 de 318 casos salen mal sin marcar. Calibrar con un conjunto distinto de `ambiguo` |
+| Retomar casos que el agente no terminó porque el nodo se cayó | N12 o D6 | El caso queda con la urgencia de N7 ("ambiguo, revisar"), que es segura |
+| Elegir los modelos de Gemini y Ollama | Decisión abierta (diseño §18) | Medir con `python -m guadua.agents.triaje_eval --todos` |
 
 ## Nivel 2 · Diferenciadores
 
