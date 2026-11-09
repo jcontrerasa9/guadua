@@ -20,6 +20,7 @@ import itertools
 
 from guadua.agents.coordinacion import (
     AgenteCoordinacion,
+    cargar_riesgos_unidad,
     coordinar_incidente,
     fichas_pendientes,
 )
@@ -54,6 +55,7 @@ def make_reporte_normalizado(
     label: str = "El Cable",
     radius_m: int = 150,
     people: People = People.UNA,
+    risk_signals: tuple[str, ...] = (),
     origin_node: str = "A",
     seq: int = 1,
     received_at: float = 1794573600.0,
@@ -65,7 +67,7 @@ def make_reporte_normalizado(
         location=Location(geohash="d2fkcdc", radius_m=radius_m, label=label),
         direct_observation=True,
         vital_signs=(),
-        risk_signals=(),
+        risk_signals=risk_signals,
         text="reporte de prueba",
         unknown_fields=(),
     )
@@ -434,3 +436,211 @@ def test_matriz_emre_funciones_puras() -> None:
     # Exclusión para replanificación
     alt = responsable_por_tipo(Incident.ATRAPADOS, excluidos={"Cuerpo Oficial de Bomberos"})
     assert alt == "Defensa Civil Colombiana"
+
+
+# --- Pruebas D3b: Riesgo para rescatistas en la ficha ---------------------------------------
+
+
+def test_catalogo_riesgos_unidad_carga_ejemplos() -> None:
+    catalogo = cargar_riesgos_unidad()
+    assert "gas" in catalogo
+    assert catalogo["gas"].unidad_recomendada == "HazMat"
+    assert catalogo["gas"].es_ejemplo is True
+    assert "cables_caidos" in catalogo
+    assert catalogo["cables_caidos"].es_ejemplo is True
+
+
+def test_ficha_con_senal_gas_incluye_risk_warning_y_hazmat() -> None:
+    """Con señal 'gas' la ficha trae risk_warning y menciona HazMat."""
+    store = InMemoryEventStore()
+    seq_gen = SeqGen(1)
+
+    r = make_reporte_normalizado(
+        "a1b2c3d4-1",
+        Incident.HERIDO,
+        risk_signals=("gas",),
+        seq=1,
+    )
+    store.append(r)
+    inc = make_incidente_agrupado("a1b2c3d4-1", ("a1b2c3d4-1",), seq=2)
+    store.append(inc)
+
+    agente = AgenteCoordinacion("A", seq_gen)
+    ficha_ev = agente.procesar_incidente(inc, store)
+
+    assert ficha_ev is not None
+    ficha = validate_event(ficha_ev)
+    assert isinstance(ficha, Ficha)
+
+    # 1. Trae risk_warning con la advertencia de gas
+    assert ficha.risk_warning is not None
+    assert "gas" in ficha.risk_warning.lower()
+
+    # 2. El mensaje recomienda HazMat
+    assert "HazMat" in ficha.message
+    assert "HazMat asegura la escena antes de enviar ambulancia estándar" in ficha.message
+
+    # 3. Pasa validate_event
+    assert ficha.incident_id == "a1b2c3d4-1"
+
+
+def test_ficha_sin_senales_de_riesgo_risk_warning_es_none() -> None:
+    """Sin señales de riesgo, risk_warning es None y no recomienda unidades especiales."""
+    store = InMemoryEventStore()
+    seq_gen = SeqGen(1)
+
+    r = make_reporte_normalizado(
+        "a1b2c3d4-1",
+        Incident.HERIDO,
+        risk_signals=(),
+        seq=1,
+    )
+    store.append(r)
+    inc = make_incidente_agrupado("a1b2c3d4-1", ("a1b2c3d4-1",), seq=2)
+    store.append(inc)
+
+    agente = AgenteCoordinacion("A", seq_gen)
+    ficha_ev = agente.procesar_incidente(inc, store)
+
+    assert ficha_ev is not None
+    ficha = validate_event(ficha_ev)
+    assert isinstance(ficha, Ficha)
+
+    assert ficha.risk_warning is None
+    assert "HazMat" not in ficha.message
+
+
+def test_responsable_es_el_mismo_con_y_sin_senales_de_riesgo() -> None:
+    """El riesgo NO cambia el responsable que viene de la matriz EMRE ni ninguna urgencia."""
+    store = InMemoryEventStore()
+    seq_gen = SeqGen(1)
+
+    # Caso 1: Incidente HERIDO con y sin gas
+    r_con_gas = make_reporte_normalizado(
+        "a1b2c3d4-1",
+        Incident.HERIDO,
+        risk_signals=("gas",),
+        seq=1,
+    )
+    store.append(r_con_gas)
+    inc_con_gas = make_incidente_agrupado("inc-con-gas", ("a1b2c3d4-1",), seq=2)
+    store.append(inc_con_gas)
+
+    agente = AgenteCoordinacion("A", seq_gen)
+    ficha_con_gas = validate_event(agente.procesar_incidente(inc_con_gas, store))
+
+    r_sin_gas = make_reporte_normalizado(
+        "a1b2c3d4-2",
+        Incident.HERIDO,
+        risk_signals=(),
+        seq=3,
+    )
+    store.append(r_sin_gas)
+    inc_sin_gas = make_incidente_agrupado("inc-sin-gas", ("a1b2c3d4-2",), seq=4)
+    store.append(inc_sin_gas)
+
+    ficha_sin_gas = validate_event(agente.procesar_incidente(inc_sin_gas, store))
+
+    # El responsable es idéntico en ambos: Secretaría de Salud
+    assert ficha_con_gas.responsible == "Secretaría de Salud"
+    assert ficha_sin_gas.responsible == "Secretaría de Salud"
+    assert ficha_con_gas.responsible == ficha_sin_gas.responsible
+
+    # Caso 2: Incidente COLAPSO con y sin cables_caidos
+    r_colapso_riesgo = make_reporte_normalizado(
+        "a1b2c3d4-3",
+        Incident.COLAPSO,
+        risk_signals=("cables_caidos",),
+        seq=5,
+    )
+    store.append(r_colapso_riesgo)
+    inc_colapso_riesgo = make_incidente_agrupado("inc-col-riesgo", ("a1b2c3d4-3",), seq=6)
+    store.append(inc_colapso_riesgo)
+
+    ficha_colapso_riesgo = validate_event(agente.procesar_incidente(inc_colapso_riesgo, store))
+
+    r_colapso_puro = make_reporte_normalizado(
+        "a1b2c3d4-4",
+        Incident.COLAPSO,
+        risk_signals=(),
+        seq=7,
+    )
+    store.append(r_colapso_puro)
+    inc_colapso_puro = make_incidente_agrupado("inc-col-puro", ("a1b2c3d4-4",), seq=8)
+    store.append(inc_colapso_puro)
+
+    ficha_colapso_puro = validate_event(agente.procesar_incidente(inc_colapso_puro, store))
+
+    # Responsable idéntico: Cuerpo Oficial de Bomberos
+    assert ficha_colapso_riesgo.responsible == "Cuerpo Oficial de Bomberos"
+    assert ficha_colapso_puro.responsible == "Cuerpo Oficial de Bomberos"
+    assert ficha_colapso_riesgo.responsible == ficha_colapso_puro.responsible
+
+
+def test_multiples_senales_de_riesgo_agrega_advertencias_y_unidades() -> None:
+    """Múltiples reportes con distintas señales agregan todas las advertencias y unidades."""
+    store = InMemoryEventStore()
+    seq_gen = SeqGen(1)
+
+    r1 = make_reporte_normalizado(
+        "a1b2c3d4-1",
+        Incident.COLAPSO,
+        risk_signals=("gas",),
+        seq=1,
+    )
+    r2 = make_reporte_normalizado(
+        "a1b2c3d4-2",
+        Incident.COLAPSO,
+        risk_signals=("cables_caidos",),
+        seq=2,
+    )
+    store.append(r1)
+    store.append(r2)
+
+    inc = make_incidente_agrupado("inc-multi-riesgo", ("a1b2c3d4-1", "a1b2c3d4-2"), seq=3)
+    store.append(inc)
+
+    agente = AgenteCoordinacion("A", seq_gen)
+    ficha_ev = agente.procesar_incidente(inc, store)
+
+    assert ficha_ev is not None
+    ficha = validate_event(ficha_ev)
+    assert isinstance(ficha, Ficha)
+
+    assert ficha.risk_warning is not None
+    assert "gas" in ficha.risk_warning.lower()
+    assert "cables" in ficha.risk_warning.lower()
+
+    assert "HazMat" in ficha.message
+    assert "Cuadrilla eléctrica" in ficha.message
+
+
+def test_riesgo_con_llm_preserva_recomendacion_de_unidad() -> None:
+    """Con LLM activo, la recomendación de unidad especializada se preserva en el mensaje."""
+    store = InMemoryEventStore()
+    seq_gen = SeqGen(1)
+
+    r = make_reporte_normalizado(
+        "a1b2c3d4-1",
+        Incident.HERIDO,
+        risk_signals=("gas",),
+        seq=1,
+    )
+    store.append(r)
+    inc = make_incidente_agrupado("inc-llm-riesgo", ("a1b2c3d4-1",), seq=2)
+    store.append(inc)
+
+    # LLM que no menciona HazMat en su respuesta
+    fake_llm = ScriptedLLM([LLMReply(final={"message": "Atención médica urgente en El Cable."})])
+
+    agente = AgenteCoordinacion("A", seq_gen, llm=fake_llm)
+    ficha_ev = agente.procesar_incidente(inc, store)
+
+    assert ficha_ev is not None
+    ficha = validate_event(ficha_ev)
+    assert isinstance(ficha, Ficha)
+    assert ficha.from_template is False
+
+    # El agente garantiza que la recomendación de HazMat se adjunta
+    assert "HazMat" in ficha.message
+    assert ficha.risk_warning is not None
