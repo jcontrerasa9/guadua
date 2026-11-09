@@ -56,7 +56,7 @@ Un frente es un grupo de tareas que toca sus propias carpetas. Los frentes no co
 | D2a | "Estoy a salvo" en la PWA | Oscar | Mensaje de ~14 B enviado y confirmado | ☐ |
 | D2b | Registro de personas a salvo en el nodo y en el tablero | Oscar | Cruza a salvo con buscados; visible en el tablero | ☐ |
 | D3a | Riesgo para rescatistas en triaje | Jacobo | Señales de riesgo marcadas en el evento de urgencia sin cambiar la urgencia | ☐ |
-| D3b | Riesgo para rescatistas en coordinación | Oscar | La ficha recomienda la unidad adecuada (p. ej., HazMat) | ☐ |
+| D3b | Riesgo para rescatistas en coordinación | Oscar | La ficha recomienda la unidad adecuada (p. ej., HazMat) | ✅ |
 | D3c | Franja de advertencia de riesgo en las tarjetas | Oscar | Visible sin abrir el desplegable | ☐ |
 | D4 | Confianza y rumores a fondo + correlación agéntica | Oscar | 40 copias "me contaron" → confianza baja; 3 testigos directos → alta | ☐ |
 | D5a | Preguntas de seguimiento: agente de recepción | **SIN ASIGNAR** | Máximo 1 pregunta por reporte, visible en el tablero | ☐ |
