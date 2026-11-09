@@ -6,10 +6,10 @@ import { createReportQueue, ReportStatus } from "./queue.js";
 import {
   buildReportBinary,
   buildReportHeaderFields,
+  encodedNoteBytes,
+  fitNote,
   INCIDENT_BUTTONS,
   MAX_NOTE_BYTES,
-  measureUtf8Bytes,
-  truncateUtf8,
 } from "./report.js";
 
 // Estado de la interfaz
@@ -24,6 +24,7 @@ const uiState = {
   barriosList: [],
   queue: null,
   lastReportId: null,
+  dictionary: null, // bytes de diccionario_manizales.txt para comprimir la nota
 };
 
 // --- Registro de Service Worker para funcionamiento 100% offline -------------
@@ -34,6 +35,20 @@ function registerServiceWorker() {
       .register("./sw.js")
       .then((reg) => console.log("Service Worker registrado con scope:", reg.scope))
       .catch((err) => console.warn("Fallo al registrar Service Worker:", err));
+  }
+}
+
+// --- Carga del diccionario de texto (N1) -------------------------------------
+// Sin él la nota no se puede codificar y el reporte sale sin nota (nunca deja de salir).
+
+async function loadDictionary() {
+  try {
+    const res = await fetch("./diccionario_manizales.txt");
+    if (res.ok) {
+      uiState.dictionary = new Uint8Array(await res.arrayBuffer());
+    }
+  } catch (err) {
+    console.warn("No se pudo cargar el diccionario; los reportes saldrán sin nota:", err);
   }
 }
 
@@ -169,18 +184,19 @@ function setupLocationAndNote() {
     };
   }
 
-  // Contador de bytes UTF-8 con aviso
+  // Contador de los bytes que de verdad se enviarán (nota ya comprimida), con aviso
   if (noteInput && byteCounter) {
     noteInput.oninput = () => {
-      let val = noteInput.value;
-      const bytes = measureUtf8Bytes(val);
-
-      if (bytes > MAX_NOTE_BYTES) {
-        val = truncateUtf8(val, MAX_NOTE_BYTES);
-        noteInput.value = val;
+      if (!uiState.dictionary) {
+        byteCounter.textContent = "Sin diccionario: la nota no se enviará";
+        byteCounter.className = "byte-counter danger";
+        return;
+      }
+      if (encodedNoteBytes(noteInput.value, uiState.dictionary) === null) {
+        noteInput.value = fitNote(noteInput.value, uiState.dictionary);
       }
 
-      const currentBytes = measureUtf8Bytes(noteInput.value);
+      const currentBytes = encodedNoteBytes(noteInput.value, uiState.dictionary) ?? 0;
       byteCounter.textContent = `${currentBytes} / ${MAX_NOTE_BYTES} bytes`;
 
       byteCounter.className = "byte-counter";
@@ -277,10 +293,14 @@ function setupBloque3() {
       });
 
       const noteText = noteInput ? noteInput.value : "";
-      const { fullBytes } = buildReportBinary({
+      const { fullBytes, noteDropped } = buildReportBinary({
         headerFields,
         noteText,
+        dictionary: uiState.dictionary,
       });
+      if (noteDropped) {
+        console.warn("Reporte enviado sin nota: no se cargó el diccionario.");
+      }
 
       // Encolar y comenzar transmisión
       const item = await uiState.queue.enqueue({
@@ -357,7 +377,7 @@ async function init() {
   setupIncidentButtons();
   setupObservationAndFlags();
   setupLocationAndNote();
-  await loadBarrios();
+  await Promise.all([loadBarrios(), loadDictionary()]);
 
   // Inicializar cola de reportes con IndexedDB
   uiState.queue = createReportQueue({
