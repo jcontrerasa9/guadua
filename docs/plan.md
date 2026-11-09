@@ -42,6 +42,7 @@ Un frente es un grupo de tareas que toca sus propias carpetas. Los frentes no co
 | N9 | Correlación básica (agrupación contra el centro del grupo) | Oscar | N0b | Publica `incidente_agrupado` válido; duplicados vinculados sin efecto cadena en datos sintéticos | ✅ |
 | N10 | Agente de coordinación con matriz EMRE y aprobación humana | Oscar | N0b | Publica `ficha` válida que queda pendiente hasta una `decision`; sin LLM usa plantilla | ✅ |
 | N11 | Cola de comunicación con envejecimiento (Agente 4) | Jacobo | N2, N3 | Críticos salen primero; espera máxima de los bajos medida y acotada | ✅ |
+| N11b | Reintento con espera creciente en la cola de comunicación | Jacobo | N11, N15 | Con la misma semilla del banco bajan las tramas por reporte y la espera máxima de los bajos en SMS, y lo crítico sigue saliendo primero | ✅ |
 | N12 | Resiliencia: latidos, caída de un nodo, reasignación del dueño, recuperación | Jacobo | N5 | Al apagar A, B toma sus pendientes; A vuelve y converge; tiempo medido | ✅ |
 | N13 | PWA ciudadana: 3 bloques, cola local (IndexedDB), estado Guardado → Enviando → Recibido | Oscar | N0b | Un reporte hecho sin red se envía solo al volver la conexión; usa `citizen/protocol/header.js` | ✅ |
 | N14 | Tablero: tarjetas, cambio automático de nodo, mapa offline | Oscar | N0b | Al apagar el nodo conectado, cambia solo al siguiente y lo indica | ✅ |
