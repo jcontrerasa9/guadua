@@ -1,6 +1,16 @@
 // Orquestación de la PWA Ciudadana - Guadua (SARD)
 // Manejo de UI, geolocalización, persistencia en cola y registro de Service Worker.
 
+import {
+  buildDebrisSosBinary,
+  createAcousticBeacon,
+  createTapDetector,
+  createWakeLockManager,
+  EXIT_HOLD_DURATION_MS,
+  PROVISIONAL_ADVICE_TEXT,
+  RAPID_TAP_COUNT,
+  RAPID_TAP_WINDOW_MS,
+} from "./debris.js";
 import { encodeGeohash } from "./geohash.js";
 import { createReportQueue, ReportStatus } from "./queue.js";
 import {
@@ -25,6 +35,10 @@ const uiState = {
   queue: null,
   lastReportId: null,
   dictionary: null, // bytes de diccionario_manizales.txt para comprimir la nota
+  inDebrisMode: false,
+  beacon: null,
+  wakeLock: null,
+  tapDetector: null,
 };
 
 // --- Registro de Service Worker para funcionamiento 100% offline -------------
@@ -85,6 +99,9 @@ async function loadBarrios() {
 
   select.onchange = () => {
     uiState.selectedBarrioCode = Number(select.value);
+    if (uiState.queue?.store?.saveLastBarrio) {
+      uiState.queue.store.saveLastBarrio(uiState.selectedBarrioCode).catch(() => {});
+    }
   };
 }
 
@@ -160,6 +177,14 @@ function setupLocationAndNote() {
               btnGps.textContent = "📍 GPS activo";
               gpsStatus.textContent = `GPS: ${uiState.geohash}`;
               if (barrioContainer) barrioContainer.style.opacity = "0.4";
+              if (uiState.queue?.store?.saveLastLocation) {
+                uiState.queue.store.saveLastLocation({
+                  geohash: uiState.geohash,
+                  lat,
+                  lon,
+                  timestamp: Date.now(),
+                }).catch(() => {});
+              }
             } catch (err) {
               gpsStatus.textContent = "Error al codificar GPS";
               console.warn(err);
@@ -209,7 +234,175 @@ function setupLocationAndNote() {
   }
 }
 
-// --- Bloque 1: Botones de vida o muerte (stubs vacíos) ------------------------
+// --- Modo Escombros (D1) -----------------------------------------------------
+
+async function enterDebrisMode() {
+  if (uiState.inDebrisMode) return;
+  uiState.inDebrisMode = true;
+
+  // 1. Iniciar la baliza acústica de inmediato dentro del gesto del usuario
+  if (!uiState.beacon) {
+    uiState.beacon = createAcousticBeacon();
+  }
+  uiState.beacon.start();
+
+  // 2. Solicitar WakeLock para mantener la pantalla encendida
+  // Limitación declarada en docs/diseno.md §6.1.5:
+  // En la PWA, la pantalla queda encendida con fondo negro porque una página web no puede apagar la pantalla
+  // y el audio se suspende si el teléfono se bloquea.
+  if (!uiState.wakeLock) {
+    uiState.wakeLock = createWakeLockManager();
+  }
+  uiState.wakeLock.acquire().catch(() => {});
+
+  // 3. Mostrar overlay de modo escombros
+  const overlay = document.getElementById("debris-overlay");
+  const adviceEl = document.getElementById("debris-advice-text");
+  if (adviceEl) {
+    adviceEl.textContent = PROVISIONAL_ADVICE_TEXT;
+  }
+  if (overlay) {
+    overlay.classList.remove("hidden");
+  }
+
+  // 4. Armar y encolar el SOS escombros de 21 bytes con prioridad
+  try {
+    const store = uiState.queue.store;
+    const deviceId = await store.getDeviceId();
+    const seq = await store.getNextSeq();
+
+    let lastLocation = null;
+    if (typeof store.getLastLocation === "function") {
+      lastLocation = await store.getLastLocation();
+    }
+    if (!lastLocation && uiState.geohash) {
+      lastLocation = { geohash: uiState.geohash };
+    }
+
+    let lastBarrio = null;
+    if (typeof store.getLastBarrio === "function") {
+      lastBarrio = await store.getLastBarrio();
+    }
+    const fallbackBarrio = lastBarrio || uiState.selectedBarrioCode || 1;
+
+    const { headerFields, fullBytes } = buildDebrisSosBinary({
+      deviceId,
+      seq,
+      lastLocation,
+      fallbackBarrioCode: fallbackBarrio,
+    });
+
+    const item = await uiState.queue.enqueue({
+      headerFields,
+      fullBytes,
+      priority: 1, // Prioridad máxima en la cola
+    });
+
+    uiState.lastReportId = item.id;
+  } catch (err) {
+    console.error("Error al armar o encolar SOS escombros:", err);
+  }
+}
+
+function exitDebrisMode() {
+  if (!uiState.inDebrisMode) return;
+  uiState.inDebrisMode = false;
+
+  // 1. Detener baliza acústica
+  if (uiState.beacon) {
+    uiState.beacon.stop();
+  }
+
+  // 2. Liberar WakeLock
+  if (uiState.wakeLock) {
+    uiState.wakeLock.release().catch(() => {});
+  }
+
+  // 3. Ocultar overlay
+  const overlay = document.getElementById("debris-overlay");
+  if (overlay) {
+    overlay.classList.add("hidden");
+  }
+
+  showToast("Saliste del modo escombros.");
+}
+
+function setupDebrisExitButton() {
+  const exitBtn = document.getElementById("btn-debris-exit");
+  const progressBar = document.getElementById("debris-exit-progress");
+  if (!exitBtn) return;
+
+  let holdTimer = null;
+  let startTime = 0;
+  let animFrame = null;
+
+  function updateProgress() {
+    if (!holdTimer) return;
+    const elapsed = Date.now() - startTime;
+    const pct = Math.min(100, (elapsed / EXIT_HOLD_DURATION_MS) * 100);
+    if (progressBar) progressBar.style.width = `${pct}%`;
+    if (elapsed < EXIT_HOLD_DURATION_MS) {
+      animFrame = requestAnimationFrame(updateProgress);
+    }
+  }
+
+  function startHold(e) {
+    if (e) e.stopPropagation();
+    if (!uiState.inDebrisMode) return;
+
+    startTime = Date.now();
+    if (progressBar) progressBar.style.width = "0%";
+    animFrame = requestAnimationFrame(updateProgress);
+
+    holdTimer = setTimeout(() => {
+      cancelHold();
+      exitDebrisMode();
+    }, EXIT_HOLD_DURATION_MS);
+  }
+
+  function cancelHold() {
+    if (holdTimer) {
+      clearTimeout(holdTimer);
+      holdTimer = null;
+    }
+    if (animFrame) {
+      cancelAnimationFrame(animFrame);
+      animFrame = null;
+    }
+    if (progressBar) progressBar.style.width = "0%";
+  }
+
+  exitBtn.addEventListener("pointerdown", startHold);
+  exitBtn.addEventListener("pointerup", cancelHold);
+  exitBtn.addEventListener("pointerleave", cancelHold);
+  exitBtn.addEventListener("pointercancel", cancelHold);
+}
+
+function setupRapidTapDetector() {
+  uiState.tapDetector = createTapDetector({
+    targetCount: RAPID_TAP_COUNT,
+    windowMs: RAPID_TAP_WINDOW_MS,
+    onTrigger: () => {
+      if (!uiState.inDebrisMode) {
+        enterDebrisMode();
+      }
+    },
+  });
+
+  window.addEventListener(
+    "pointerdown",
+    (e) => {
+      // Ignorar toques en el botón de salida si ya está en modo escombros
+      if (uiState.inDebrisMode) {
+        return;
+      }
+      uiState.tapDetector.registerTap();
+    },
+    { passive: true },
+  );
+}
+
+// --- Bloque 1: Botones de vida o muerte ---------------------------------------
 
 function setupBloque1() {
   const btnSos = document.getElementById("btn-sos-escombros");
@@ -217,15 +410,13 @@ function setupBloque1() {
 
   if (btnSos) {
     btnSos.onclick = () => {
-      // Stub vacío según contrato: pendiente (D1 / D2a)
-      console.log("pendiente (D1 / D2a): activación de modo escombros");
-      showToast("Modo escombros pendiente de implementación (D1)");
+      enterDebrisMode();
     };
   }
 
   if (btnASalvo) {
     btnASalvo.onclick = () => {
-      // Stub vacío según contrato: pendiente (D1 / D2a)
+      // Stub vacío según contrato: pendiente (D2a)
       console.log("pendiente (D1 / D2a): reporte estoy a salvo");
       showToast("Estoy a salvo pendiente de implementación (D2a)");
     };
@@ -374,6 +565,8 @@ async function init() {
   registerServiceWorker();
   setupConnectivityAndBattery();
   setupBloque1();
+  setupDebrisExitButton();
+  setupRapidTapDetector();
   setupIncidentButtons();
   setupObservationAndFlags();
   setupLocationAndNote();

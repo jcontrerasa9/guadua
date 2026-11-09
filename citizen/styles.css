@@ -436,3 +436,154 @@ textarea.note-input:focus {
   max-width: 90%;
   text-align: center;
 }
+
+/* ==========================================================================
+   MODO ESCOMBROS (docs/diseno.md §3.1 y §6.1)
+   Fondo negro puro (#000000), círculo rojo de alerta y texto grande legible.
+   ========================================================================== */
+
+.hidden {
+  display: none !important;
+}
+
+.debris-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: #000000;
+  color: #ffffff;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 1.5rem;
+  box-sizing: border-box;
+  overflow: hidden;
+  user-select: none;
+}
+
+.debris-container {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 2rem;
+}
+
+/* Círculo rojo pulsante */
+.debris-pulse-wrapper {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.debris-circle {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ef4444 0%, #b91c1c 80%, #7f1d1d 100%);
+  box-shadow: 0 0 30px rgba(239, 68, 68, 0.8), 0 0 60px rgba(220, 38, 38, 0.4);
+  animation: pulse-beacon 1s ease-in-out infinite;
+}
+
+@keyframes pulse-beacon {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.8;
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+    box-shadow: 0 0 45px rgba(239, 68, 68, 0.95);
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.8;
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+  }
+}
+
+.debris-status-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.debris-status-icon {
+  font-size: 2rem;
+}
+
+.debris-title {
+  font-size: 1.35rem;
+  font-weight: 900;
+  color: #ef4444;
+  letter-spacing: 0.05em;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.debris-advice-box {
+  background-color: #171717;
+  border: 2px solid #404040;
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  max-width: 90%;
+}
+
+.debris-advice-text {
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: #f5f5f5;
+}
+
+/* Botón de salida con retención de 3 segundos */
+.debris-exit-wrapper {
+  margin-top: 1rem;
+  width: 100%;
+}
+
+.btn-debris-exit {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  min-height: 56px;
+  background-color: #262626;
+  border: 1px solid #525252;
+  border-radius: 8px;
+  color: #a3a3a3;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}
+
+.btn-debris-exit .exit-label {
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.exit-progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 0%;
+  background-color: #dc2626;
+  opacity: 0.7;
+  transition: width 0.05s linear;
+  z-index: 1;
+}
