@@ -120,12 +120,14 @@ def test_report_becomes_card_with_pending_ficha(api: TestClient) -> None:
     example_card = EXAMPLES["valid"][3]["body"]["incidents"][0]
     assert set(card) == set(example_card)
     assert card["incident_id"] == "a1b2c3d4-7"
-    assert card["level"] == 4  # sin triaje todavía: crítico provisional
-    assert card["status"] == "pendiente" and card["ficha_id"] == "A:4"
+    assert card["level"] == 4  # por la regla de atrapados (N7), ya no provisional
+    assert card["status"] == "pendiente" and card["ficha_id"] == "A:5"
     assert card["title"] == "Colapso con 2 a 5 atrapados"
     assert "gas o cables" in card["risk_warning"]
     types = [e.type for e in api.app.state.node.store.since({})]
-    assert types == ["reporte", "reporte_normalizado", "incidente_agrupado", "ficha"]
+    assert types == [
+        "reporte", "reporte_normalizado", "urgencia_estimada", "incidente_agrupado", "ficha",
+    ]  # fmt: skip
 
 
 def test_incident_detail_and_404(api: TestClient) -> None:
@@ -134,7 +136,9 @@ def test_incident_detail_and_404(api: TestClient) -> None:
     assert set(detail) == EXAMPLE_KEYS["GET /api/incidents/a1b2c3d4-7"]
     assert detail["report_ids"] == ["a1b2c3d4-7"]
     assert detail["sources"] == ["ciudadano directo"]
-    assert detail["steps"][0]["detail"].startswith("sin triaje todavía")
+    assert detail["steps"][0]["detail"].startswith("reglas: nivel critica; atrapados")
+    assert detail["rules"] == ["atrapados → crítica"]
+    assert set(detail["probabilities"]) == {"critica", "alta", "media", "baja"}
     missing = api.get("/api/incidents/no-existe")
     assert missing.status_code == 404
     check(missing, "ApiError")
@@ -144,7 +148,7 @@ def test_incident_detail_and_404(api: TestClient) -> None:
 
 
 def _decide(api: TestClient, action: str, **extra):
-    body = {"ficha_id": "A:4", "action": action, "operator": "comandante-1", **extra}
+    body = {"ficha_id": "A:5", "action": action, "operator": "comandante-1", **extra}
     return api.post("/api/decisions", json=body)
 
 
@@ -152,7 +156,7 @@ def test_approve_then_conflict(api: TestClient) -> None:
     api.post("/api/messages", content=message())
     approved = _decide(api, "aprobar")
     assert approved.status_code == 201
-    assert check(approved, "DecisionAck", "POST /api/decisions → 201") == {"event_id": "A:5"}
+    assert check(approved, "DecisionAck", "POST /api/decisions → 201") == {"event_id": "A:6"}
     card = api.get("/api/incidents").json()["incidents"][0]
     assert card["status"] == "aprobada"
     second = _decide(api, "rechazar")
@@ -171,12 +175,12 @@ def test_reject_replans_a_new_ficha(api: TestClient) -> None:
     api.post("/api/messages", content=message())
     assert _decide(api, "rechazar").status_code == 201
     card = api.get("/api/incidents").json()["incidents"][0]
-    assert card["ficha_id"] != "A:4"  # la coordinación replaneó
+    assert card["ficha_id"] != "A:5"  # la coordinación replaneó
     assert card["status"] == "pendiente"
     assert "replaneada: se rechazó Cuerpo Oficial de Bomberos" in card["suggestion"]
     detail = api.get("/api/incidents/a1b2c3d4-7").json()
     rejected = [s["detail"] for s in detail["steps"] if "rechazada por" in s["detail"]]
-    assert rejected == ["ficha A:4 (Cuerpo Oficial de Bomberos) rechazada por comandante-1"]
+    assert rejected == ["ficha A:5 (Cuerpo Oficial de Bomberos) rechazada por comandante-1"]
 
 
 def test_second_rejection_excludes_both(api: TestClient) -> None:
@@ -186,7 +190,7 @@ def test_second_rejection_excludes_both(api: TestClient) -> None:
     body = {"ficha_id": second, "action": "rechazar", "operator": "comandante-1"}
     assert api.post("/api/decisions", json=body).status_code == 201
     card = api.get("/api/incidents").json()["incidents"][0]
-    assert card["ficha_id"] not in ("A:4", second)
+    assert card["ficha_id"] not in ("A:5", second)
     assert "Cuerpo Oficial de Bomberos" in card["suggestion"].split("se rechazó")[1]
     assert card["suggestion"].count(",") >= 1  # nombra a los dos rechazados
 
@@ -201,9 +205,9 @@ def test_card_without_rejection_is_not_marked_replanned(api: TestClient) -> None
     [
         ({"ficha_id": "A:99", "action": "aprobar", "operator": "c"}, 404),
         ({"ficha_id": "A:1", "action": "aprobar", "operator": "c"}, 404),  # es un reporte
-        ({"ficha_id": "A:4", "action": "editar", "operator": "c"}, 400),
+        ({"ficha_id": "A:5", "action": "editar", "operator": "c"}, 400),
         ({"ficha_id": "A-4", "action": "aprobar", "operator": "c"}, 400),
-        ({"ficha_id": "A:4", "action": "aprobar", "operator": "c", "x": 1}, 400),
+        ({"ficha_id": "A:5", "action": "aprobar", "operator": "c", "x": 1}, 400),
     ],
     ids=["no_existe", "no_es_ficha", "editar_sin_mensaje", "id_mal_formado", "campo_extra"],
 )

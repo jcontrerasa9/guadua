@@ -1,0 +1,21 @@
+# Lo que no entra al contexto de Docker: hace el build más rápido y la imagen más limpia.
+# La imagen solo necesita pyproject.toml, README.md, src/, citizen/ y algunos archivos de data/.
+.git
+.github
+.venv
+venv
+**/__pycache__
+**/*.py[cod]
+*.egg-info
+.pytest_cache
+.ruff_cache
+**/node_modules
+.env
+.env.*
+*.sqlite
+*.sqlite-*
+*.db
+data/fuentes
+data/models
+docs
+tests
