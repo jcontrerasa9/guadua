@@ -36,4 +36,4 @@ Vale la urgencia más reciente de cada reporte: la del agente reemplaza a la de 
 
 ## Pendiente
 
-Ver "Pendiente de N8" en `docs/plan.md`: `radio_en_zona` (D7), `respuesta_seguimiento` (D5a), `solicitar_verificacion_campo` (tipo de evento nuevo), disparador por palabras de duda y retomar casos tras una caída.
+Ver "Pendiente de N8" en `docs/plan.md`: `radio_en_zona` (D7), `respuesta_seguimiento` (D5a), `solicitar_verificacion_campo` (tipo de evento nuevo) y disparador por palabras de duda. Retomar casos tras una caída quedó en N12 (`docs/fichas/resiliencia.md`).
