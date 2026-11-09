@@ -22,8 +22,16 @@ dev = [
     "ruff==0.17.4",
     "pytest==9.2.0",
     "pre-commit==4.7.0",
+    "guadua[ml]",
 ]
-# Los extras pesados (ml, agents, radio) se agregan, fijados, con la tarea que los necesite.
+# Clasificador de urgencia (N7). Sin este extra el nodo clasifica solo con reglas.
+ml = [
+    "scikit-learn==1.9.1",
+    "numpy==2.5.4",
+    "scipy==1.18.1",
+    "threadpoolctl==3.8.0",
+]
+# Los demás extras pesados (agents, radio) se agregan, fijados, con la tarea que los necesite.
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/guadua"]

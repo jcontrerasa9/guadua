@@ -18,6 +18,7 @@ cp .env.example .env   # opcional: solo para usar un LLM
 ruff check . && ruff format --check .
 pytest
 node --test "tests/js/*.test.mjs"
+python -m guadua.classifier.evaluate    # sensibilidad en críticos, matriz y tiempos del triaje
 ```
 
 ## Ejecutar
