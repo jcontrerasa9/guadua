@@ -8,7 +8,10 @@ CONTRATO: genera y valida eventos `ficha` (docs/contratos.md §Catálogo).
 
 from __future__ import annotations
 
+import csv
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from pathlib import Path
 
 from guadua.knowledge.matriz_emre import cita_por_tipo, recursos_disponibles, responsable_por_tipo
 from guadua.knowledge.retriever import Retriever
@@ -23,6 +26,55 @@ from guadua.store.event_types import (
     validate_event,
 )
 from guadua.store.events import Event, EventCategory, EventId, EventStore
+
+_DEFAULT_DATA_DIR = Path(__file__).resolve().parents[3] / "data"
+_RIESGOS_CSV = _DEFAULT_DATA_DIR / "riesgos_unidad.csv"
+
+
+@dataclass(frozen=True, slots=True)
+class EntradaRiesgo:
+    senal_riesgo: str
+    advertencia: str
+    unidad_recomendada: str
+    es_ejemplo: bool
+
+
+def cargar_riesgos_unidad(ruta_csv: Path | str | None = None) -> dict[str, EntradaRiesgo]:
+    """Carga el catálogo de riesgos en escena y unidades recomendadas."""
+    path = Path(ruta_csv) if ruta_csv else _RIESGOS_CSV
+    if not path.is_file():
+        path = Path("data/riesgos_unidad.csv")
+    if not path.is_file():
+        return {}
+
+    riesgos: dict[str, EntradaRiesgo] = {}
+    with path.open(encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            senal = row["senal_riesgo"].strip()
+            riesgos[senal] = EntradaRiesgo(
+                senal_riesgo=senal,
+                advertencia=row["advertencia"].strip(),
+                unidad_recomendada=row["unidad_recomendada"].strip(),
+                es_ejemplo=row["es_ejemplo"].strip().lower() in ("true", "1", "yes"),
+            )
+    return riesgos
+
+
+def _construir_recomendacion_riesgo(
+    unidades_riesgo: Sequence[str],
+    responsable: str | None,
+    tipo: Incident,
+) -> str:
+    """Construye la recomendación operativa de unidad especializada ante riesgos en escena."""
+    if not unidades_riesgo:
+        return ""
+    unidades_str = " y ".join(unidades_riesgo)
+    if tipo == Incident.HERIDO or responsable == "Secretaría de Salud":
+        return f"{unidades_str} asegura la escena antes de enviar ambulancia estándar."
+    destino = responsable if responsable else "unidades de respuesta"
+    return f"{unidades_str} asegura la escena antes de enviar {destino}."
+
 
 _NOMBRES_INCIDENTE: dict[Incident, str] = {
     Incident.ATRAPADOS: "Personas atrapadas",
@@ -79,6 +131,7 @@ def _generar_mensaje_plantilla(
     confianza: float,
     responsable: str | None,
     unidades: int | None,
+    recomendacion_riesgo: str | None = None,
 ) -> str:
     """Redacta el mensaje operativo usando la plantilla oficial determinista."""
     rep_primero = reportes[0]
@@ -103,6 +156,9 @@ def _generar_mensaje_plantilla(
         f"{tipo_desc} {ubi} (incertidumbre {incertidumbre}), {personas_desc}. "
         f"Confianza: {conf_pct}%."
     )
+
+    if recomendacion_riesgo:
+        msg += f" {recomendacion_riesgo.strip()}"
 
     # Advertencias de recursos y responsable
     if responsable is None:
@@ -202,12 +258,39 @@ class AgenteCoordinacion:
         if not miembros:
             return None
 
+        # Evaluación de señales de riesgo de los miembros (D3b)
+        senales_riesgo: list[str] = []
+        for r in miembros:
+            for s in r.risk_signals:
+                if s not in senales_riesgo:
+                    senales_riesgo.append(s)
+
+        catalogo_riesgos = cargar_riesgos_unidad()
+        advertencias: list[str] = []
+        unidades_riesgo: list[str] = []
+        for s in senales_riesgo:
+            info = catalogo_riesgos.get(s)
+            if info:
+                advertencias.append(info.advertencia)
+                if info.unidad_recomendada and info.unidad_recomendada not in unidades_riesgo:
+                    unidades_riesgo.append(info.unidad_recomendada)
+            else:
+                advertencias.append(f"Riesgo en escena: {s}")
+
+        risk_warning = "; ".join(advertencias) if advertencias else None
+
         # 4. Tipo principal de incidente y responsable determinista según la EMRE
         tipo_principal = _seleccionar_tipo_incidente(miembros)
         responsable = responsable_por_tipo(tipo_principal, excluidos=entidades_rechazadas)
 
         # 5. Disponibilidad de unidades
         unidades = recursos_disponibles(responsable) if responsable else None
+
+        recomendacion_riesgo = (
+            _construir_recomendacion_riesgo(unidades_riesgo, responsable, tipo_principal)
+            if unidades_riesgo
+            else None
+        )
 
         # 6. Redacción del mensaje (LLM opcional o plantilla)
         mensaje, from_template = self._redactar_mensaje(
@@ -216,18 +299,21 @@ class AgenteCoordinacion:
             inc_payload.confidence,
             responsable,
             unidades,
+            recomendacion_riesgo=recomendacion_riesgo,
+            risk_warning=risk_warning,
+            unidades_riesgo=unidades_riesgo,
             es_replanificacion=bool(entidades_rechazadas),
         )
 
         # 7. Citas oficiales
         citas = self._obtener_citas(tipo_principal, responsable, miembros[0])
 
-        # 8. Construir evento Ficha (risk_warning en None: eso es D3b)
+        # 8. Construir evento Ficha
         ficha_payload = Ficha(
             incident_id=incident_id,
             responsible=responsable,
             units_available=unidades,
-            risk_warning=None,
+            risk_warning=risk_warning,
             message=mensaje,
             citations=citas,
             from_template=from_template,
@@ -291,10 +377,20 @@ class AgenteCoordinacion:
         confianza: float,
         responsable: str | None,
         unidades: int | None,
+        recomendacion_riesgo: str | None = None,
+        risk_warning: str | None = None,
+        unidades_riesgo: Sequence[str] = (),
         es_replanificacion: bool = False,
     ) -> tuple[str, bool]:
         """Redacta el mensaje operativo. Si el LLM no está disponible o falla, usa la plantilla."""
-        mensaje_base = _generar_mensaje_plantilla(tipo, miembros, confianza, responsable, unidades)
+        mensaje_base = _generar_mensaje_plantilla(
+            tipo,
+            miembros,
+            confianza,
+            responsable,
+            unidades,
+            recomendacion_riesgo=recomendacion_riesgo,
+        )
         if es_replanificacion:
             mensaje_base += " Replanificación por rechazo previo de ficha."
 
@@ -313,6 +409,11 @@ class AgenteCoordinacion:
                 f"Entidad asignada: {responsable or 'Sin responsable'}\n"
                 f"Unidades disponibles: {unidades}\n"
             )
+            if risk_warning:
+                prompt_usuario += f"Advertencia de riesgo en la escena: {risk_warning}\n"
+            if recomendacion_riesgo:
+                prompt_usuario += f"Recomendación de seguridad: {recomendacion_riesgo}\n"
+
             reply = self.llm.complete(
                 messages=[
                     Message(
@@ -332,8 +433,12 @@ class AgenteCoordinacion:
                         f" ADVERTENCIA: {responsable} no tiene unidades disponibles;"
                         " escalar al coordinador."
                     )
-                if responsable is None and "responsable" not in msg_llm.lower():
-                    msg_llm += " Sin responsable identificado; escalar al coordinador."
+                if (
+                    recomendacion_riesgo
+                    and unidades_riesgo
+                    and not any(u.lower() in msg_llm.lower() for u in unidades_riesgo)
+                ):
+                    msg_llm += f" {recomendacion_riesgo.strip()}"
                 return msg_llm, False
 
         except (LLMUnavailable, Exception):
