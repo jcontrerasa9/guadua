@@ -35,7 +35,7 @@ guadua/
 ├── citizen/              PWA del ciudadano (HTML + JS, sin frameworks)
 │   └── protocol/         header.js: cabecera de 21 B en JS (contrato)
 ├── src/guadua/           Backend en Python: lo que corre en cada nodo
-│   ├── protocol/         Formato binario: cabecera (header.py, contrato), diccionario, fragmentos, ACK
+│   ├── protocol/         Formato binario: cabecera (header.py, contrato), texto con diccionario (text.py, contrato), fragmentos, ACK
 │   ├── channel/          Canal simulado (Wi-Fi, radio/LoRa, SMS) y proxy que inyecta fallos
 │   ├── store/            Eventos (events.py y event_types.py, contrato), SQLite y gossip entre nodos
 │   ├── classifier/       Urgencia (urgency.py, contrato: el piso nunca baja), reglas y clasificador

@@ -5,6 +5,7 @@ Un contrato es un acuerdo entre partes que se construyen por separado. Cada cont
 | Contrato | Código | Ejemplos | Quién lo usa |
 | :---- | :---- | :---- | :---- |
 | Cabecera binaria de 21 B | `src/guadua/protocol/header.py`, `citizen/protocol/header.js` | `header_vectors.json` | PWA ↔ nodo |
+| Texto comprimido con diccionario (≤ 100 B tras la cabecera) | `src/guadua/protocol/text.py`, `data/diccionario_manizales.txt` | `text_vectors.json` | PWA ↔ nodo |
 | Evento (forma general) | `src/guadua/store/events.py` | — | Todos los nodos |
 | Catálogo de tipos de evento | `src/guadua/store/event_types.py` | `event_examples.json` | Agentes, nodo, tablero |
 | API HTTP del nodo | `src/guadua/node/api.py` | `api_examples.json` | PWA, tablero ↔ nodo |
@@ -12,6 +13,8 @@ Un contrato es un acuerdo entre partes que se construyen por separado. Cada cont
 | Piso de urgencia | `src/guadua/classifier/urgency.py` | — | Triaje y cualquier agente |
 
 El formato byte por byte de la cabecera está en `docs/diseno.md` §5.2.
+
+**Texto comprimido.** Va después de los 21 B. Sin texto: 0 B. Con texto: 1 B de prefijo (4 bits altos: versión del diccionario, hoy 1; 4 bits bajos: modo, 0 = UTF-8 sin comprimir, 1 = deflate crudo con `data/diccionario_manizales.txt` como `zdict`) seguido de los datos, en total como máximo 100 B. Se usa el modo 1 solo si ocupa menos que el 0. El diccionario se usa byte por byte (su SHA-256 está en `text_vectors.json`); cambiarlo exige subir la versión. JS debe decodificar cada vector a su texto exacto; los bytes comprimidos pueden variar entre implementaciones de zlib.
 
 ## Convenciones
 
