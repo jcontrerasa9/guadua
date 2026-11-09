@@ -31,7 +31,7 @@ Un frente es un grupo de tareas que toca sus propias carpetas. Los frentes no co
 | :---- | :---- | :---- | :---- | :---- | :---- |
 | N0 | Contratos: cabecera 21 B (Python + JS), eventos, interfaces, vectores | Jacobo | — | Vectores pasan en pytest y `node --test` | ✅ |
 | N0b | Contratos: API HTTP del nodo y catálogo de tipos de evento (`docs/contratos.md`) | Jacobo | N0 | Ejemplos de `api_examples.json` y `event_examples.json` pasan en pytest | ✅ |
-| N1 | Texto con diccionario (`zlib zdict`) y diccionario de Manizales en `data/` | Jacobo | N0 | Vectores de texto en `tests/fixtures/`; ahorro medido frente a no comprimir | ☐ |
+| N1 | Texto con diccionario (`zlib zdict`) y diccionario de Manizales en `data/` | Jacobo | N0 | Vectores de texto en `tests/fixtures/`; ahorro medido frente a no comprimir | ✅ |
 | N2 | Fragmentos y ACK con mapa de bits | Jacobo | N0 | Una foto de 3 KB se reconstruye con 60 % de pérdida reenviando solo lo que falta | ☐ |
 | N3 | Canal simulado con perfiles (Wi-Fi, radio/LoRa, SMS) y proxy de fallos | Jacobo | N0 | Implementa `Transport`; con semilla fija, la pérdida medida coincide con la configurada (±5 %) | ☐ |
 | N4 | Registro de eventos en SQLite (WAL) | Jacobo | N0 | Se agrega a `STORES` en `tests/test_contracts.py` y pasa todas las pruebas de contrato | ☐ |
