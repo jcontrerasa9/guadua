@@ -10,7 +10,9 @@
 # El gossip viaja por UDP con tramas de 200 B (como LoRa). Para simular pérdida entre nodos:
 #   SARD_CHANNEL_PROFILE=lora docker compose up
 
+# Una sola imagen (guadua-node) para los tres nodos y el proxy: se construye una vez.
 x-node: &node
+  image: guadua-node
   build: .
   restart: unless-stopped
 
