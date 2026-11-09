@@ -21,6 +21,7 @@ from guadua.node.intake import parse_message, reporte_event
 from guadua.node.pipeline import normalized_event, urgency_event
 from guadua.providers.llm import LLMProvider
 from guadua.providers.transport import Transport
+from guadua.services.resilience import DEFAULT_PEER_TIMEOUT, Ownership, Resilience, Work
 from guadua.store.event_types import Decision, UrgenciaEstimada, event_id_str, validate_event
 from guadua.store.events import Event, EventCategory, EventId, EventStore
 from guadua.store.gossip import GossipNode
@@ -55,24 +56,35 @@ class Node:
         clock: Callable[[], float] = time.time,
         classifier: UrgencyClassifier | None | Literal["default"] = "default",
         llm: LLMProvider | None = None,
+        peer_timeout: float = DEFAULT_PEER_TIMEOUT,
+        monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         """`classifier="default"` entrena el de data/sinteticos (una vez por proceso);
         None deja solo las reglas. Sin `llm` no hay agente de triaje (N8): los casos dudosos
-        quedan "ambiguo, revisar" con la urgencia de N7."""
+        quedan "ambiguo, revisar" con la urgencia de N7. `peer_timeout` y `monotonic` son de
+        la resiliencia (N12): segundos sin latidos para dar un vecino por caído y su reloj."""
         self.node_id = node_id
         self.classifier = default_classifier() if classifier == "default" else classifier
         self.triaje = _agente_triaje(llm)
         self.agent_tasks: set[asyncio.Future] = set()  # ciclos del agente en curso
+        self.triage_running: set[EventId] = set()  # urgencias que el agente está revisando
         self.store = store
         self.clock = clock
         self._seq = self._max_own_seq()
-        self._report_ids = {e.payload["report_id"] for e in store.since({}) if e.type == "reporte"}
+        known = store.since({})  # al reiniciar, el estado sale de la SQLite
+        self._report_ids = {e.payload["report_id"] for e in known if e.type == "reporte"}
+        self.ownership = Ownership(known)
         self.gossip = (
-            GossipNode(node_id, store, transport, peers, on_event=self._after_append)
+            GossipNode(
+                node_id, store, transport, peers, on_event=self._after_append, monotonic=monotonic
+            )
             if transport is not None
             else None
         )
         self.coordinacion = AgenteCoordinacion(node_id, self.next_seq)
+        self.resilience = Resilience(
+            self, timeout=peer_timeout, monotonic=monotonic, restarted=bool(known)
+        )
 
     # --- Consecutivos ----------------------------------------------------------------------
 
@@ -140,31 +152,72 @@ class Node:
         """Se llama con cada evento nuevo, venga de la API o del gossip."""
         if event.type == "reporte":
             self._report_ids.add(event.payload["report_id"])
+        self.ownership.add(event)  # una reasignación cambia de quién es el trabajo
         try:
             self._run_agents(event)
         except Exception:  # un agente nunca tumba el nodo ni el ACK ya dado
             logger.exception("%s: falló un agente con el evento %s:%s", self.node_id, *event.id)
 
+    def owns(self, event_id: EventId) -> bool:
+        """¿Es de este nodo el trabajo que dispara el evento? Sin reasignaciones, lo es si
+        el evento es suyo (diseño §9: solo el dueño deriva). Ver services/resilience.py."""
+        return self.ownership.owner_of(event_id) == self.node_id
+
     def _run_agents(self, event: Event) -> None:
-        if event.type == "reporte" and event.origin_node == self.node_id:
-            normalized = normalized_event(event, node_id=self.node_id, seq=self.next_seq())
-            self.record(normalized)
-        elif event.type == "reporte_normalizado" and event.origin_node == self.node_id:
-            self._estimate_urgency(event)
-            grouped = correlacionar_reporte(event, self.store, self.node_id, self.next_seq)
-            if grouped is not None:
-                self._after_append(grouped)  # el agente ya lo guardó
-        elif event.type == "urgencia_estimada" and event.origin_node == self.node_id:
-            self._start_triage(event)
-        elif event.type == "incidente_agrupado" and event.origin_node == self.node_id:
-            self.coordinacion.procesar_incidente(event, self.store)
-        elif event.type == "decision":
+        if event.type == "decision":
             ficha = self.store.get(event.refs[0]) if event.refs else None
-            if ficha is not None and ficha.origin_node == self.node_id:
+            if ficha is not None and self.owns(ficha.id):
                 self.coordinacion.procesar_decision(event, self.store)  # replanea si rechazan
+        elif self.owns(event.id):
+            match event.type:
+                case "reporte":
+                    self._normalize(event)
+                case "reporte_normalizado":
+                    self._estimate_urgency(event)
+                    self._group(event)
+                case "urgencia_estimada":
+                    self._start_triage(event)
+                case "incidente_agrupado":
+                    self.coordinacion.procesar_incidente(event, self.store)
+
+    def do_work(self, work: Work) -> None:
+        """Un paso pendiente que la resiliencia (N12) encontró en el registro: el de un nodo
+        caído que este tomó, o uno propio que se cortó (p. ej., el triaje al caer el nodo).
+        Cada paso revisa el registro antes de actuar, así que repetirlo no duplica."""
+        match work.kind:
+            case "normalizar":
+                self._normalize(work.event)
+            case "urgencia":
+                self._estimate_urgency(work.event)
+            case "agrupar":
+                self._group(work.event)
+            case "triaje":
+                self._start_triage(work.event)
+            case "ficha":
+                self.coordinacion.procesar_incidente(work.event, self.store)
+            case "replanear":
+                self.coordinacion.procesar_decision(work.event, self.store)
+
+    def _has(self, event_type: str, report_id: str) -> bool:
+        return any(
+            e.type == event_type and e.payload.get("report_id") == report_id
+            for e in self.store.since({})
+        )
+
+    def _normalize(self, reporte: Event) -> None:
+        if not self._has("reporte_normalizado", reporte.payload["report_id"]):
+            self.record(normalized_event(reporte, node_id=self.node_id, seq=self.next_seq()))
+
+    def _group(self, normalized: Event) -> None:
+        """Correlación (N9). El agente ya revisa si el reporte está agrupado."""
+        grouped = correlacionar_reporte(normalized, self.store, self.node_id, self.next_seq)
+        if grouped is not None:
+            self._after_append(grouped)  # el agente ya lo guardó
 
     def _estimate_urgency(self, normalized: Event) -> None:
         """Publica `urgencia_estimada`. Si falla, la correlación y el resto siguen igual."""
+        if self._has("urgencia_estimada", normalized.payload["report_id"]):
+            return
         try:
             reporte = self.store.get(normalized.refs[0])
             if reporte is None or reporte.type != "reporte":
@@ -197,9 +250,11 @@ class Node:
             return
         future = loop.run_in_executor(None, self.triaje.run, case)
         self.agent_tasks.add(future)
+        self.triage_running.add(urgency.id)
 
         def done(f: asyncio.Future) -> None:
             self.agent_tasks.discard(f)
+            self.triage_running.discard(urgency.id)
             if f.cancelled():
                 return
             if (exc := f.exception()) is not None:
@@ -210,6 +265,12 @@ class Node:
         future.add_done_callback(done)
 
     def _publish_triage(self, case: TriageCase, payload: UrgenciaEstimada) -> None:
+        urgency = case.urgency_event
+        if not self.owns(urgency.id) or any(
+            e.type == "urgencia_estimada" and urgency.id in e.refs for e in self.store.since({})
+        ):  # mientras el agente pensaba, otro nodo tomó el caso o ya lo revisó
+            logger.warning("%s: el triaje de %s:%s ya no le toca", self.node_id, *urgency.id)
+            return
         try:
             self.record(self.triaje.event(case, payload, node_id=self.node_id, seq=self.next_seq()))
         except Exception:
