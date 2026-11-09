@@ -6,6 +6,7 @@ Un contrato es un acuerdo entre partes que se construyen por separado. Cada cont
 | :---- | :---- | :---- | :---- |
 | Cabecera binaria de 21 B | `src/guadua/protocol/header.py`, `citizen/protocol/header.js` | `header_vectors.json` | PWA ↔ nodo |
 | Texto comprimido con diccionario (≤ 100 B tras la cabecera) | `src/guadua/protocol/text.py`, `data/diccionario_manizales.txt` | `text_vectors.json` | PWA ↔ nodo |
+| Fragmentos y ACK con mapa de bits | `src/guadua/protocol/fragments.py` | `fragment_vectors.json` | Nodo ↔ nodo, PWA ↔ nodo |
 | Evento (forma general) | `src/guadua/store/events.py` | — | Todos los nodos |
 | Catálogo de tipos de evento | `src/guadua/store/event_types.py` | `event_examples.json` | Agentes, nodo, tablero |
 | API HTTP del nodo | `src/guadua/node/api.py` | `api_examples.json` | PWA, tablero ↔ nodo |
@@ -15,6 +16,22 @@ Un contrato es un acuerdo entre partes que se construyen por separado. Cada cont
 El formato byte por byte de la cabecera está en `docs/diseno.md` §5.2.
 
 **Texto comprimido.** Va después de los 21 B. Sin texto: 0 B. Con texto: 1 B de prefijo (4 bits altos: versión del diccionario, hoy 1; 4 bits bajos: modo, 0 = UTF-8 sin comprimir, 1 = deflate crudo con `data/diccionario_manizales.txt` como `zdict`) seguido de los datos, en total como máximo 100 B. Se usa el modo 1 solo si ocupa menos que el 0. El diccionario se usa byte por byte (su SHA-256 está en `text_vectors.json`); cambiarlo exige subir la versión. JS debe decodificar cada vector a su texto exacto; los bytes comprimidos pueden variar entre implementaciones de zlib.
+
+**Fragmentos y ACK.** Si un mensaje no cabe en la trama (`Transport.mtu`), se parte en fragmentos. Big-endian.
+
+| Bytes | Fragmento | ACK |
+| :-- | :-- | :-- |
+| 0 | Versión + tipo: 2 fragmento · 8 fragmento de foto | Versión + tipo: 3 ACK |
+| 1–4 | Dispositivo | Dispositivo del mensaje confirmado |
+| 5–8 | Consecutivo | Consecutivo del mensaje confirmado |
+| 9 | Índice (desde 0) | Tipo confirmado (cualquiera menos ACK) |
+| 10 | Total (1 a 255) | Total |
+| 11… | Datos (al menos 1 B, hasta `mtu − 11`) | Mapa de bits de ⌈total/8⌉ B: el fragmento `i` es el bit `i % 8` del byte `i // 8`, primero el menos significativo; relleno en cero |
+
+- El **tipo confirmado** separa el texto de la foto de un mismo reporte, que comparten ID.
+- Un mensaje que cabe en una trama no se fragmenta y se confirma con total 1 y mapa `01`.
+- El emisor reenvía solo los fragmentos que ningún ACK ha confirmado. Un fragmento repetido no se guarda dos veces.
+- **Se rechaza** un fragmento sin datos, con índice ≥ total o total 0, y un ACK con mapa de otro tamaño o relleno distinto de cero.
 
 ## Convenciones
 
