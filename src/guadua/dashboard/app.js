@@ -8,6 +8,7 @@ import {
   createInitialNodeState,
   DEFAULT_DECISION_FILTER,
   filterByDecision,
+  forgottenMinutes,
   DASHBOARD_MOCK_PEOPLE,
   formatDecisionRequest,
   formatTimeAgo,
@@ -528,6 +529,7 @@ export function renderIncidentCardHtml(inc) {
         <div class="card-tags">
           <span class="priority-tag level-${inc.level}">${priorityText}</span>
           <span class="status-badge status-${inc.status}">${escapeHtml(STATUS_LABELS[inc.status] || inc.status)}</span>
+          ${forgottenMinutes(inc) !== null ? `<span class="tag-alert" title="El vigía avisa: lleva este tiempo sin despacho aprobado">Sin despacho · ${forgottenMinutes(inc)} min</span>` : ""}
           ${conf.tags.map((tag) => tag === "VERIFICAR YA"
             ? `<span class="tag-alert">Verificar ya</span>`
             : `<span class="tag-rumor">${escapeHtml(tag.charAt(0) + tag.slice(1).toLowerCase())}</span>`).join("")}

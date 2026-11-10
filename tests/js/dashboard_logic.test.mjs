@@ -12,6 +12,7 @@ import {
   DASHBOARD_MOCK_PEOPLE,
   DEFAULT_DECISION_FILTER,
   filterByDecision,
+  forgottenMinutes,
   formatDecisionRequest,
   formatTimeAgo,
   matchSoughtPeople,
@@ -615,4 +616,14 @@ test("possibleDuplicates con GPS usa la distancia (600 m)", () => {
   const dup = possibleDuplicates([mk("x", "base"), mk("y", "cerca"), mk("z", "lejos")], decode);
   assert.deepEqual(dup.get("x").map((d) => d.incident_id), ["y"]);
   assert.equal(dup.get("z"), undefined);
+});
+
+test("forgottenMinutes usa los umbrales del vigía y solo para casos sin despacho", () => {
+  const now = 10_000;
+  const at = (min) => now - min * 60;
+  assert.equal(forgottenMinutes({ level: 4, status: "pendiente", received_at: at(4) }, now), null);
+  assert.equal(forgottenMinutes({ level: 4, status: "pendiente", received_at: at(7) }, now), 7);
+  assert.equal(forgottenMinutes({ level: 2, status: "pendiente", received_at: at(7) }, now), null);
+  assert.equal(forgottenMinutes({ level: 2, status: "sin_ficha", received_at: at(16) }, now), 16);
+  assert.equal(forgottenMinutes({ level: 4, status: "aprobada", received_at: at(60) }, now), null);
 });

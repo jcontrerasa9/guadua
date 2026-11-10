@@ -585,3 +585,23 @@ export function possibleDuplicates(incidents = [], decode = null) {
   }
   return out;
 }
+
+// --- Casos olvidados (mismos umbrales que el vigía, agents/vigia.py) ---------------------
+
+export const FORGOTTEN_HIGH_S = 300; // crítica y alta: 5 min sin despacho
+export const FORGOTTEN_OTHER_S = 900; // media y baja: 15 min
+
+/**
+ * Minutos sin despacho si el caso ya pasó el umbral del vigía; null si no. El vigía deja su
+ * alerta en "por qué está aquí"; esto la pone a la vista en la tarjeta.
+ *
+ * @param {{ level: number, status: string, received_at: number }} inc
+ * @param {number} [nowS] - segundos Unix
+ * @returns {number | null}
+ */
+export function forgottenMinutes(inc, nowS = Date.now() / 1000) {
+  if (!inc || !["pendiente", "sin_ficha", "conflicto"].includes(inc.status)) return null;
+  const age = nowS - Number(inc.received_at);
+  const limit = Number(inc.level) >= 3 ? FORGOTTEN_HIGH_S : FORGOTTEN_OTHER_S;
+  return age >= limit ? Math.floor(age / 60) : null;
+}
