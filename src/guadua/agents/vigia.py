@@ -171,15 +171,20 @@ def evidencia_desde(
         if ev.received_at <= since_timestamp:
             continue
 
-        # Nuevos reportes normalizados asociados
-        if ev.type in ("reporte", "reporte_normalizado"):
-            rid = ev.payload.get("report_id")
-            if rid and (rid in report_ids_incident or incident_id == rid):
-                nuevos.append(ev)
-        # Transcripciones de radio o confirmaciones
-        elif ev.type in ("transcripcion_radio", "confirmacion_campo"):
-            if ev.payload.get("incident_id") == incident_id:
-                nuevos.append(ev)
+        # Reportes nuevos asociados al incidente
+        rid = ev.payload.get("report_id")
+        es_reporte = (
+            ev.type in ("reporte", "reporte_normalizado")
+            and bool(rid)
+            and (rid in report_ids_incident or incident_id == rid)
+        )
+        # Transcripciones de radio o confirmaciones de campo
+        es_radio_campo = (
+            ev.type in ("transcripcion_radio", "confirmacion_campo")
+            and ev.payload.get("incident_id") == incident_id
+        )
+        if es_reporte or es_radio_campo:
+            nuevos.append(ev)
 
     return nuevos
 
