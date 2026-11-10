@@ -12,7 +12,9 @@ clasificador (classifier/triage.py); el agente de triaje (N8, agents/triaje.py) 
 la zona gris con los límites de la regla 1.
 
 La normalización es la de "reglas simples mientras no exista el Agente 1"
-(docs/contratos.md): sale solo de la cabecera, sin interpretar el texto.
+(docs/contratos.md): sale de la cabecera; del texto solo lee las señales de riesgo para
+rescatistas (D3a, classifier/risk.py). Se detectan aquí, una sola vez: la urgencia las copia
+y la ficha y la tarjeta las leen de este evento.
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ import json
 from functools import cache
 from pathlib import Path
 
+from guadua.classifier.risk import detect_risk_signals
 from guadua.classifier.triage import UrgencyClassifier, triage
 from guadua.protocol.header import Flag, People
 from guadua.store.event_types import Location, Reporte, ReporteNormalizado
@@ -35,7 +38,6 @@ VITAL_FLAGS = {
     Flag.NO_RESPIRA_O_SANGRADO: "no_respira_o_sangrado",
     Flag.NINOS_O_MAYORES: "ninos_o_mayores",
 }
-RISK_FLAGS = {Flag.INCENDIO: "incendio", Flag.RIESGO_ESCENA: "gas_o_cables"}
 
 
 @cache
@@ -64,7 +66,7 @@ def normalize(reporte: Reporte) -> ReporteNormalizado:
         location=location_of(reporte),
         direct_observation=Flag.OBSERVACION_DIRECTA in flags,
         vital_signs=tuple(name for flag, name in VITAL_FLAGS.items() if flag in flags),
-        risk_signals=tuple(name for flag, name in RISK_FLAGS.items() if flag in flags),
+        risk_signals=detect_risk_signals(reporte),
         text=reporte.text,
         unknown_fields=tuple(unknown),
     )

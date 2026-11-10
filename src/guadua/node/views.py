@@ -61,7 +61,23 @@ PEOPLE_LABELS = {
     People.DE_6_A_20: "6 a 20",
     People.MAS_DE_20: "más de 20",
 }
-RISK_LABELS = {"incendio": "fuego", "gas_o_cables": "gas o cables caídos"}
+RISK_LABELS = {  # nombres de classifier/risk.py
+    "gas": "gas",
+    "cables_caidos": "cables caídos",
+    "gas_o_cables": "gas o cables caídos",
+    "cilindros_expuestos": "cilindros expuestos",
+    "colapso_secundario": "riesgo de colapso secundario",
+    "via_bloqueada": "vía bloqueada",
+    "incendio": "fuego",
+}
+
+
+def risk_note(signals: tuple[str, ...]) -> str:
+    """Riesgo para rescatistas en "por qué está aquí": se advierte, no cambia la urgencia."""
+    names = ", ".join(RISK_LABELS.get(s, s) for s in signals)
+    return f"riesgo para rescatistas: {names} (no cambia la urgencia)"
+
+
 STATUS_BY_ACTION = {"aprobar": "aprobada", "editar": "editada", "rechazar": "rechazada"}
 
 
@@ -233,6 +249,8 @@ def _build(iid: str, incident_event: Event | None, members: list[_Report], log: 
     for u in parsed:
         detail = f"{u.source}: nivel {u.level.name.lower()}"
         detail += "".join(f"; {r}" for r in u.rules) + ("; ambiguo, revisar" if u.ambiguous else "")
+        if u.risk_signals:  # D3a: se advierte al explicar, sin tocar el nivel
+            detail += f"; {risk_note(u.risk_signals)}"
         steps.append(AgentStep(agent="triaje", detail=detail))
         steps.extend(AgentStep(agent="triaje", detail=f"agente · {s}") for s in u.steps)
     if group:

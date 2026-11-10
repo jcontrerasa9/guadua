@@ -95,6 +95,8 @@ Límites (se verifican con código; si no los cumples, el caso va a revisión hu
 - Solo puedes bajar UN nivel respecto al nivel actual, nunca por debajo del piso, y debes \
 copiar en "quote" las palabras exactas del reporte que lo justifican. Si dudas, no bajes.
 - Tienes como máximo {MAX_STEPS} pasos. Usa herramientas solo si ayudan.
+- Las "senales_de_riesgo" son peligros para los rescatistas (gas, cables caídos…), no \
+gravedad de la víctima: menciónalas en tu motivo, pero NO suben ni bajan el nivel.
 - Una persona toma la decisión final.
 Termina con fijar_urgencia o con {{"final": {{"level": n, "reason": "...", "quote": "...", \
 "verify_now": false}}}}."""

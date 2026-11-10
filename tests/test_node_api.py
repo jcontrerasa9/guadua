@@ -123,7 +123,7 @@ def test_report_becomes_card_with_pending_ficha(api: TestClient) -> None:
     assert card["level"] == 4  # por la regla de atrapados (N7), ya no provisional
     assert card["status"] == "pendiente" and card["ficha_id"] == "A:5"
     assert card["title"] == "Colapso con 2 a 5 atrapados"
-    assert "gas o cables" in card["risk_warning"]
+    assert "Fuga de gas" in card["risk_warning"]  # el texto precisa la bandera (D3a)
     types = [e.type for e in api.app.state.node.store.since({})]
     assert types == [
         "reporte", "reporte_normalizado", "urgencia_estimada", "incidente_agrupado", "ficha",

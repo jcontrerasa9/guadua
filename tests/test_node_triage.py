@@ -96,4 +96,28 @@ def test_sin_clasificador_solo_reglas_y_revision_humana() -> None:
     (estimate,) = urgencies(a)
     assert (estimate.level, estimate.source, estimate.ambiguous) == (Urgency.BAJA, "reglas", True)
     detail = incident_detail(a.store.since({}), "a1b2c3d4-7")
-    assert detail.steps[0].detail == "reglas: nivel baja; ambiguo, revisar"
+    assert detail.steps[0].detail == (
+        "reglas: nivel baja; ambiguo, revisar; "
+        "riesgo para rescatistas: vía bloqueada (no cambia la urgencia)"
+    )
+
+
+def test_el_riesgo_del_texto_llega_a_la_urgencia_y_a_la_tarjeta_sin_cambiarla() -> None:
+    """D3a: "huele a gas" se marca en el normalizado y en la urgencia; el nivel no cambia.
+
+    Sin clasificador, para aislar la marca: el clasificador lee todo el texto y puede
+    calcular otro nivel, pero eso es suyo, no de las señales de riesgo.
+    """
+    plain, risky = node(classifier=None), node(classifier=None)
+    plain.receive_message(message(Incident.HERIDO, Flag(0), "un herido en la casa"))
+    risky.receive_message(message(Incident.HERIDO, Flag(0), "un herido en la casa, huele a gas"))
+    (without,), (with_risk,) = urgencies(plain), urgencies(risky)
+    assert (with_risk.level, with_risk.floor) == (without.level, without.floor)
+    assert (without.risk_signals, with_risk.risk_signals) == ((), ("gas",))
+    events = risky.store.since({})
+    (normalized,) = [e for e in events if e.type == "reporte_normalizado"]
+    assert normalized.payload["risk_signals"] == ["gas"]
+    detail = incident_detail(events, "a1b2c3d4-7")
+    assert "Fuga de gas" in detail.risk_warning  # ficha de coordinación (D3b)
+    assert "riesgo para rescatistas: gas" in detail.steps[0].detail
+    assert incident_detail(plain.store.since({}), "a1b2c3d4-7").risk_warning is None
