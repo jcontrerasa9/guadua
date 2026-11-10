@@ -3,6 +3,17 @@
 Prototipo para la hackathon SARD: reportes de emergencia distribuidos que funcionan **sin Internet**.
 Diseño completo en [docs/diseno.md](docs/diseno.md); plan de trabajo en [docs/plan.md](docs/plan.md).
 
+## Entregables
+
+| Entregable | Dónde |
+| :-- | :-- |
+| Prototipo funcional | `docker compose up` (ver [Ejecutar](#ejecutar)) |
+| Código fuente | Este repositorio |
+| Documento de arquitectura | [docs/arquitectura.md](docs/arquitectura.md) |
+| Fichas de agentes | [docs/fichas/](docs/fichas/) |
+| Protocolo de comunicación | [docs/protocolo.md](docs/protocolo.md) |
+| Resultados de pruebas | [docs/resultados.md](docs/resultados.md) |
+
 ## Instalación (Python 3.13)
 
 ```bash
@@ -27,11 +38,34 @@ python -m guadua.knowledge.ingest       # rehace data/emre_passages.json desde l
 
 ## Ejecutar
 
+Requisitos: Docker con Compose. La primera construcción descarga las dependencias y el modelo de Whisper (`small`); después todo corre sin Internet.
+
 ```bash
-docker compose up
+docker compose up -d --build
 ```
 
-Sin variables no hay LLM: los casos dudosos quedan "ambiguo, revisar". Para activar el agente de triaje se exportan las variables de `.env.example` (`LLM_PROVIDER`, `GEMINI_*`, `OLLAMA_*`) antes de `docker compose up`; el orden es Gemini (nube) → Ollama (local) → ninguno.
+| Qué | Dirección |
+| :-- | :-- |
+| PWA ciudadana | <http://localhost:8000/ciudadano/> |
+| Tablero del comandante | <http://localhost:8000/tablero/> |
+| Nodos B y C | <http://localhost:8001>, <http://localhost:8002> |
+| Proxy del canal (fallos inyectados) | <http://localhost:8080> |
+
+El tablero cambia solo de nodo si el suyo cae. La barra "Modo demostración" del tablero cambia el perfil del canal (Wi-Fi, LoRa, SMS), lanza una ráfaga, inyecta un clip de radio, apaga el nodo A y muestra los hashes de convergencia.
+
+**LLM (opcional).** Sin LLM, los casos dudosos quedan "ambiguo, revisar", las preguntas salen de reglas y las fichas de plantilla. Para activarlo, copia `.env.example` a `.env` y completa una opción (Compose lee el `.env`):
+
+```
+LLM_PROVIDER=auto                               # gemini, ollama, auto o none
+GEMINI_API_KEY=...                               # con Internet
+GEMINI_MODEL=...
+OLLAMA_HOST=http://host.docker.internal:11434    # Ollama en el equipo, visto desde Docker
+OLLAMA_MODEL=qwen2.5:7b
+```
+
+Con Ollama en el equipo: `OLLAMA_HOST=0.0.0.0 ollama serve` y `ollama pull qwen2.5:7b`. El orden es Gemini (nube) → Ollama (local) → ninguno.
+
+**GPS en el celular.** El navegador solo entrega el GPS con HTTPS; sin él, la PWA usa el barrio.
 
 ## Guía de carpetas
 
