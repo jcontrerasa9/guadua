@@ -15,6 +15,10 @@ La normalización es la de "reglas simples mientras no exista el Agente 1"
 (docs/contratos.md): sale de la cabecera; del texto solo lee las señales de riesgo para
 rescatistas (D3a, classifier/risk.py). Se detectan aquí, una sola vez: la urgencia las copia
 y la ficha y la tarjeta las leen de este evento.
+
+Un reporte de radio (D7) llega ya separado por el agente de recepción y sigue el mismo
+camino. Lo que la radio no dijo queda en `unknown_fields`: sin lugar, la ubicación es toda
+la ciudad con radio grande; sin decir si lo vio, cuenta como segunda mano.
 """
 
 from __future__ import annotations
@@ -26,12 +30,16 @@ from pathlib import Path
 from guadua.classifier.risk import detect_risk_signals
 from guadua.classifier.triage import UrgencyClassifier, triage
 from guadua.protocol.header import Flag, People
+from guadua.radio.texto import direct_cue
 from guadua.store.event_types import Location, Reporte, ReporteNormalizado
 from guadua.store.events import Event, EventCategory
 
 BARRIOS_PATH = Path(__file__).resolve().parents[3] / "data" / "barrios.json"
 GEOHASH_RADIUS_M = 150  # geohash de 7 caracteres ≈ 150 m
 BARRIO_RADIUS_M = 600  # sin GPS: el barrio completo
+CITY_GEOHASH = "d2fkceh"  # centro de Manizales (5.0703, -75.5138)
+CITY_RADIUS_M = 5000  # sin lugar dicho (radio VHF): la zona urbana completa
+CITY_LABEL = "Manizales (lugar no dicho)"
 
 VITAL_FLAGS = {
     Flag.ATRAPADOS: "atrapados",
@@ -51,6 +59,8 @@ def barrio_names() -> dict[int, str]:
 def location_of(reporte: Reporte) -> Location:
     if reporte.geohash is not None:
         return Location(geohash=reporte.geohash, radius_m=GEOHASH_RADIUS_M)
+    if reporte.barrio is None:  # la radio no dijo dónde: toda la ciudad, sin inventar un punto
+        return Location(geohash=CITY_GEOHASH, radius_m=CITY_RADIUS_M, label=CITY_LABEL)
     return Location(
         barrio=reporte.barrio, radius_m=BARRIO_RADIUS_M, label=barrio_names().get(reporte.barrio)
     )
@@ -59,6 +69,14 @@ def location_of(reporte: Reporte) -> Location:
 def normalize(reporte: Reporte) -> ReporteNormalizado:
     flags = Flag(reporte.flags)
     unknown = ["people"] if reporte.people == People.NO_SE else []
+    if reporte.geohash is None and reporte.barrio is None:
+        unknown.append("location")
+    if (
+        reporte.channel == "vhf"
+        and Flag.OBSERVACION_DIRECTA not in flags
+        and direct_cue(reporte.text or "") is None
+    ):
+        unknown.append("direct_observation")  # nadie dijo si lo vio: cuenta como segunda mano
     return ReporteNormalizado(
         report_id=reporte.report_id,
         incident=reporte.incident,

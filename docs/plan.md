@@ -55,7 +55,7 @@ Lo que N8 dejó fuera a propósito y en qué tarea va. Ficha completa: `docs/fic
 
 | Pendiente | Va con | Qué falta |
 | :---- | :---- | :---- |
-| Herramienta `radio_en_zona` | D7 | Que existan eventos `transcripcion_radio`; luego se agrega a `TOOLS` en `agents/triaje.py` |
+| ~~Herramienta `radio_en_zona`~~ | D7 ✅ | En `TOOLS` de `agents/triaje.py`: lo que dijo la radio en el mismo lugar (`docs/fichas/triaje.md`) |
 | Herramienta `respuesta_seguimiento` | Tarea nueva (frente B), tras D5a ✅ | Ya hay preguntas y respuestas (`docs/fichas/recepcion.md`). Falta que el triaje las lea: un "Sí" a `no_respira_o_sangrado` sube a crítica; un "Sí" a `gas_o_cables` es señal de riesgo |
 | Herramienta `solicitar_verificacion_campo` | D6 o tarea nueva | Un tipo de evento nuevo (cambio de contrato). Mientras tanto, `marcar_verificar_ya` |
 | Disparador por palabras de duda ("no sé", "creo", "dicen"…) | Tarea nueva, **SIN ASIGNAR** (frente B) | Hoy N8 solo ve lo que N7 marca `ambiguous`: en el conjunto `ambiguo`, 176 de 318 casos salen mal sin marcar. Calibrar con un conjunto distinto de `ambiguo` |
@@ -76,7 +76,7 @@ Lo que N8 dejó fuera a propósito y en qué tarea va. Ficha completa: `docs/fic
 | D5a | Preguntas de seguimiento: agente de recepción | Jacobo | Máximo 1 pregunta por reporte, visible en el tablero | ✅ |
 | D5b | Preguntas de seguimiento: tarjeta Sí / No en la PWA | Oscar | Se responde con un toque al volver la señal | ✅ |
 | D6 | Agente vigía | Oscar | Casos olvidados generan solicitudes; nunca cambia prioridades | ✅ |
-| D7 | Radio VHF con `faster-whisper` | Oscar | Clip con dos incidentes → dos reportes ligados al mismo audio | ☐ |
+| D7 | Radio VHF con `faster-whisper` | Jacobo | Clip con dos incidentes → dos reportes ligados al mismo audio | ✅ |
 | D8 | RAG híbrido (FTS5 + embeddings) y tabla de recursos | Oscar | Implementa `Retriever`; ~20 preguntas, sección esperada en el top 3 | ✅ |
 | D9 | Barra de simulación para el jurado | Oscar | Cambia perfil, lanza ráfaga, inyecta radio, apaga A y muestra hashes | ✅ |
 | D10 | HTTPS en el celular (`adb reverse`, luego `mkcert`) | Oscar | GPS y modo offline funcionan en un teléfono real | ☐ |

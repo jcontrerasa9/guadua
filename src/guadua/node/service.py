@@ -19,8 +19,23 @@ from guadua.agents.correlacion import (
     correlacionar_reporte,
 )
 from guadua.agents.recepcion import DEFAULT_KINDS, AgenteRecepcion, QuestionCase
+from guadua.agents.recepcion_radio import (
+    SeparadorRadio,
+    Split,
+    SplitCase,
+    current_transcriptions,
+    split_done,
+    superseded,
+)
 from guadua.classifier.triage import UrgencyClassifier, default_classifier
-from guadua.node.api import DecisionAck, DecisionRequest, Health, MessageAck
+from guadua.node.api import (
+    DecisionAck,
+    DecisionRequest,
+    Health,
+    MessageAck,
+    RadioAck,
+    TranscriptionRequest,
+)
 from guadua.node.intake import (
     IntakeError,
     ParsedAnswer,
@@ -31,12 +46,16 @@ from guadua.node.intake import (
 )
 from guadua.node.pipeline import normalized_event, urgency_event
 from guadua.providers.llm import LLMProvider
+from guadua.providers.transcriber import NullTranscriber, Transcriber, TranscriberUnavailable
 from guadua.providers.transport import Transport
+from guadua.radio.clips import Clip, ClipStore, MemoryClipStore, audio_id_of, check_audio
+from guadua.radio.texto import any_direct_cue
 from guadua.services.resilience import DEFAULT_PEER_TIMEOUT, Ownership, Resilience, Work
 from guadua.store.event_types import (
     Decision,
     PreguntaSeguimiento,
     QuestionKind,
+    TranscripcionRadio,
     UrgenciaEstimada,
     event_id_str,
     validate_event,
@@ -78,6 +97,8 @@ class Node:
         monotonic: Callable[[], float] = time.monotonic,
         recepcion_llm: LLMProvider | None = None,
         question_kinds: frozenset[QuestionKind] = DEFAULT_KINDS,
+        transcriber: Transcriber | None = None,
+        clips: ClipStore | None = None,
     ) -> None:
         """`classifier="default"` entrena el de data/sinteticos (una vez por proceso);
         None deja solo las reglas. Sin `llm` no hay agente de triaje (N8): los casos dudosos
@@ -85,7 +106,9 @@ class Node:
         la resiliencia (N12): segundos sin latidos para dar un vecino por caído y su reloj.
         `recepcion_llm` es el del agente de recepción (D5a); sin él, las preguntas de
         seguimiento salen de las reglas. `question_kinds`: los tipos de pregunta que la PWA
-        sabe mostrar."""
+        sabe mostrar. `transcriber` y `clips` son de la radio (D7): sin transcriptor, los
+        clips quedan pendientes para el operador; el audio se guarda en `clips` (en memoria
+        si no se da). La separación de la radio usa el mismo LLM que la recepción."""
         self.node_id = node_id
         self.classifier = default_classifier() if classifier == "default" else classifier
         self.triaje = _agente_triaje(llm)
@@ -93,6 +116,12 @@ class Node:
         self.triage_running: set[EventId] = set()  # urgencias que el agente está revisando
         self.recepcion = AgenteRecepcion(recepcion_llm, kinds=question_kinds)
         self.asking: set[EventId] = set()  # reportes normalizados con la pregunta en curso
+        self.transcriber = transcriber or NullTranscriber()
+        self.clips = clips if clips is not None else MemoryClipStore()
+        self.radio = SeparadorRadio(recepcion_llm)
+        self.transcribing: set[str] = set()  # audio_id con Whisper trabajando
+        self.splitting: set[EventId] = set()  # transcripciones que el agente está separando
+        self.radio_notes: dict[str, str] = {}  # audio_id → por qué quedó pendiente
         self.store = store
         self.clock = clock
         self._seq = self._max_own_seq()
@@ -186,6 +215,148 @@ class Node:
         self.record(event)
         return DecisionAck(event_id=event_id_str(event))
 
+    # --- Radio VHF (D7) ---------------------------------------------------------------------
+
+    async def receive_audio(
+        self, data: bytes, content_type: str | None, *, name: str | None = None
+    ) -> RadioAck:
+        """Guarda el clip, lo transcribe en otro hilo y publica `transcripcion_radio`. Lanza
+        ClipError (→ 400) si el audio no sirve. Sin transcriptor o si Whisper no puede, el
+        clip queda pendiente para el operador; el mismo clip otra vez se vuelve a intentar."""
+        kind = check_audio(data, content_type)
+        audio_id = audio_id_of(data)
+        current = current_transcriptions(self.store.since({})).get(audio_id)
+        if current is not None:
+            return self._radio_ack(current, duplicate=True)
+        self.clips.put(Clip(audio_id, kind, self.clock(), len(data), name), data)
+        if audio_id in self.transcribing:
+            return RadioAck(audio_id=audio_id, status="pendiente", note="transcribiendo")
+        self.transcribing.add(audio_id)
+        try:
+            result = await asyncio.to_thread(self.transcriber.transcribe, data)
+        except TranscriberUnavailable as exc:
+            return self._pending(audio_id, str(exc))
+        except Exception as exc:  # el transcriptor nunca tumba el nodo
+            logger.exception("%s: falló el transcriptor con %s", self.node_id, audio_id)
+            return self._pending(audio_id, f"falló el transcriptor: {type(exc).__name__}")
+        finally:
+            self.transcribing.discard(audio_id)
+        if not result.text.strip():
+            return self._pending(audio_id, "Whisper no reconoció palabras")
+        current = current_transcriptions(self.store.since({})).get(audio_id)
+        if current is not None:  # mientras transcribía, el operador escribió el texto
+            return self._radio_ack(current, duplicate=True)
+        payload = TranscripcionRadio(
+            audio_id=audio_id,
+            text=result.text,
+            direct=any_direct_cue(result.text),
+            source="whisper",
+            model=result.model,
+            duration_s=result.duration_s,
+            confidence=result.confidence,
+        )
+        return self._radio_ack(self._publish_transcription(payload, refs=()))
+
+    def correct_transcription(self, audio_id: str, request: TranscriptionRequest) -> RadioAck:
+        """El operador escribe el texto de un clip pendiente o corrige el vigente: un evento
+        nuevo con el anterior en `refs[0]` (los eventos no se editan). 404 si no lo conoce."""
+        current = current_transcriptions(self.store.since({})).get(audio_id)
+        if current is None and self.clips.get(audio_id) is None:
+            raise NotFound(f"no existe el clip {audio_id}")
+        text = " ".join(request.text.split())
+        payload = TranscripcionRadio(
+            audio_id=audio_id,
+            text=text,
+            direct=any_direct_cue(text),
+            source="operador",
+            operator=request.operator,
+        )
+        refs = (current.id,) if current is not None else ()
+        self.radio_notes.pop(audio_id, None)
+        return self._radio_ack(self._publish_transcription(payload, refs=refs))
+
+    def _publish_transcription(self, payload: TranscripcionRadio, *, refs: tuple) -> Event:
+        event = Event(
+            origin_node=self.node_id,
+            seq=self.next_seq(),
+            category=EventCategory.HECHO,
+            type="transcripcion_radio",
+            payload=payload.model_dump(mode="json"),
+            refs=refs,
+            received_at=self.clock(),
+        )
+        self.record(event)
+        return event
+
+    def _pending(self, audio_id: str, why: str) -> RadioAck:
+        logger.warning("%s: el clip %s queda pendiente (%s)", self.node_id, audio_id, why)
+        self.radio_notes[audio_id] = why
+        return RadioAck(audio_id=audio_id, status="pendiente", note=why)
+
+    @staticmethod
+    def _radio_ack(event: Event, *, duplicate: bool = False) -> RadioAck:
+        return RadioAck(
+            audio_id=event.payload["audio_id"],
+            status="transcrito",
+            transcription_id=event_id_str(event),
+            text=event.payload["text"],
+            duplicate=duplicate,
+        )
+
+    def _separate(self, transcription: Event) -> None:
+        """Agente de recepción (D7): separa la transcripción en reportes, uno por suceso.
+
+        Con LLM (solo si las reglas ven varios sucesos) corre en otro hilo, como las
+        preguntas; si no, en línea. Una falla nunca tumba el nodo."""
+        if transcription.id in self.splitting:
+            return
+        try:
+            case = self.radio.prepare(transcription, self.store)
+        except Exception:
+            logger.exception("%s: falló la separación de %s:%s", self.node_id, *transcription.id)
+            return
+        if case is None:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if loop is None or not self.radio.needs_llm(case):
+            self._publish_split(case, self.radio.run(case))
+            return
+        future = loop.run_in_executor(None, self.radio.run, case)
+        self.agent_tasks.add(future)
+        self.splitting.add(transcription.id)
+
+        def done(f: asyncio.Future) -> None:
+            self.agent_tasks.discard(f)
+            self.splitting.discard(transcription.id)
+            if f.cancelled():
+                return
+            if (exc := f.exception()) is not None:
+                logger.error("%s: falló la separación de la radio: %r", self.node_id, exc)
+                return
+            self._publish_split(case, f.result())
+
+        future.add_done_callback(done)
+
+    def _publish_split(self, case: SplitCase, split: Split) -> None:
+        source = case.transcription_event
+        events = self.store.since({})
+        if (
+            not self.owns(source.id)
+            or split_done(events, source.id)
+            or superseded(events, source.id)
+        ):
+            logger.warning("%s: la separación de %s:%s ya no le toca", self.node_id, *source.id)
+            return
+        seqs = [self.next_seq() for _ in split.parts]
+        try:
+            for event in self.radio.events(case, split, node_id=self.node_id, seqs=seqs):
+                self.record(event)
+        except Exception:
+            logger.exception("%s: no se pudieron publicar los reportes de radio", self.node_id)
+
     # --- Registro y agentes ----------------------------------------------------------------
 
     def record(self, event: Event) -> bool:
@@ -230,6 +401,8 @@ class Node:
                     self.coordinacion.procesar_incidente(event, self.store)
                 case "confirmacion_campo":
                     self._process_confirmacion_campo(event)
+                case "transcripcion_radio":
+                    self._separate(event)
 
     def do_work(self, work: Work) -> None:
         """Un paso pendiente que la resiliencia (N12) encontró en el registro: el de un nodo
@@ -252,6 +425,8 @@ class Node:
                 self.coordinacion.procesar_decision(work.event, self.store)
             case "confirmacion_campo":
                 self._process_confirmacion_campo(work.event)
+            case "separar":
+                self._separate(work.event)
 
     def _has(self, event_type: str, report_id: str) -> bool:
         return any(

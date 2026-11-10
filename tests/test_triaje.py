@@ -251,7 +251,12 @@ def test_el_llm_recibe_el_caso_y_el_resultado_de_las_herramientas() -> None:
 
     AgenteTriaje(Spy([tool("incidentes_cercanos"), final(3)])).run(case_for())
     first, names = seen[0]
-    assert names == ["incidentes_cercanos", "marcar_verificar_ya", "fijar_urgencia"]
+    assert names == [
+        "incidentes_cercanos",
+        "radio_en_zona",
+        "marcar_verificar_ya",
+        "fijar_urgencia",
+    ]
     assert GATO in first[1].content and '"piso_de_las_reglas": "baja"' in first[1].content
     second, _ = seen[1]
     assert [m.role for m in second] == ["system", "user", "assistant", "tool"]

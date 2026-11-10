@@ -200,10 +200,10 @@ export class HttpSimulationClient {
 
   async injectRadio(clipId = "clip_colapso_dos_incidentes") {
     if (!this.fetchFn) throw new Error("fetch no disponible");
-    const res = await this.fetchFn(`${this.proxyUrl}/_sim/radio`, {
+    // D7: el nodo transcribe un clip grabado de data/radio/ (a través del proxy si lo hay).
+    const base = this.proxyUrl || this.nodeUrls.A;
+    const res = await this.fetchFn(`${base}/api/radio/demo/${encodeURIComponent(clipId)}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clip_id: clipId }),
     });
     const isJson = res.headers?.get?.("content-type")?.includes("application/json");
     const data = isJson ? await res.json() : await res.text();

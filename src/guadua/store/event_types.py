@@ -20,6 +20,7 @@ type ReportId = str
 REPORT_ID_PATTERN = r"^[0-9a-f]{8}-[0-9]+$"
 NODE_ID_PATTERN = r"^[A-Za-z0-9]+$"
 EVENT_ID_PATTERN = r"^[A-Za-z0-9]+:[1-9][0-9]*$"
+AUDIO_ID_PATTERN = r"^[0-9a-f]{16}$"  # primeros 16 hex del SHA-256 del audio
 
 type Channel = Literal["wifi", "radio", "sms", "vhf"]
 
@@ -63,7 +64,16 @@ class Citation(Payload):
 
 
 class Reporte(Payload):
-    """Reporte o SOS recibido. Copia fiel de la cabecera más el texto ya descomprimido."""
+    """Reporte o SOS recibido. Copia fiel de la cabecera más el texto ya descomprimido.
+
+    **Por radio (D7, `channel="vhf"`)** no hay cabecera: el agente de recepción separa una
+    `transcripcion_radio` en uno o más reportes, cada uno con lo que dijo la radio y nada más.
+    `audio_id` liga los reportes al mismo clip y el evento lleva la transcripción en
+    `refs[0]`. `report_id` = CRC32 del id de la transcripción ("A:12") + número de parte;
+    `raw_hex` va vacío; `flags` solo marca lo que se dijo (observación directa, atrapados…);
+    sin lugar dicho, `geohash` y `barrio` van en None. `split_by` dice quién lo separó:
+    "reglas" o el modelo ("gemini/…").
+    """
 
     report_id: str = Field(pattern=REPORT_ID_PATTERN)
     msg_type: Literal[MessageType.REPORTE, MessageType.SOS_ESCOMBROS]
@@ -76,6 +86,17 @@ class Reporte(Payload):
     text: str | None = None
     channel: Channel
     raw_hex: str  # bytes originales, para auditoría
+    audio_id: str | None = Field(default=None, pattern=AUDIO_ID_PATTERN)  # solo por radio
+    split_by: str | None = Field(default=None, min_length=1)  # solo por radio
+
+    @model_validator(mode="after")
+    def _radio_fields(self) -> Reporte:
+        radio = self.channel == "vhf"
+        if radio != (self.audio_id is not None) or radio != (self.split_by is not None):
+            raise ValueError("audio_id y split_by van solo, y siempre, con el canal vhf")
+        if radio and (self.raw_hex or self.msg_type != MessageType.REPORTE or not self.text):
+            raise ValueError("un reporte de radio es un REPORTE con texto y sin bytes originales")
+        return self
 
 
 class ASalvo(Payload):
@@ -87,11 +108,31 @@ class ASalvo(Payload):
 
 
 class TranscripcionRadio(Payload):
-    """Nivel 2. Transcripción de un clip VHF."""
+    """Nivel 2. Transcripción de un clip VHF (D7).
 
-    audio_id: str
-    text: str
-    direct: bool  # "estamos en el sitio" (True) frente a "nos comentan" (False)
+    La publica el nodo que recibió el audio, con `faster-whisper` (`source="whisper"`), o el
+    operador desde el tablero (`source="operador"`) cuando el audio es ininteligible o hay
+    que corregirlo. Una corrección es un evento nuevo con la transcripción anterior en
+    `refs[0]` (sin refs si el operador escribe la primera): vale la que ninguna otra
+    reemplaza. El audio no viaja en el evento: queda en el nodo que lo recibió.
+    """
+
+    audio_id: str = Field(pattern=AUDIO_ID_PATTERN)
+    text: str = Field(min_length=1)
+    direct: (
+        bool  # algo del clip se vio en persona ("estamos en el sitio"); cada reporte dice lo suyo
+    )
+    source: Literal["whisper", "operador"] = "whisper"
+    model: str | None = None  # p. ej. "faster-whisper/small-int8"
+    duration_s: float | None = Field(default=None, ge=0)
+    confidence: float | None = Field(default=None, ge=0, le=1)  # probabilidad media de Whisper
+    operator: str | None = Field(default=None, min_length=1)
+
+    @model_validator(mode="after")
+    def _who(self) -> TranscripcionRadio:
+        if (self.source == "operador") != (self.operator is not None):
+            raise ValueError("operator va solo, y siempre, con source operador")
+        return self
 
 
 type QuestionKind = Literal["si_no", "opciones", "texto"]
@@ -288,6 +329,8 @@ def validate_event(event: Event) -> Payload:
         payload = model.model_validate(event.payload)
     except ValidationError as exc:
         raise EventTypeError(f"payload inválido para {event.type}: {exc}") from exc
+    if isinstance(payload, Reporte) and payload.channel == "vhf" and not event.refs:
+        raise EventTypeError("un reporte de radio debe referenciar su transcripción en refs[0]")
     if isinstance(payload, RespuestaSeguimiento):
         node, seq = payload.question_id.split(":")
         if event.refs[:1] != ((node, int(seq)),):

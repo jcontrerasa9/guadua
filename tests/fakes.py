@@ -9,6 +9,7 @@ from collections.abc import Sequence
 
 from guadua.knowledge.retriever import Passage
 from guadua.providers.llm import LLMReply, LLMUnavailable, Message, ToolSpec
+from guadua.providers.transcriber import TranscriberUnavailable, Transcription
 from guadua.store.events import Event, EventId, VersionVector
 
 
@@ -66,6 +67,23 @@ class ScriptedLLM:
         if not self._replies:
             raise LLMUnavailable("guion agotado")
         return self._replies.popleft()
+
+
+class FakeTranscriber:
+    """Transcriptor simulado (D7): devuelve el texto fijado para cada audio, sin Whisper.
+    Un audio que no conoce no se entiende (TranscriberUnavailable)."""
+
+    name = "fake"
+
+    def __init__(self, texts: dict[bytes, str] | None = None) -> None:
+        self.texts = dict(texts or {})
+        self.calls = 0
+
+    def transcribe(self, audio: bytes) -> Transcription:
+        self.calls += 1
+        if audio not in self.texts:
+            raise TranscriberUnavailable("audio ininteligible")
+        return Transcription(self.texts[audio], "es", 9.5, 0.8, "fake/whisper")
 
 
 class StaticRetriever:

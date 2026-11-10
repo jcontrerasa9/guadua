@@ -374,7 +374,9 @@ def test_radio_directo_aporta_peso_85() -> None:
         device_time=1000,
         text="Reporte por radio desde el sitio",
         channel="vhf",
-        raw_hex="00",
+        raw_hex="",  # D7: la radio no trae bytes; sí el clip y quién la separó
+        audio_id="7c120c39db3eba4d",
+        split_by="reglas",
     )
     ev_raw = Event(
         origin_node="A",
@@ -382,7 +384,7 @@ def test_radio_directo_aporta_peso_85() -> None:
         category=EventCategory.HECHO,
         type="reporte",
         payload=rep_payload.model_dump(),
-        refs=(),
+        refs=(("A", 99),),  # la transcripción de la que salió (D7)
         received_at=1794573600.0,
     )
     validate_event(ev_raw)

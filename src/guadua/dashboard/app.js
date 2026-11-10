@@ -14,6 +14,7 @@ import {
   partitionAndSortIncidents,
   updateNodeHealth,
 } from "./logic.js";
+import { audioContentType, DEMO_CLIP, radioListHtml, radioSignature } from "./radio.js";
 import {
   checkConvergence,
   HttpSimulationClient,
@@ -47,6 +48,9 @@ export const state = {
   pendingEdit: null, // { incident, fichaId }
   mockFixture: null,
   simClient: null,
+  radioClips: [], // D7: GET /api/radio
+  radioSignature: "",
+  radioDrafts: {}, // audio_id -> texto que el operador lleva escrito
 };
 
 // --- Abstracción de red: fetchJson -------------------------------------------
@@ -722,6 +726,8 @@ async function checkNodeHealthAndPoll() {
       state.safePeople = peopleRes.data.people;
       renderSafePeople();
     }
+
+    await loadRadio();
   }
 
   // 3. Monitorear convergencia de hashes en la barra de simulación
@@ -794,6 +800,116 @@ function renderSafePeople() {
       `;
     })
     .join("");
+}
+
+// --- Radio VHF (D7) ------------------------------------------------------------
+
+function activeNodeBase() {
+  return (state.nodeState.connectedNode || state.nodeState.nodes[0] || "").replace(/\/$/, "");
+}
+
+async function loadRadio() {
+  const res = await fetchJson("/api/radio");
+  if (!res.ok || !Array.isArray(res.data?.clips)) return;
+  state.radioClips = res.data.clips;
+  renderRadio();
+}
+
+/** Redibuja solo si cambió algo, y nunca mientras suena un audio o se escribe una corrección. */
+function renderRadio(force = false) {
+  const listEl = document.getElementById("radio-list");
+  const countEl = document.getElementById("radio-count");
+  if (countEl) countEl.textContent = String(state.radioClips.length);
+  if (!listEl) return;
+  const signature = radioSignature(state.radioClips);
+  const busy =
+    (typeof document.activeElement?.closest === "function" &&
+      document.activeElement.closest("#radio-list")) ||
+    Array.from(listEl.querySelectorAll?.("audio") || []).some((a) => !a.paused);
+  if (!force && (signature === state.radioSignature || busy)) return;
+  state.radioSignature = signature;
+  listEl.innerHTML = radioListHtml(state.radioClips, activeNodeBase(), state.radioDrafts);
+}
+
+function setRadioStatus(text) {
+  const el = document.getElementById("radio-status");
+  if (el) el.textContent = text;
+}
+
+function radioAckText(ack) {
+  if (ack.duplicate) return "Ese clip ya estaba transcrito.";
+  if (ack.status === "pendiente") return `Clip guardado sin texto: ${ack.note || "escriba la transcripción"}.`;
+  return "Clip transcrito: el agente de recepción lo separa en reportes.";
+}
+
+async function postAudio(file) {
+  setRadioStatus(`Transcribiendo ${file.name}… (unos segundos)`);
+  try {
+    const res = await fetch(`${activeNodeBase()}/api/radio`, {
+      method: "POST",
+      headers: { "Content-Type": audioContentType(file) },
+      body: file,
+    });
+    const data = await res.json();
+    setRadioStatus(res.ok ? radioAckText(data) : `No se pudo: ${data.error}`);
+  } catch (err) {
+    setRadioStatus(`Error de conexión: ${err.message}`);
+  }
+  await loadRadio();
+}
+
+async function saveTranscription(audioId) {
+  const text = (state.radioDrafts[audioId] ?? "").trim();
+  if (!text) {
+    showAlert("Escriba el texto de la transmisión antes de guardar.", "error");
+    return;
+  }
+  const res = await fetchJson(`/api/radio/${encodeURIComponent(audioId)}/transcription`, {
+    method: "POST",
+    body: JSON.stringify({ text, operator: state.operator }),
+  });
+  if (!res.ok) {
+    showAlert(`No se pudo guardar la transcripción: ${res.data?.error || res.status}`, "error");
+    return;
+  }
+  delete state.radioDrafts[audioId];
+  setRadioStatus("Transcripción guardada: se crean reportes nuevos y los anteriores se ocultan.");
+  if (document.activeElement?.blur) document.activeElement.blur();
+  await loadRadio();
+  renderRadio(true);
+}
+
+function setupRadioPanel() {
+  const input = document.getElementById("radio-upload-input");
+  if (input) {
+    input.addEventListener("change", async () => {
+      const file = input.files?.[0];
+      if (file) await postAudio(file);
+      input.value = "";
+    });
+  }
+  const demoBtn = document.getElementById("btn-radio-demo");
+  if (demoBtn) {
+    demoBtn.addEventListener("click", async () => {
+      setRadioStatus("Transcribiendo el clip de prueba… (unos segundos)");
+      const res = await fetchJson(`/api/radio/demo/${DEMO_CLIP}`, { method: "POST" });
+      setRadioStatus(res.ok ? radioAckText(res.data) : `No se pudo: ${res.data?.error}`);
+      await loadRadio();
+    });
+  }
+  const listEl = document.getElementById("radio-list");
+  if (listEl) {
+    listEl.addEventListener("input", (e) => {
+      if (e.target?.classList?.contains("radio-fix-text")) {
+        state.radioDrafts[e.target.dataset.audioId] = e.target.value;
+      }
+    });
+    listEl.addEventListener("click", async (e) => {
+      if (e.target?.classList?.contains("radio-fix-save")) {
+        await saveTranscription(e.target.dataset.audioId);
+      }
+    });
+  }
 }
 
 function setupSoughtInput() {
@@ -995,6 +1111,7 @@ async function init() {
   setupOperator();
   setupModal();
   setupSoughtInput();
+  setupRadioPanel();
   initMap();
   await loadBarrios();
   setupSimulationBar();
@@ -1011,4 +1128,3 @@ async function init() {
 if (typeof window !== "undefined" && window.addEventListener) {
   window.addEventListener("DOMContentLoaded", init);
 }
-

@@ -213,6 +213,69 @@
           }
         ]
       }
+    },
+    {
+      "schema": "RadioAck",
+      "route": "POST /api/radio → 200",
+      "body": {
+        "audio_id": "7c120c39db3eba4d",
+        "status": "transcrito",
+        "transcription_id": "A:12",
+        "text": "Central, estamos en el sitio, incendio en la 23 del Centro. Nos comentan que hay gente atrapada en El Cable. Cambio.",
+        "duplicate": false
+      }
+    },
+    {
+      "schema": "RadioAck",
+      "route": "POST /api/radio → 200 (pendiente)",
+      "body": {
+        "audio_id": "0b5d7e9a11c2f3a4",
+        "status": "pendiente",
+        "note": "no hay transcriptor: el operador escribe el texto"
+      }
+    },
+    {
+      "schema": "TranscriptionRequest",
+      "route": "POST /api/radio/0b5d7e9a11c2f3a4/transcription",
+      "body": {
+        "text": "Central, estamos en Milán, colapso con una persona atrapada. Cambio.",
+        "operator": "comandante-1"
+      }
+    },
+    {
+      "schema": "RadioList",
+      "route": "GET /api/radio",
+      "body": {
+        "node": "A",
+        "clips": [
+          {
+            "audio_id": "7c120c39db3eba4d",
+            "status": "transcrito",
+            "received_at": 1794573600.0,
+            "has_audio": true,
+            "name": "clip_incendio_centro_atrapados_cable",
+            "transcription_id": "A:12",
+            "text": "Central, estamos en el sitio, incendio en la 23 del Centro. Nos comentan que hay gente atrapada en El Cable. Cambio.",
+            "source": "whisper",
+            "model": "faster-whisper/small-int8",
+            "confidence": 0.79,
+            "duration_s": 8.4,
+            "corrections": 0,
+            "report_ids": [
+              "6a1f04c2-1",
+              "6a1f04c2-2"
+            ],
+            "split_by": "reglas"
+          },
+          {
+            "audio_id": "0b5d7e9a11c2f3a4",
+            "status": "pendiente",
+            "received_at": 1794573500.0,
+            "has_audio": true,
+            "note": "Whisper no reconoció palabras"
+          }
+        ]
+      }
     }
   ],
   "invalid": [
@@ -312,6 +375,37 @@
         "node": "A",
         "version": "0.1.0",
         "extra": 1
+      }
+    },
+    {
+      "name": "radio_audio_id_mal_formado",
+      "schema": "RadioAck",
+      "body": {
+        "audio_id": "clip-03",
+        "status": "transcrito"
+      }
+    },
+    {
+      "name": "radio_estado_desconocido",
+      "schema": "RadioAck",
+      "body": {
+        "audio_id": "7c120c39db3eba4d",
+        "status": "listo"
+      }
+    },
+    {
+      "name": "transcripcion_sin_texto",
+      "schema": "TranscriptionRequest",
+      "body": {
+        "text": "",
+        "operator": "comandante-1"
+      }
+    },
+    {
+      "name": "transcripcion_sin_operador",
+      "schema": "TranscriptionRequest",
+      "body": {
+        "text": "incendio en Chipre"
       }
     }
   ]

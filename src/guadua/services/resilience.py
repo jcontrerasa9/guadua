@@ -47,7 +47,7 @@ logger = logging.getLogger("guadua.resilience")
 DEFAULT_PEER_TIMEOUT = 10.0  # s sin latidos para dar a un vecino por caído (5 rondas de 2 s)
 
 type WorkKind = Literal[
-    "normalizar", "urgencia", "agrupar", "preguntar", "triaje", "ficha", "replanear"
+    "normalizar", "urgencia", "agrupar", "preguntar", "triaje", "ficha", "replanear", "separar"
 ]
 
 
@@ -115,8 +115,11 @@ def pending_work(events: Iterable[Event], *, with_triage: bool = True) -> list[W
       agente: sin LLM el caso ya quedó "ambiguo, revisar", que es seguro)
     - último `incidente_agrupado` de un incidente sin `ficha` → ficha
     - `decision` "rechazar" sobre la última ficha del incidente → replanear
+    - `transcripcion_radio` vigente (ninguna corrección la reemplaza) sin ningún `reporte`
+      que la referencie → separar (D7)
     """
     events = list(events)
+    split: set[EventId] = set()  # transcripciones ya separadas o corregidas
     normalized: set[str] = set()
     estimated: set[str] = set()
     grouped: set[str] = set()
@@ -127,6 +130,8 @@ def pending_work(events: Iterable[Event], *, with_triage: bool = True) -> list[W
     by_id = {e.id: e for e in events}
     for e in events:
         match e.type:
+            case "reporte" | "transcripcion_radio" if e.refs:
+                split.add(e.refs[0])
             case "reporte_normalizado":
                 normalized.add(e.payload["report_id"])
             case "urgencia_estimada":
@@ -147,6 +152,8 @@ def pending_work(events: Iterable[Event], *, with_triage: bool = True) -> list[W
         rid = e.payload.get("report_id")
         if e.type == "reporte" and rid not in normalized:
             work.append(Work("normalizar", e, e.id))
+        elif e.type == "transcripcion_radio" and e.id not in split:
+            work.append(Work("separar", e, e.id))
         elif e.type == "reporte_normalizado":
             if rid not in estimated:
                 work.append(Work("urgencia", e, e.id))
@@ -309,6 +316,7 @@ class Resilience:
             and node.owns(w.anchor)
             and not (w.kind == "triaje" and w.event.id in node.triage_running)
             and not (w.kind == "preguntar" and w.event.id in node.asking)
+            and not (w.kind == "separar" and w.event.id in node.splitting)
         ]
         done = 0
         for work in todo:

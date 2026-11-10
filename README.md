@@ -45,10 +45,11 @@ guadua/
 │   ├── store/            Eventos (events.py y event_types.py, contrato), SQLite y gossip entre nodos
 │   ├── classifier/       Urgencia (urgency.py, contrato: el piso nunca baja), reglas y clasificador
 │   ├── agents/           Agentes con LLM: recepción, triaje, correlación, coordinación, vigía
-│   ├── services/         Servicios sin LLM: cola de comunicación, resiliencia, transcripción de radio
+│   ├── services/         Servicios sin LLM: cola de comunicación, resiliencia
+│   ├── radio/            Radio VHF (D7): faster-whisper, clips guardados, lectura del texto y `python -m guadua.radio`
 │   ├── bench/            Banco de fallos (N15): pérdida, partición y caída sobre el canal simulado
 │   ├── knowledge/        Matriz EMRE, recursos y RAG (retriever.py, contrato)
-│   ├── providers/        Interfaces de LLM y transporte (contrato) y sus implementaciones
+│   ├── providers/        Interfaces de LLM, transporte y transcriptor (contrato) y sus implementaciones
 │   ├── node/             Nodo FastAPI; api.py: rutas y formatos que usan la PWA y el tablero (contrato)
 │   └── dashboard/        Tablero del comandante (HTML + JS servido por los nodos)
 ├── tests/                Pruebas de Python (pytest)

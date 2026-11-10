@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from guadua.classifier.urgency import Urgency
 from guadua.protocol.header import Incident
 from guadua.store.event_types import (
+    AUDIO_ID_PATTERN,
     EVENT_ID_PATTERN,
     REPORT_ID_PATTERN,
     Citation,
@@ -42,6 +43,20 @@ ROUTES: tuple[Route, ...] = (
     Route("POST", "/api/decisions", "DecisionRequest", "DecisionAck | ApiError", "tablero", 1),
     Route("GET", "/api/questions/{device_id}", "—", "QuestionList", "PWA", 2),
     Route("GET", "/api/people", "—", "PeopleList", "tablero", 2),
+    Route("POST", "/api/radio", "bytes (audio/*)", "RadioAck | ApiError", "script, tablero", 2),
+    Route(
+        "POST", "/api/radio/demo/{clip_id}", "—", "RadioAck | ApiError", "barra de simulación", 2
+    ),
+    Route("GET", "/api/radio", "—", "RadioList", "tablero", 2),
+    Route("GET", "/api/radio/{audio_id}/audio", "—", "bytes (audio/*) | ApiError", "tablero", 2),
+    Route(
+        "POST",
+        "/api/radio/{audio_id}/transcription",
+        "TranscriptionRequest",
+        "RadioAck | ApiError",
+        "tablero",
+        2,
+    ),
 )
 
 
@@ -172,6 +187,61 @@ class PeopleList(Schema):
     people: tuple[Person, ...]
 
 
+class RadioAck(Schema):
+    """Nivel 2 (D7). POST /api/radio → 200 (cuerpo: el audio, con su Content-Type), POST
+    /api/radio/demo/{clip_id} → 200 y POST /api/radio/{audio_id}/transcription → 201.
+
+    `transcrito`: ya hay `transcripcion_radio` (`transcription_id`) y el agente de recepción
+    la separa en reportes. `pendiente`: sin transcriptor o el audio no se entendió; el
+    operador escribe el texto (`note` dice por qué). El mismo audio otra vez → duplicate.
+    """
+
+    audio_id: str = Field(pattern=AUDIO_ID_PATTERN)
+    status: Literal["transcrito", "pendiente"]
+    transcription_id: str | None = Field(default=None, pattern=EVENT_ID_PATTERN)
+    text: str | None = None
+    note: str | None = None
+    duplicate: bool = False
+
+
+class RadioClip(Schema):
+    """Un clip de radio en el tablero, con su transcripción vigente (la más reciente de la
+    cadena de correcciones) y los reportes que salieron de ella."""
+
+    audio_id: str = Field(pattern=AUDIO_ID_PATTERN)
+    status: Literal["transcrito", "pendiente"]
+    received_at: float
+    has_audio: bool  # este nodo tiene el audio y lo sirve en /api/radio/{audio_id}/audio
+    name: str | None = None
+    transcription_id: str | None = Field(default=None, pattern=EVENT_ID_PATTERN)
+    text: str | None = None
+    source: Literal["whisper", "operador"] | None = None
+    model: str | None = None
+    operator: str | None = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    duration_s: float | None = Field(default=None, ge=0)
+    corrections: int = Field(default=0, ge=0)
+    report_ids: tuple[str, ...] = ()
+    split_by: str | None = None  # "reglas" o el modelo que separó
+    note: str | None = None  # por qué está pendiente
+
+
+class RadioList(Schema):
+    """GET /api/radio: los clips, el más reciente primero."""
+
+    node: str
+    clips: tuple[RadioClip, ...]
+
+
+class TranscriptionRequest(Schema):
+    """POST /api/radio/{audio_id}/transcription: el operador escribe el texto de un clip
+    pendiente o corrige el vigente. 404 si el nodo no conoce el clip. Si es directo o de
+    segunda mano se decide por lo que dice el texto ("estamos en el sitio")."""
+
+    text: str = Field(min_length=1, max_length=2000)
+    operator: str = Field(min_length=1)
+
+
 SCHEMAS: dict[str, type[Schema]] = {
     cls.__name__: cls
     for cls in (
@@ -185,5 +255,8 @@ SCHEMAS: dict[str, type[Schema]] = {
         DecisionAck,
         QuestionList,
         PeopleList,
+        RadioAck,
+        RadioList,
+        TranscriptionRequest,
     )
 }
