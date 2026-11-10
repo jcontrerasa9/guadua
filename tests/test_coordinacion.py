@@ -705,3 +705,34 @@ def test_riesgo_con_llm_preserva_recomendacion_de_unidad() -> None:
     # El agente garantiza que la recomendación de HazMat se adjunta
     assert "HazMat" in ficha.message
     assert ficha.risk_warning is not None
+
+
+def test_las_unidades_comprometidas_en_despachos_aprobados_se_descuentan() -> None:
+    """Con cada despacho aprobado queda una unidad menos; en cero, advierte escalar."""
+    from guadua.knowledge.matriz_emre import recursos_disponibles
+
+    store = InMemoryEventStore()
+    agente = AgenteCoordinacion("A", SeqGen(100))
+    total = recursos_disponibles("Cuerpo Oficial de Bomberos")
+    unidades = []
+    for n in range(1, total + 2):
+        rid = f"a1b2c3d{n:x}-1"
+        store.append(make_reporte_normalizado(rid, Incident.INCENDIO, seq=n * 10))
+        inc = make_incidente_agrupado(rid, (rid,), seq=n * 10 + 1)
+        store.append(inc)
+        ficha = agente.procesar_incidente(inc, store)
+        unidades.append(ficha.payload["units_available"])
+        store.append(
+            Event(
+                origin_node="A",
+                seq=n * 10 + 5,
+                category=EventCategory.DECISION,
+                type="decision",
+                payload={"action": "aprobar", "edited_message": None, "operator": "c1"},
+                refs=(ficha.id,),
+                received_at=1794573600.0,
+            )
+        )
+    assert unidades[:3] == [total, total - 1, total - 2]
+    assert unidades[-1] == 0
+    assert "no tiene unidades disponibles" in ficha.payload["message"]

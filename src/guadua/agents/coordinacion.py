@@ -292,6 +292,7 @@ class AgenteCoordinacion:
         # 1. Reconstruir estado actual de reportes y fichas del store
         reportes_by_id: dict[str, ReporteNormalizado] = {}
         fichas_del_incidente: list[tuple[Event, Ficha]] = []
+        responsable_por_ficha: dict[EventId, str | None] = {}  # todas, para las unidades
         decisiones_by_ficha_id: dict[EventId, Decision] = {}
         for e in store.since({}):
             if e.type == "reporte_normalizado":
@@ -299,6 +300,7 @@ class AgenteCoordinacion:
                 reportes_by_id[r_p.report_id] = r_p
             elif e.type == "ficha":
                 f_p = Ficha.model_validate(e.payload)
+                responsable_por_ficha[e.id] = f_p.responsible
                 if f_p.incident_id == incident_id:
                     fichas_del_incidente.append((e, f_p))
             elif e.type == "decision" and e.refs:
@@ -349,8 +351,17 @@ class AgenteCoordinacion:
         tipo_principal = _seleccionar_tipo_incidente(miembros)
         responsable = responsable_por_tipo(tipo_principal, excluidos=entidades_rechazadas)
 
-        # 5. Disponibilidad de unidades
+        # 5. Disponibilidad de unidades: las de la tabla menos las ya comprometidas en
+        # despachos aprobados (o editados) de esa entidad.
         unidades = recursos_disponibles(responsable) if responsable else None
+        if unidades is not None:
+            en_uso = sum(
+                1
+                for ficha_id, dec in decisiones_by_ficha_id.items()
+                if dec.action in ("aprobar", "editar")
+                and responsable_por_ficha.get(ficha_id) == responsable
+            )
+            unidades = max(0, unidades - en_uso)
         recomendacion_riesgo = (
             _construir_recomendacion_riesgo(unidades_riesgo, responsable, tipo_principal)
             if unidades_riesgo
