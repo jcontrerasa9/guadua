@@ -379,6 +379,60 @@ export function normalizeName(name) {
  * @param {Array<{ report_id: string, name?: string | null, barrio_label?: string | null, received_at?: number }>} safePeople - Lista de personas a salvo
  * @returns {Array<{ query: string, normalizedQuery: string, found: boolean, person: Object | null, statusText: string }>}
  */
+// Palabras que no identifican a nadie ("María de los Ángeles").
+const NAME_STOPWORDS = new Set(["de", "del", "la", "las", "los", "y"]);
+
+function editDistanceAtMost1(a, b) {
+  if (a === b) return true;
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0;
+  let j = 0;
+  let edits = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) {
+      i++;
+      j++;
+      continue;
+    }
+    if (++edits > 1) return false;
+    if (a.length > b.length) i++;
+    else if (a.length < b.length) j++;
+    else {
+      i++;
+      j++;
+    }
+  }
+  return edits + (a.length - i) + (b.length - j) <= 1;
+}
+
+/**
+ * Qué tan bien una búsqueda coincide con un nombre (ya normalizados). 0 si no coincide.
+ * Cada palabra buscada debe aparecer en el nombre: igual, como inicio (≥ 3 letras) o con
+ * una letra de diferencia (≥ 5 letras: "Peres" ↔ "Perez"). El orden no importa.
+ *
+ * @param {string} query
+ * @param {string} name
+ * @returns {number}
+ */
+export function nameMatchScore(query, name) {
+  const words = (t) => t.split(" ").filter((w) => w && !NAME_STOPWORDS.has(w));
+  const q = words(query);
+  const n = words(name);
+  if (q.length === 0 || n.length === 0) return 0;
+  let score = 0;
+  for (const w of q) {
+    let best = 0;
+    for (const v of n) {
+      if (v === w) best = Math.max(best, 3);
+      else if (w.length >= 3 && v.startsWith(w)) best = Math.max(best, 2);
+      else if (w.length >= 5 && editDistanceAtMost1(w, v)) best = Math.max(best, 1);
+    }
+    if (best === 0) return 0; // toda palabra buscada debe estar
+    score += best;
+  }
+  return score;
+}
+
 export function matchSoughtPeople(soughtInput, safePeople = []) {
   let lines = [];
   if (Array.isArray(soughtInput)) {
@@ -398,19 +452,28 @@ export function matchSoughtPeople(soughtInput, safePeople = []) {
     const normQuery = normalizeName(trimmed);
     if (!normQuery) continue;
 
-    const matchedPerson = peopleList.find((p) => {
-      if (!p || typeof p.name !== "string" || !p.name.trim()) return false;
-      return normalizeName(p.name) === normQuery;
-    });
+    // Primero el nombre exacto; si no, la mejor coincidencia por palabras.
+    const named = peopleList.filter((p) => p && typeof p.name === "string" && p.name.trim());
+    let matchedPerson = named.find((p) => normalizeName(p.name) === normQuery) || null;
+    let exact = Boolean(matchedPerson);
+    if (!matchedPerson) {
+      const scored = named
+        .map((p) => ({ p, score: nameMatchScore(normQuery, normalizeName(p.name)) }))
+        .filter((x) => x.score > 0)
+        .sort((x, y) => y.score - x.score);
+      matchedPerson = scored[0]?.p || null;
+    }
 
     if (matchedPerson) {
       const barrio = matchedPerson.barrio_label || "barrio no especificado";
+      const who = exact ? "" : ` (como «${matchedPerson.name}»)`;
       results.push({
         query: trimmed,
         normalizedQuery: normQuery,
         found: true,
+        exact,
         person: matchedPerson,
-        statusText: `Encontrada a salvo en ${barrio}`,
+        statusText: `Encontrada a salvo en ${barrio}${who}`,
       });
     } else {
       results.push({

@@ -15,6 +15,7 @@ import {
   formatDecisionRequest,
   formatTimeAgo,
   matchSoughtPeople,
+  nameMatchScore,
   nodesStartingWith,
   normalizeName,
   partitionAndSortIncidents,
@@ -561,4 +562,30 @@ test("filterByDecision: filtro desconocido o lista inválida no fallan", () => {
     incidents: [],
     counts: { por_decidir: 0, despachados: 0, todos: 0 },
   });
+});
+
+test("matchSoughtPeople encuentra por nombre parcial, en otro orden o con una letra mal", () => {
+  const safePeople = [
+    { report_id: "1-1", name: "Juan Pérez", barrio_label: "Chipre", received_at: 1 },
+    { report_id: "2-1", name: "María de los Ángeles Ríos", barrio_label: "Centro", received_at: 2 },
+  ];
+  const results = matchSoughtPeople(["juan", "Perez Juan", "Juan Peres", "Ángeles Ríos", "Pedro"], safePeople);
+  assert.deepEqual(
+    results.map((r) => [r.found, r.person?.name ?? null]),
+    [
+      [true, "Juan Pérez"],
+      [true, "Juan Pérez"],
+      [true, "Juan Pérez"],
+      [true, "María de los Ángeles Ríos"],
+      [false, null],
+    ],
+  );
+  assert.equal(results[0].statusText, "Encontrada a salvo en Chipre (como «Juan Pérez»)");
+});
+
+test("nameMatchScore exige cada palabra y no confunde nombres cortos", () => {
+  assert.equal(nameMatchScore("ana", "ana"), 3);
+  assert.equal(nameMatchScore("an", "ana"), 0); // prefijo de menos de 3 letras
+  assert.equal(nameMatchScore("juan gomez", "juan perez"), 0); // falta una palabra
+  assert.equal(nameMatchScore("de la", "maria de la cruz"), 0); // solo conectores
 });
