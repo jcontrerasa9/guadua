@@ -34,6 +34,17 @@ El formato byte por byte de la cabecera está en `docs/diseno.md` §5.2.
 - El emisor reenvía solo los fragmentos que ningún ACK ha confirmado. Un fragmento repetido no se guarda dos veces.
 - **Se rechaza** un fragmento sin datos, con índice ≥ total o total 0, y un ACK con mapa de otro tamaño o relleno distinto de cero.
 
+**Respuesta de seguimiento (tipo 7).** Cabecera de 21 B con tipo 7; de ella solo cuentan el dispositivo, el consecutivo (el ID del mensaje, como en un reporte) y la hora. Le sigue:
+
+| Bytes | Contenido |
+| :-- | :-- |
+| 0 | Respuesta: 0 No · 1 Sí · 2 No sé · `0x10 + i` opción `i` (0 a 3) · `0x20` texto |
+| 1… | Con 0, 1, 2 u opción: el `question_id` en UTF-8 (1 a 32 B), hasta el final |
+| 1 · 2… | Con texto: 1 B con el largo del `question_id` (1 a 32), el `question_id` y después el texto, con el formato del texto comprimido (sin texto vacío) |
+
+- La pregunta debe ser del mismo dispositivo que responde, y la respuesta, de su tipo: una opción que existe, texto solo si la pregunta es de texto. Si el nodo aún no conoce la pregunta (no le llegó por gossip), acepta la respuesta.
+- Una segunda respuesta a la misma pregunta recibe `200` con `duplicate: true` y no se guarda.
+
 **Gossip.** Los nodos se sincronizan con mensajes de tipo 5 ("lote de eventos"): el byte 0 es `0x15` y le sigue un mapa MessagePack.
 
 | Mensaje | Mapa | Para qué |
@@ -74,6 +85,7 @@ Todas las rutas cuelgan de `/api`. Los errores 4xx devuelven `ApiError` (`{"erro
 | `GET /api/questions/{device_id}` | — | `QuestionList` | PWA | 2 |
 | `GET /api/people` | — | `PeopleList` | tablero | 2 |
 
+- **`GET /api/questions/{device_id}`** (dispositivo en 8 dígitos hex) devuelve las preguntas sin responder de ese dispositivo, como máximo una por reporte, **la del reporte más reciente primero** y solo las de los últimos 5 minutos (desde que el nodo recibió el reporte). Una pregunta vencida no se borra: deja de ofrecerse, y si llega su respuesta igual se acepta. "No sé" siempre se ofrece, aunque no esté en `options`.
 - **`POST /api/messages`** recibe todos los mensajes binarios: reporte, SOS, "Estoy a salvo" y respuesta de seguimiento. El `200` es el ACK. Un mensaje repetido también recibe `200`, con `duplicate: true`, y no se guarda dos veces.
 - **El tablero** consulta `GET /api/incidents` cada pocos segundos. Si el nodo no responde, pasa al siguiente de su lista usando `GET /api/health`.
 - **Mientras N6 no exista**, la PWA y el tablero usan `tests/fixtures/api_examples.json` como respuestas simuladas.
@@ -92,7 +104,8 @@ Cada nodo valida un evento con `validate_event` antes de guardarlo. El tipo fija
 | `decision` | decisión | Tablero, a través del nodo | Aprobar / editar / rechazar, mensaje editado, operador. `refs[0]` = la ficha | 1 |
 | `a_salvo` | hecho | Nodo | Reporte, nombre, barrio | 2 |
 | `transcripcion_radio` | hecho | Nodo | Clip, texto, si es observación directa | 2 |
-| `respuesta_seguimiento` | hecho | Nodo | Pregunta, respuesta | 2 |
+| `pregunta_seguimiento` | derivado | Agente 1 · recepción | Reporte, clave del catálogo o `libre`, tipo (Sí / No, opciones, texto), texto, opciones, motivo, fuente (reglas / agente) y modelo. `refs[0]` = el `reporte_normalizado` | 2 |
+| `respuesta_seguimiento` | hecho | Nodo | Pregunta (`question_id` = id de la pregunta), respuesta: sí / no / no sé / opción / texto. `refs[0]` = la pregunta | 2 |
 | `confirmacion_campo` | hecho | Nodo | Incidente, confirmado, nota | 2 |
 | `reasignacion` | hecho | Agente 5 · resiliencia, en el nodo que toma el trabajo | Nodo caído, hasta qué consecutivo, segundos sin latidos. `refs[0]` = `(from_node, up_to_seq)` | 1 |
 
@@ -100,4 +113,6 @@ Cada nodo valida un evento con `validate_event` antes de guardarlo. El tipo fija
 
 **Dueño del trabajo:** lo que dispara un evento lo hace su `origin_node`, salvo que una `reasignacion` lo cubra (mismo origen que `from_node` y `seq ≤ up_to_seq`). En ese caso lo hace quien la publicó, y si hay varias, el de id más bajo. Una reasignación nunca la publica el propio `from_node`. Detalle en `docs/fichas/resiliencia.md`.
 
-**Pendiente de definir** (se agrega al catálogo cuando llegue su tarea): las solicitudes entre agentes del vigía (D6) y las preguntas de seguimiento como evento (D5a).
+**Preguntas de seguimiento (D5a).** Como máximo **una por reporte**: el agente de recepción no publica una `pregunta_seguimiento` si ya hay una con el mismo `report_id`. Si una partición deja dos, vale la más antigua (hora de recepción y luego id) y cualquiera de las dos respuestas cuenta. Vale la primera respuesta de cada pregunta. Una respuesta nunca baja la urgencia (regla 1): es evidencia para el triaje y el operador.
+
+**Pendiente de definir** (se agrega al catálogo cuando llegue su tarea): las solicitudes entre agentes del vigía (D6).

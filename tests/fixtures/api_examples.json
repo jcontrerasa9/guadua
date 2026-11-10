@@ -179,9 +179,23 @@
       "body": {
         "questions": [
           {
-            "question_id": "q-1",
+            "question_id": "A:9",
             "report_id": "a1b2c3d4-7",
-            "text": "¿Huele a gas?"
+            "text": "¿Huele a gas o hay cables caídos?",
+            "kind": "si_no",
+            "options": []
+          },
+          {
+            "question_id": "B:14",
+            "report_id": "a1b2c3d4-8",
+            "text": "¿Cuántas personas hay?",
+            "kind": "opciones",
+            "options": [
+              "1",
+              "2 a 5",
+              "6 a 20",
+              "Más de 20"
+            ]
           }
         ]
       }

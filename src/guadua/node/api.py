@@ -13,7 +13,13 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from guadua.classifier.urgency import Urgency
 from guadua.protocol.header import Incident
-from guadua.store.event_types import EVENT_ID_PATTERN, REPORT_ID_PATTERN, Citation, Location
+from guadua.store.event_types import (
+    EVENT_ID_PATTERN,
+    REPORT_ID_PATTERN,
+    Citation,
+    Location,
+    QuestionKind,
+)
 
 API_PREFIX = "/api"
 
@@ -136,14 +142,20 @@ class DecisionAck(Schema):
 
 
 class Question(Schema):
-    """Nivel 2. Pregunta de seguimiento; se responde con un mensaje binario RESPUESTA."""
+    """Nivel 2. Pregunta de seguimiento; se responde con un mensaje binario RESPUESTA (tipo 7,
+    formato en docs/contratos.md). "No sé" siempre se ofrece, aunque no esté en `options`."""
 
-    question_id: str
+    question_id: str = Field(pattern=EVENT_ID_PATTERN)  # id del evento pregunta_seguimiento
     report_id: str = Field(pattern=REPORT_ID_PATTERN)
     text: str  # p. ej. "¿Huele a gas?"
+    kind: QuestionKind = "si_no"
+    options: tuple[str, ...] = ()  # solo con kind "opciones"
 
 
 class QuestionList(Schema):
+    """GET /api/questions/{device_id}: las preguntas sin responder de ese dispositivo, como
+    máximo una por reporte y de los últimos 5 minutos, la del reporte más reciente primero."""
+
     questions: tuple[Question, ...]
 
 

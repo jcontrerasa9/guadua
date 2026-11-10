@@ -28,7 +28,8 @@ def build_node(config: NodeConfig) -> Node:
         )
     llm = llm_from_env()  # LLM_PROVIDER, GEMINI_*, OLLAMA_* del entorno; None sin ninguno
     logging.getLogger("guadua").info(
-        "LLM del agente de triaje: %s", llm.name if llm else "ninguno (ambiguo → revisar)"
+        "LLM de los agentes de triaje y recepción: %s",
+        llm.name if llm else "ninguno (triaje: ambiguo → revisar; recepción: reglas)",
     )
     return Node(
         config.node_id,
@@ -37,6 +38,8 @@ def build_node(config: NodeConfig) -> Node:
         peers=config.peers,
         llm=llm,
         peer_timeout=config.peer_timeout,
+        recepcion_llm=llm,
+        question_kinds=frozenset(config.question_kinds),
     )
 
 

@@ -184,15 +184,50 @@
     },
     {
       "origin_node": "A",
+      "seq": 5,
+      "category": "derivado",
+      "type": "pregunta_seguimiento",
+      "payload": {
+        "report_id": "a1b2c3d4-7",
+        "key": "personas",
+        "kind": "opciones",
+        "text": "¿Cuántas personas hay?",
+        "options": [
+          "1",
+          "2 a 5",
+          "6 a 20",
+          "Más de 20"
+        ],
+        "reason": "no se sabe cuántas personas hay",
+        "source": "reglas",
+        "llm": null
+      },
+      "refs": [
+        [
+          "A",
+          2
+        ]
+      ],
+      "received_at": 1794573600.0
+    },
+    {
+      "origin_node": "A",
       "seq": 7,
       "category": "hecho",
       "type": "respuesta_seguimiento",
       "payload": {
-        "question_id": "q-1",
-        "answer": true
+        "question_id": "A:5",
+        "answer": "opcion",
+        "option": 1,
+        "text": null
       },
-      "refs": [],
-      "received_at": 1794573600.0
+      "refs": [
+        [
+          "A",
+          5
+        ]
+      ],
+      "received_at": 1794573660.0
     },
     {
       "origin_node": "B",
@@ -428,6 +463,181 @@
             4
           ]
         ]
+      }
+    },
+    {
+      "name": "pregunta_opciones_sin_opciones",
+      "event": {
+        "origin_node": "A",
+        "seq": 5,
+        "category": "derivado",
+        "type": "pregunta_seguimiento",
+        "payload": {
+          "report_id": "a1b2c3d4-7",
+          "key": "personas",
+          "kind": "opciones",
+          "text": "¿Cuántas personas hay?",
+          "options": [],
+          "reason": "no se sabe cuántas personas hay",
+          "source": "reglas",
+          "llm": null
+        },
+        "refs": [
+          [
+            "A",
+            2
+          ]
+        ],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "pregunta_si_no_con_opciones",
+      "event": {
+        "origin_node": "A",
+        "seq": 5,
+        "category": "derivado",
+        "type": "pregunta_seguimiento",
+        "payload": {
+          "report_id": "a1b2c3d4-7",
+          "key": "personas",
+          "kind": "si_no",
+          "text": "¿Cuántas personas hay?",
+          "options": [
+            "1",
+            "2 a 5",
+            "6 a 20",
+            "Más de 20"
+          ],
+          "reason": "no se sabe cuántas personas hay",
+          "source": "reglas",
+          "llm": null
+        },
+        "refs": [
+          [
+            "A",
+            2
+          ]
+        ],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "pregunta_libre_por_reglas",
+      "event": {
+        "origin_node": "A",
+        "seq": 5,
+        "category": "derivado",
+        "type": "pregunta_seguimiento",
+        "payload": {
+          "report_id": "a1b2c3d4-7",
+          "key": "libre",
+          "kind": "opciones",
+          "text": "¿Cuántas personas hay?",
+          "options": [
+            "1",
+            "2 a 5",
+            "6 a 20",
+            "Más de 20"
+          ],
+          "reason": "no se sabe cuántas personas hay",
+          "source": "reglas",
+          "llm": null
+        },
+        "refs": [
+          [
+            "A",
+            2
+          ]
+        ],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "pregunta_sin_refs",
+      "event": {
+        "origin_node": "A",
+        "seq": 5,
+        "category": "derivado",
+        "type": "pregunta_seguimiento",
+        "payload": {
+          "report_id": "a1b2c3d4-7",
+          "key": "personas",
+          "kind": "opciones",
+          "text": "¿Cuántas personas hay?",
+          "options": [
+            "1",
+            "2 a 5",
+            "6 a 20",
+            "Más de 20"
+          ],
+          "reason": "no se sabe cuántas personas hay",
+          "source": "reglas",
+          "llm": null
+        },
+        "refs": [],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "respuesta_sin_su_pregunta_en_refs",
+      "event": {
+        "origin_node": "A",
+        "seq": 7,
+        "category": "hecho",
+        "type": "respuesta_seguimiento",
+        "payload": {
+          "question_id": "A:5",
+          "answer": "si"
+        },
+        "refs": [
+          [
+            "A",
+            2
+          ]
+        ],
+        "received_at": 1794573660.0
+      }
+    },
+    {
+      "name": "respuesta_opcion_sin_indice",
+      "event": {
+        "origin_node": "A",
+        "seq": 7,
+        "category": "hecho",
+        "type": "respuesta_seguimiento",
+        "payload": {
+          "question_id": "A:5",
+          "answer": "opcion"
+        },
+        "refs": [
+          [
+            "A",
+            5
+          ]
+        ],
+        "received_at": 1794573660.0
+      }
+    },
+    {
+      "name": "respuesta_si_con_texto",
+      "event": {
+        "origin_node": "A",
+        "seq": 7,
+        "category": "hecho",
+        "type": "respuesta_seguimiento",
+        "payload": {
+          "question_id": "A:5",
+          "answer": "si",
+          "text": "hay humo"
+        },
+        "refs": [
+          [
+            "A",
+            5
+          ]
+        ],
+        "received_at": 1794573660.0
       }
     }
   ]
