@@ -74,7 +74,7 @@ Lo que N8 dejó fuera a propósito y en qué tarea va. Ficha completa: `docs/fic
 | D3c | Franja de advertencia de riesgo en las tarjetas | Oscar | Visible sin abrir el desplegable | ✅ |
 | D4 | Confianza y rumores a fondo + correlación agéntica | Oscar | 40 copias "me contaron" → confianza baja; 3 testigos directos → alta | ✅ |
 | D5a | Preguntas de seguimiento: agente de recepción | **SIN ASIGNAR** | Máximo 1 pregunta por reporte, visible en el tablero | ☐ |
-| D5b | Preguntas de seguimiento: tarjeta Sí / No en la PWA | Oscar | Se responde con un toque al volver la señal | ☐ |
+| D5b | Preguntas de seguimiento: tarjeta Sí / No en la PWA | Oscar | Se responde con un toque al volver la señal | ✅ |
 | D6 | Agente vigía | **SIN ASIGNAR** | Casos olvidados generan solicitudes; nunca cambia prioridades | ☐ |
 | D7 | Radio VHF con `faster-whisper` | Oscar | Clip con dos incidentes → dos reportes ligados al mismo audio | ☐ |
 | D8 | RAG híbrido (FTS5 + embeddings) y tabla de recursos | **SIN ASIGNAR** | Implementa `Retriever`; ~20 preguntas, sección esperada en el top 3 | ☐ |

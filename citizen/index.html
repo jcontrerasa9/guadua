@@ -23,6 +23,19 @@
   </header>
 
   <main class="app-container">
+    <!-- Tarjeta de pregunta de seguimiento (D5b) -->
+    <section id="question-card" class="question-card hidden" aria-live="polite" role="region" aria-label="Pregunta de seguimiento">
+      <div class="question-card-header">
+        <span class="question-card-icon">❓</span>
+        <span class="question-card-title">Pregunta de socorristas</span>
+      </div>
+      <p id="question-text" class="question-card-text">¿Huele a gas?</p>
+      <div class="question-card-actions">
+        <button type="button" id="btn-question-no" class="btn-question-no">No</button>
+        <button type="button" id="btn-question-yes" class="btn-question-yes">Sí</button>
+      </div>
+    </section>
+
     <!-- BLOQUE 1: Si estás atrapado o a salvo -->
     <section class="block-section" aria-label="Bloque 1: Si estás atrapado o a salvo">
       <h2 class="block-title">BLOQUE 1: SI ESTÁS ATRAPADO O A SALVO</h2>
