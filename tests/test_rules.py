@@ -17,12 +17,13 @@ def reporte(
     incident: Incident = Incident.OTRO,
     flags: int = 0,
     msg_type: MessageType = MessageType.REPORTE,
+    people: People = People.NO_SE,
 ) -> Reporte:
     return Reporte(
         report_id="a1b2c3d4-7",
         msg_type=msg_type,
         incident=incident,
-        people=People.NO_SE,
+        people=people,
         flags=int(flags),
         barrio=0,
         device_time=0,
@@ -116,3 +117,40 @@ def test_reglas_en_menos_de_1_ms() -> None:
         times.append(time.perf_counter() - start)
     times.sort()
     assert times[len(times) // 2] < 0.001
+
+
+# --- Excepción: reportes solo de animales -------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("text", "incident", "flags"),
+    [
+        ("Hay un gato atrapado en un arbol", Incident.ATRAPADOS, Flag.ATRAPADOS),  # botón
+        ("Vi un perro que quedó atrapado en el derrumbe", Incident.COLAPSO, 0),  # texto
+        ("el perrito no respira", Incident.HERIDO, 0),
+    ],
+)
+def test_solo_animales_no_fija_piso_vital(text, incident, flags) -> None:
+    result = apply_rules(reporte(text, incident=incident, flags=flags))
+    assert result.floor == Urgency.BAJA and result.rules == ()
+    assert result.note == rules.ANIMAL_NOTE  # queda escrito por qué
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"text": "el perro y mi hermano están atrapados"},  # nombra a una persona
+        {"text": "gato atrapado", "people": People.UNA},  # la cabecera cuenta personas
+        {"text": "gato atrapado", "msg_type": MessageType.SOS_ESCOMBROS},  # SOS: es una persona
+        {"text": "hay atrapados en el derrumbe"},  # no habla de animales
+    ],
+)
+def test_si_hay_personas_el_piso_se_mantiene(kwargs) -> None:
+    result = apply_rules(reporte(**kwargs))
+    assert result.floor == Urgency.CRITICA and result.note is None
+
+
+def test_incendio_sigue_fijando_piso_aunque_sea_de_animales() -> None:
+    result = apply_rules(reporte("incendio en el establo, hay caballos atrapados"))
+    assert result.floor == Urgency.CRITICA
+    assert result.rules == (rules.INCENDIO,) and result.note == rules.ANIMAL_NOTE

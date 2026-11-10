@@ -120,7 +120,10 @@ def test_decide_level_casos() -> None:
     )
     assert decide_level(Urgency.BAJA, alta, 3, None, GATO) == (alta, "confirma alta")
     assert decide_level(Urgency.BAJA, alta, 2, "un GATO herido", GATO)[0] == media
-    assert decide_level(Urgency.BAJA, alta, 1, "gato", GATO)[0] is None  # dos niveles
+    assert decide_level(Urgency.BAJA, alta, 1, "gato", GATO) == (  # pidió dos: baja uno
+        media,
+        "bajada por el agente: alta → media (propuso baja; se baja un nivel por vez)",
+    )
     assert decide_level(alta, alta, 2, "gato", GATO)[0] is None  # bajo el piso
     assert decide_level(Urgency.BAJA, alta, 2, None, GATO)[0] is None  # sin cita
     assert decide_level(Urgency.BAJA, alta, 2, "un perro", GATO)[0] is None  # cita inventada
@@ -193,9 +196,6 @@ def test_sube_sin_limite_con_fijar_urgencia() -> None:
 @pytest.mark.parametrize(
     ("reply", "why"),
     [
-        (final(1, quote="gato"), "más de un nivel"),
-        (final(2), "sin una cita textual"),
-        (final(2, quote="un perro"), "sin una cita textual"),
         (LLMReply(final={"level": 2, "quote": "gato"}), "sin motivo"),
         (final(3, verify_now="si"), "verify_now"),
         (final("alta"), "nivel propuesto inválido"),
@@ -209,6 +209,20 @@ def test_lo_invalido_va_a_revision_con_el_nivel_de_n7(reply: LLMReply, why: str)
     out = run([reply])
     assert out.ambiguous and out.level == Urgency.ALTA
     assert out.steps[-1].startswith("ambiguo, revisar") and why in out.steps[-1]
+
+
+@pytest.mark.parametrize("bad", [final(2), final(2, quote="un perro")])
+def test_cita_invalida_se_corrige_una_vez(bad: LLMReply) -> None:
+    out = run([bad, final(2, quote="gato herido")])
+    assert (out.level, out.ambiguous) == (Urgency.MEDIA, False)
+    assert any("se le pide otra" in s for s in out.steps)
+
+
+def test_si_la_cita_sigue_mal_va_a_revision() -> None:
+    out = run([final(2, quote="SOLO_ANIMALES"), final(2, quote="un perro"), final(2, quote="x")])
+    assert out.ambiguous and out.level == Urgency.ALTA
+    assert out.steps[-1].startswith("ambiguo, revisar") and "sin una cita textual" in out.steps[-1]
+    assert sum(s.startswith("paso ") for s in out.steps) == 2  # una sola corrección
 
 
 def test_marcar_verificar_ya_se_conserva_aunque_vaya_a_revision() -> None:

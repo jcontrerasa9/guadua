@@ -14,16 +14,8 @@ from __future__ import annotations
 
 import re
 
-from guadua.classifier.rules import fold
+from guadua.classifier.rules import ANIMAL, PERSON, about_animal_only, fold  # noqa: F401
 
-ANIMAL = re.compile(
-    r"\b(?:gat[oa]s?|gatic[oa]s?|perr[oa]s?|perrit[oa]s?|mascotas?|animal(?:es|ito)?|"
-    r"caballos?|vacas?|gallinas?|pajar(?:o|os|ito)|loros?)\b"
-)
-PERSON = re.compile(
-    r"\b(?:personas?|gente|senor(?:a|es|as)?|nin[oa]s?|bebes?|hombres?|mujer(?:es)?|"
-    r"abuel[oa]s?|vecin[oa]s?|familia|hij[oa]s?|mama|papa|alguien|muert[oa]s?)\b"
-)
 # Duda de quien escribe. "Dicen que" / "me dijeron" no van aquí: eso es segunda mano, y ya
 # lo marcan la cabecera ("Me contaron") y la correlación (rumor).
 DOUBT = re.compile(
@@ -31,14 +23,8 @@ DOUBT = re.compile(
     r"\bquizas?\b|\ba lo mejor\b|\bpuede ser\b|\bno se bien\b"
 )
 
-ANIMAL_ONLY = "solo animales"
-DOUBT_CUE = "duda en el texto"
-
-
-def about_animal_only(text: str | None) -> bool:
-    """El texto habla de un animal y no de personas ("hay un gato herido")."""
-    folded = fold(text or "")
-    return bool(ANIMAL.search(folded)) and not PERSON.search(folded)
+ANIMAL_ONLY = "SOLO_ANIMALES"  # códigos, no frases: el LLM no debe citarlos
+DOUBT_CUE = "DUDA"
 
 
 def expresses_doubt(text: str | None) -> bool:

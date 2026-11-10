@@ -6,6 +6,12 @@ y de incidente) y del texto. Objetivo: menos de 1 ms por reporte.
 
 Las reglas prefieren equivocarse hacia arriba: no interpretan negaciones ("no hay
 atrapados" también sube a crítica). Bajar un caso es decisión de una persona, no del piso.
+
+Única excepción: si el texto habla **solo de animales** (no nombra a ninguna persona) y la
+cabecera no dice cuántas personas hay, las señales vitales de atrapados, no respira,
+sangrado e inconsciente no fijan el piso ("hay un gato atrapado en un árbol"). El caso no
+baja solo: queda en la zona gris para el agente de triaje y, sin LLM, para una persona. El
+SOS de escombros, el incendio y la bandera "alguien no respira" siguen fijando el piso.
 """
 
 from __future__ import annotations
@@ -15,7 +21,7 @@ import unicodedata
 from dataclasses import dataclass
 
 from guadua.classifier.urgency import Urgency
-from guadua.protocol.header import Flag, Incident, MessageType
+from guadua.protocol.header import Flag, Incident, MessageType, People
 from guadua.store.event_types import Reporte
 
 SOS = "sos escombros → crítica"
@@ -51,6 +57,18 @@ TEXT_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 
 
+ANIMAL = re.compile(
+    r"\b(?:gat[oa]s?|gatic[oa]s?|perr[oa]s?|perrit[oa]s?|mascotas?|animal(?:es|ito)?|"
+    r"caballos?|vacas?|gallinas?|pajar(?:o|os|ito)|loros?)\b"
+)
+PERSON = re.compile(
+    r"\b(?:personas?|gente|senor(?:a|es|as)?|nin[oa]s?|bebes?|hombres?|mujer(?:es)?|"
+    r"abuel[oa]s?|vecin[oa]s?|familia|hij[oa]s?|mama|papa|alguien|muert[oa]s?|"
+    r"herman[oa]s?|esposo|esposa|amig[oa]s?|tio|tia|primo|prima)\b"
+)
+ANIMAL_NOTE = "el texto habla solo de animales: atrapados, no respira y sangrado no fijan piso"
+NOT_FOR_ANIMALS = frozenset({ATRAPADOS, NO_RESPIRA, SANGRADO, INCONSCIENTE})
+
 ORDER = {
     name: i
     for i, name in enumerate(
@@ -63,6 +81,7 @@ ORDER = {
 class RulesResult:
     floor: Urgency
     rules: tuple[str, ...]  # en el orden de arriba, sin repetir
+    note: str | None = None  # por qué no se aplicó una regla (ANIMAL_NOTE)
 
 
 NO_RULES = RulesResult(Urgency.BAJA, ())
@@ -72,6 +91,22 @@ def fold(text: str) -> str:
     """Minúsculas sin tildes ni diéresis: "Atrapadós" → "atrapados". La ñ queda como n."""
     decomposed = unicodedata.normalize("NFKD", text.lower())
     return "".join(c for c in decomposed if not unicodedata.combining(c))
+
+
+def about_animal_only(text: str | None) -> bool:
+    """El texto habla de un animal y no de personas ("hay un gato herido")."""
+    folded = fold(text or "")
+    return bool(ANIMAL.search(folded)) and not PERSON.search(folded)
+
+
+def animal_only_report(reporte: Reporte) -> bool:
+    """Reporte de un animal: el texto no nombra personas y la cabecera no las cuenta. Un SOS
+    de escombros siempre es de una persona."""
+    return (
+        reporte.msg_type != MessageType.SOS_ESCOMBROS
+        and reporte.people == People.NO_SE
+        and about_animal_only(reporte.text)
+    )
 
 
 def apply_rules(reporte: Reporte) -> RulesResult:
@@ -89,6 +124,10 @@ def apply_rules(reporte: Reporte) -> RulesResult:
     if reporte.text:
         folded = fold(reporte.text)
         fired += (name for name, pattern in TEXT_RULES if pattern.search(folded))
+    note = None
+    if animal_only_report(reporte) and set(fired) & NOT_FOR_ANIMALS:
+        fired = [name for name in fired if name not in NOT_FOR_ANIMALS]
+        note = ANIMAL_NOTE
     if not fired:
-        return NO_RULES
-    return RulesResult(Urgency.CRITICA, tuple(sorted(set(fired), key=ORDER.__getitem__)))
+        return RulesResult(Urgency.BAJA, (), note) if note else NO_RULES
+    return RulesResult(Urgency.CRITICA, tuple(sorted(set(fired), key=ORDER.__getitem__)), note)

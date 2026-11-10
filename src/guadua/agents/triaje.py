@@ -14,8 +14,8 @@ eventos no se editan). Los guardias (`decide_level`) aplican la regla 1 de AGENT
 lo que proponga el LLM:
 
 - subir: sin límite;
-- bajar: solo un nivel desde el de N7, con una cita **textual** del reporte y nunca bajo el
-  piso de las reglas (`apply_floor`);
+- bajar: solo un nivel desde el de N7 (si propone más, se baja uno y queda escrito), con una
+  cita **textual** del reporte y nunca bajo el piso de las reglas (`apply_floor`);
 - lo que no cumpla, y cualquier falla (sin LLM, `NullLLM`, JSON inválido, herramienta fuera
   de la lista blanca, pasos o tiempo agotados), deja el nivel de N7 y el caso en
   "ambiguo, revisar".
@@ -57,6 +57,7 @@ MIN_QUOTE_CHARS = 3
 MAX_STEP_CHARS = 300
 NEARBY_LIMIT = 5
 NEARBY_DEFAULT_MIN = 60
+QUOTE_MISSING = "sin una cita textual del reporte"
 LEVEL_NAMES = {u: u.name.lower().replace("critica", "crítica") for u in Urgency}
 
 TOOLS: tuple[ToolSpec, ...] = (
@@ -109,11 +110,12 @@ copiar en "quote" las palabras exactas del reporte que lo justifican. Si dudas, 
 - Tienes como máximo {MAX_STEPS} pasos. Usa herramientas solo si ayudan.
 - Las "senales_de_riesgo" son peligros para los rescatistas (gas, cables caídos…), no \
 gravedad de la víctima: menciónalas en tu motivo, pero NO suben ni bajan el nivel.
-- La urgencia mide el riesgo para la vida de PERSONAS. Si "senales_de_lenguaje" dice \
-"solo animales" y el texto no menciona personas afectadas, baja un nivel; en "quote" \
-copia la frase del texto que nombra al animal (p. ej. "un perro"), no la señal.
-- Si dice "duda en el texto", quien reporta no está seguro: no subas por eso y marca \
-verify_now en true para que alguien lo verifique en campo.
+- "quote" siempre es un fragmento copiado letra por letra del campo "texto".
+- La urgencia mide el riesgo para la vida de PERSONAS. Si "senales_de_lenguaje" trae \
+SOLO_ANIMALES, el texto habla de un animal y de ninguna persona: baja un nivel y cita la \
+parte del "texto" que nombra al animal.
+- Si trae DUDA, quien reporta no está seguro: no subas por eso y marca verify_now en true \
+para que alguien lo verifique en campo.
 - Una persona toma la decisión final.
 Termina con fijar_urgencia o con {{"final": {{"level": n, "reason": "...", "quote": "...", \
 "verify_now": false}}}}."""
@@ -149,13 +151,16 @@ def decide_level(
         return apply_floor(floor, proposed), f"sube {name[current]} → {name[proposed]}"
     if proposed == current:
         return current, f"confirma {name[current]}"
-    if proposed < floor:
+    # Bajar: un nivel por vez. Si propone más, se baja uno y queda escrito.
+    target = Urgency(max(proposed, current - 1))
+    if target < floor:
         return None, f"propuso {name[proposed]}, bajo el piso de las reglas ({name[floor]})"
-    if proposed < current - 1:
-        return None, f"propuso bajar {name[current]} → {name[proposed]}: más de un nivel"
     if not quote_in_text(quote or "", text):
-        return None, f"propuso bajar a {name[proposed]} sin una cita textual del reporte"
-    return apply_floor(floor, proposed), f"bajada por el agente: {name[current]} → {name[proposed]}"
+        return None, f"propuso bajar a {name[proposed]} {QUOTE_MISSING}"
+    done = f"bajada por el agente: {name[current]} → {name[target]}"
+    if target != proposed:
+        done += f" (propuso {name[proposed]}; se baja un nivel por vez)"
+    return apply_floor(floor, target), done
 
 
 def needs_agent(urgency: UrgenciaEstimada) -> bool:
@@ -302,6 +307,7 @@ class _State(TypedDict):
     verify_now: bool
     reply: LLMReply | None
     outcome: _Outcome | None
+    quote_retry: bool  # ya se le pidió una vez que corrigiera la cita
 
 
 def _short(text: str) -> str:
@@ -364,6 +370,7 @@ class AgenteTriaje:
             "verify_now": False,
             "reply": None,
             "outcome": None,
+            "quote_retry": False,
         }
         try:
             final = self._graph.invoke(state, {"recursion_limit": 4 * self.max_steps + 4})
@@ -401,7 +408,7 @@ class AgenteTriaje:
         graph.add_edge(START, "llm")
         graph.add_conditional_edges("llm", self._route, ["herramienta", "decidir", END])
         graph.add_conditional_edges("herramienta", self._after_tool, ["llm", END])
-        graph.add_edge("decidir", END)
+        graph.add_conditional_edges("decidir", self._after_tool, ["llm", END])
         return graph.compile()
 
     @staticmethod
@@ -520,6 +527,24 @@ class AgenteTriaje:
         accepted, description = decide_level(
             case.urgency.floor, case.urgency.level, level, quote, case.report.text
         )
+        if accepted is None and QUOTE_MISSING in description and not state["quote_retry"]:
+            # Una sola corrección: el LLM suele copiar la señal en vez del texto. Se le
+            # devuelve el error y vuelve a proponer (cuenta dentro de los pasos).
+            proposal = json.dumps({"final": answer}, ensure_ascii=False)
+            fix = (
+                f'La cita no aparece en el texto del reporte. Copia en "quote" un fragmento '
+                f"exacto de: «{case.report.text or ''}»"
+            )
+            return {
+                "quote_retry": True,
+                "reply": None,
+                "messages": [
+                    *state["messages"],
+                    Message("assistant", proposal),
+                    Message("user", fix),
+                ],
+                "steps": self._step(state, f"cita rechazada ({description}); se le pide otra"),
+            }
         if accepted is None:
             return {"outcome": self._review(case, description)}
         text = f"decisión: {description}; motivo: {reason.strip()}"

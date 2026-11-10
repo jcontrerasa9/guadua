@@ -100,6 +100,7 @@ def triage(
         rules=rules.rules,
         risk_signals=risk_signals,
         ambiguous=ambiguous,
+        steps=(f"reglas: {rules.note}",) if rules.note else (),
     )
 
 
