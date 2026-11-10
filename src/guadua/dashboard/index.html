@@ -31,6 +31,61 @@
     </div>
   </header>
 
+  <!-- Barra plegable de simulación para el jurado (D9) -->
+  <details class="simulation-bar" id="simulation-bar">
+    <summary class="simulation-summary">
+      <span class="simulation-title">⚡ Simulación y control de fallos (Jurado)</span>
+      <span class="convergence-badge" id="sim-convergence-badge">3/3 Nodos Convergidos</span>
+    </summary>
+
+    <div class="simulation-content">
+      <!-- Grupo 1: Perfiles del canal simulado (Wi-Fi, Radio/LoRa, SMS) -->
+      <div class="sim-group">
+        <span class="sim-group-label">Canal:</span>
+        <div class="sim-buttons" role="group" aria-label="Perfiles de canal">
+          <button id="btn-sim-profile-wifi" class="btn-sim active" data-profile="wifi" title="Canal rápido (~1200 B)">Wi-Fi</button>
+          <button id="btn-sim-profile-lora" class="btn-sim" data-profile="radio_lora" title="Canal lento con pérdidas 30-60% (~200 B)">Radio / LoRa</button>
+          <button id="btn-sim-profile-sms" class="btn-sim" data-profile="sms" title="Canal con retrasos grandes y desorden (140 B)">SMS</button>
+        </div>
+      </div>
+
+      <!-- Grupo 2: Acciones de inyección y resiliencia -->
+      <div class="sim-group">
+        <span class="sim-group-label">Acciones:</span>
+        <div class="sim-buttons">
+          <button id="btn-sim-burst" class="btn-sim btn-sim-action" title="Inyecta 10 reportes sintéticos">⚡ Ráfaga (10)</button>
+          <button id="btn-sim-radio" class="btn-sim btn-sim-action" title="Inyecta clip de radio con 2 incidentes">📻 Inyectar radio</button>
+          <button id="btn-sim-kill-a" class="btn-sim btn-sim-danger" title="Apaga o revive el nodo A">💀 Apagar nodo A</button>
+        </div>
+      </div>
+
+      <!-- Grupo 3: Hashes de convergencia A, B, C -->
+      <div class="sim-group sim-hashes-group">
+        <span class="sim-group-label">Hashes SHA-256:</span>
+        <div class="sim-hashes-list">
+          <div class="sim-hash-item" id="sim-hash-box-a" title="Nodo A">
+            <span class="sim-node-tag">Nodo A:</span>
+            <code class="sim-hash-code" id="sim-hash-a">e3b0c442...</code>
+          </div>
+          <div class="sim-hash-item" id="sim-hash-box-b" title="Nodo B">
+            <span class="sim-node-tag">Nodo B:</span>
+            <code class="sim-hash-code" id="sim-hash-b">e3b0c442...</code>
+          </div>
+          <div class="sim-hash-item" id="sim-hash-box-c" title="Nodo C">
+            <span class="sim-node-tag">Nodo C:</span>
+            <code class="sim-hash-code" id="sim-hash-c">e3b0c442...</code>
+          </div>
+          <button id="btn-sim-refresh-hashes" class="btn-secondary-sm" title="Refrescar hashes de los 3 nodos">🔄</button>
+        </div>
+      </div>
+
+      <!-- Feedback de estado -->
+      <div class="sim-status-line">
+        <span id="sim-status-msg" class="sim-status-msg">Simulación lista.</span>
+      </div>
+    </div>
+  </details>
+
   <!-- Contenedor principal de 2 columnas -->
   <main class="dashboard-grid">
     <!-- Columna izquierda: Lista ordenada de incidentes -->
