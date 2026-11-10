@@ -13,11 +13,12 @@ Entregable 6. Métricas, escenarios ejecutados, errores observados, limitaciones
 | Sensibilidad y precisión en críticos | **94,4 % / 97,1 %** (reglas + clasificador, 730 reportes de prueba no vistos) | — |
 | Tiempo del piso de urgencia | reglas **0,014 ms** y clasificador **0,77 ms** por reporte (mediana) | < 1 ms y < 2 ms |
 | Reportes que llegan al LLM (zona gris) | **18,2 %** | cerca del 15 % |
+| Agente de triaje con LLM local (`qwen2.5:7b`) | 40 casos difíciles de la zona gris: **40/40 resueltos**, 0 respuestas inválidas, nivel correcto en **12/40** (las reglas y el clasificador solos: 7/40); 1 paso y **1,7 s** por caso | que la agencia aporte y respete sus límites |
 | Convergencia entre nodos | hashes iguales en **36 de 36** escenarios (replicación, partición y caída) | todos |
 | Caída y recuperación de un nodo | con LoRa y 30 % de pérdida: B toma el trabajo de A en 26 s; A vuelve al día en **14 s** | — |
 | Búsqueda del RAG | Hit@3 **81 %** (13/16) sobre páginas verificadas de los PDF de la EMRE; 100 % (22/22) sobre los resúmenes del equipo | sección esperada en el top 3 |
-| Preguntas de seguimiento (recepción, reglas) | pertinentes **20/20** | — |
-| Separación de transmisiones de radio (reglas) | exacta **22/23** (difíciles 11/12) | — |
+| Preguntas de seguimiento (recepción) | pertinentes **20/20** con reglas y 20/20 con LLM local (15 redactadas por el agente) | — |
+| Separación de transmisiones de radio | exacta **22/23** con reglas; **17/23** con LLM local (número de partes correcto en 22/23 en los dos) | — |
 | Pruebas automáticas | **876** pruebas de Python y **208** de JavaScript, todas en verde; `ruff` sin errores | — |
 
 ## 2. Cómo reproducir
@@ -31,7 +32,15 @@ python -m guadua.agents.triaje_eval            # cuánto llega a la zona gris (c
 python -m guadua.knowledge.eval_rag            # calidad de la búsqueda del RAG
 python -m guadua.agents.recepcion_eval         # preguntas de seguimiento (con --llm, el agente)
 python -m guadua.agents.radio_eval --clips     # separación de la radio VHF
+
+# Con LLM local (Ollama corriendo con qwen2.5:7b):
+export LLM_PROVIDER=ollama OLLAMA_MODEL=qwen2.5:7b OLLAMA_HOST=http://localhost:11434
+python -m guadua.agents.triaje_eval --limite 40
+python -m guadua.agents.recepcion_eval --llm
+python -m guadua.agents.radio_eval --clips --llm
 ```
+
+El banco de fallos no usa LLM, así que su fila "Casos ambiguos resueltos con LLM" queda como pendiente en el anexo; esas cifras están en §3.4.
 
 El banco usa un canal y un reloj simulados con semilla fija: con la misma semilla salen las mismas tablas, salvo los tiempos de máquina (reglas y clasificador).
 
@@ -78,7 +87,19 @@ Nodo real (`python -m guadua`) con `qwen2.5:7b` en Ollama y 9 mensajes binarios 
 
 Rechazar una ficha de Bomberos produjo una ficha nueva para Defensa Civil con un mensaje nuevo. Aprobar despachos descuenta unidades libres.
 
-### 3.4 Confianza y rumores (D4)
+### 3.4 Agentes con LLM local
+
+Medido con Ollama y `qwen2.5:7b` en una GPU de 8 GB (10 de noviembre). Gemini no se midió.
+
+| Agente | Conjunto | Resultado |
+| :-- | :-- | :-- |
+| Triaje | 40 casos del conjunto `ambiguo` que caen en la zona gris | 40 resueltos, ninguno a revisión por falla; ninguna herramienta ni respuesta inválida. Nivel igual al esperado en 12 (N7 tenía 7): 6 subidas y 11 bajadas. 1 paso y 1,7 s por caso |
+| Recepción | 20 reportes como los de la PWA | 20/20 preguntas pertinentes; 15 las redactó el agente y 1 salió de reglas (el resto no necesitaba pregunta) |
+| Separación de radio | 23 transcripciones (11 guiones y 12 difíciles) | 17/23 exactas frente a 22/23 con reglas. El número de partes es correcto en 22/23; en 3 casos el modelo deja sin decidir si el emisor lo vio o se lo contaron, en 2 dice "atrapados" donde el guion dice "colapso" y en 1 junta dos sucesos en uno |
+
+El agente de triaje mejora lo que reciben las reglas y el clasificador (de 7 a 12 aciertos en casos difíciles) sin violar los límites de la regla 1. Que acierte solo 12 de 40 muestra cuán difícil es el conjunto `ambiguo` y por qué la decisión final es de una persona.
+
+### 3.5 Confianza y rumores (D4)
 
 Verificado con pruebas automáticas (`tests/test_correlacion_confianza.py`): 40 copias idénticas de "me contaron" dan confianza baja y quedan como rumor; 40 relatos distintos de segunda mano no superan el tope de 0,25; 3 testigos directos con redacción distinta dan confianza alta (0,936); un mismo dispositivo repetido no suma; una confirmación de campo sube a 1. La correlación no se fusiona en el mismo barrio sin evidencia (sin efecto cadena; ver `tests/test_correlacion.py`).
 
@@ -115,7 +136,8 @@ Durante la revisión de las funcionalidades con el sistema corriendo (9 y 10 de 
 
 - **Datos sintéticos y canal simulado.** Los reportes de prueba son generados y los perfiles de canal son simulaciones; no son mediciones con radios o teléfonos reales.
 - **El clasificador no entiende significado.** En el conjunto `ambiguo` (318 casos difíciles), 113 salen con un nivel equivocado sin quedar marcados para revisión: combinaciones nuevas de palabras conocidas no llegan al agente. Las reglas vitales siguen fijando el piso.
-- **El LLM no está medido con métricas.** La evaluación cuantitativa del agente de triaje con LLM (`triaje_eval` con Ollama o Gemini) queda pendiente; la prueba de punta a punta de §3.3 es cualitativa. Con Ollama en una GPU de 8 GB, el agente tardó de 2 a 23 s por caso bajo carga.
+- **El LLM local acierta poco en los casos más difíciles.** En la zona gris del conjunto `ambiguo`, el agente de triaje deja el nivel esperado en 12 de 40 casos (7 sin él). Es una mejora, no una solución: por eso baja como máximo un nivel y la decisión final es humana. Gemini no se midió. Con Ollama, el agente tardó 1,7 s por caso en la evaluación y de 2 a 23 s en el nodo con varios agentes a la vez.
+- **Radio con LLM.** La separación con `qwen2.5:7b` es peor que con reglas (17/23 frente a 22/23): el modelo omite si el emisor lo vio. Conviene que, cuando el LLM no decide ese dato, se use el de las reglas.
 - **Un nivel por vez.** Por la regla 1, el agente baja solo un nivel: el gato en el árbol queda en alta y lo termina de ajustar el comandante.
 - **Correlación conservadora.** En el mismo barrio no fusiona sin evidencia; el comandante ve posibles duplicados y decide.
 - **RAG institucional.** Los PDF de la EMRE dicen quién responde, no cómo actuar en la escena; lo táctico sale de resúmenes del equipo marcados como ejemplo. Hit@3 81 % en páginas oficiales.
