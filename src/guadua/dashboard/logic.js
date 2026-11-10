@@ -46,6 +46,39 @@ export function partitionAndSortIncidents(incidents = []) {
 }
 
 /**
+ * Filtros del selector del tablero según el estado de la ficha (status de la API).
+ * - por_decidir: esperan acción del comandante o de coordinación.
+ * - despachados: ya salieron a la unidad.
+ * - todos: incluye los rechazados (vuelven a coordinación como una ficha nueva).
+ */
+export const DECISION_FILTERS = Object.freeze({
+  por_decidir: Object.freeze(["pendiente", "conflicto", "sin_ficha"]),
+  despachados: Object.freeze(["aprobada", "editada"]),
+  todos: null,
+});
+
+export const DEFAULT_DECISION_FILTER = "por_decidir";
+
+/**
+ * Filtra incidentes por grupo de decisión y cuenta cuántos hay en cada grupo.
+ * Un filtro desconocido se trata como el de por defecto.
+ *
+ * @param {Array<Object>} incidents
+ * @param {string} filter - Clave de DECISION_FILTERS
+ * @returns {{ filter: string, incidents: Array<Object>, counts: Record<string, number> }}
+ */
+export function filterByDecision(incidents = [], filter = DEFAULT_DECISION_FILTER) {
+  const list = Array.isArray(incidents) ? incidents : [];
+  const key = Object.hasOwn(DECISION_FILTERS, filter) ? filter : DEFAULT_DECISION_FILTER;
+  const matches = (k, inc) => DECISION_FILTERS[k] === null || DECISION_FILTERS[k].includes(inc?.status);
+  const counts = {};
+  for (const k of Object.keys(DECISION_FILTERS)) {
+    counts[k] = list.filter((inc) => matches(k, inc)).length;
+  }
+  return { filter: key, incidents: list.filter((inc) => matches(key, inc)), counts };
+}
+
+/**
  * Calcula el nivel cualitativo de confianza y las etiquetas visuales.
  *
  * @param {number | null | undefined} confidence - Valor entre 0 y 1 o null
@@ -425,4 +458,3 @@ export const DASHBOARD_MOCK_PEOPLE = {
     },
   ],
 };
-

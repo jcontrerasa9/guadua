@@ -10,6 +10,8 @@ import {
   computeRiskWarning,
   createInitialNodeState,
   DASHBOARD_MOCK_PEOPLE,
+  DEFAULT_DECISION_FILTER,
+  filterByDecision,
   formatDecisionRequest,
   formatTimeAgo,
   matchSoughtPeople,
@@ -501,9 +503,9 @@ test("matchSoughtPeople procesa entrada multilínea con líneas vacías", () => 
   const multiText = `
     Carlos Gómez
 
-    
+
     Persona Inexistente
-    
+
     ANA
   `;
 
@@ -519,3 +521,44 @@ test("matchSoughtPeople procesa entrada multilínea con líneas vacías", () => 
   assert.equal(results[2].found, true);
 });
 
+
+// --- Selector Por decidir / Despachados / Todos --------------------------------
+
+const BY_STATUS = [
+  { incident_id: "p", status: "pendiente" },
+  { incident_id: "c", status: "conflicto" },
+  { incident_id: "s", status: "sin_ficha" },
+  { incident_id: "a", status: "aprobada" },
+  { incident_id: "e", status: "editada" },
+  { incident_id: "r", status: "rechazada" },
+];
+const ids = (res) => res.incidents.map((i) => i.incident_id);
+
+test("filterByDecision: por decidir son pendiente, conflicto y sin ficha", () => {
+  assert.deepEqual(ids(filterByDecision(BY_STATUS, "por_decidir")), ["p", "c", "s"]);
+});
+
+test("filterByDecision: despachados son aprobada y editada", () => {
+  assert.deepEqual(ids(filterByDecision(BY_STATUS, "despachados")), ["a", "e"]);
+});
+
+test("filterByDecision: todos incluye los rechazados", () => {
+  assert.deepEqual(ids(filterByDecision(BY_STATUS, "todos")), ["p", "c", "s", "a", "e", "r"]);
+});
+
+test("filterByDecision: cuenta cada grupo sin importar el filtro activo", () => {
+  const res = filterByDecision(BY_STATUS, "despachados");
+  assert.deepEqual(res.counts, { por_decidir: 3, despachados: 2, todos: 6 });
+});
+
+test("filterByDecision: filtro desconocido o lista inválida no fallan", () => {
+  assert.equal(DEFAULT_DECISION_FILTER, "por_decidir");
+  const res = filterByDecision(BY_STATUS, "otro");
+  assert.equal(res.filter, "por_decidir");
+  assert.deepEqual(ids(res), ["p", "c", "s"]);
+  assert.deepEqual(filterByDecision(null, "todos"), {
+    filter: "todos",
+    incidents: [],
+    counts: { por_decidir: 0, despachados: 0, todos: 0 },
+  });
+});

@@ -6,6 +6,8 @@ import {
   computeConfidence,
   computeRiskWarning,
   createInitialNodeState,
+  DEFAULT_DECISION_FILTER,
+  filterByDecision,
   DASHBOARD_MOCK_PEOPLE,
   formatDecisionRequest,
   formatTimeAgo,
@@ -28,6 +30,22 @@ export const DEFAULT_NODES = [
   "http://localhost:8001",
   "http://localhost:8002",
 ];
+
+const DECISION_FILTER_KEY = "guadua_decision_filter";
+
+function readDecisionFilter() {
+  try {
+    return localStorage.getItem(DECISION_FILTER_KEY) || DEFAULT_DECISION_FILTER;
+  } catch {
+    return DEFAULT_DECISION_FILTER;
+  }
+}
+
+const EMPTY_SHORT = {
+  por_decidir: "No hay incidentes críticos ni de prioridad alta por decidir.",
+  despachados: "Todavía no hay incidentes críticos ni de prioridad alta despachados.",
+  todos: "No hay incidentes críticos ni de prioridad alta activos.",
+};
 
 const defaultOrigin = typeof window !== "undefined" && window.location ? window.location.origin : "";
 const defaultOperator =
@@ -52,6 +70,7 @@ export const state = {
   radioClips: [], // D7: GET /api/radio
   radioSignature: "",
   radioDrafts: {}, // audio_id -> texto que el operador lleva escrito
+  decisionFilter: readDecisionFilter(), // selector Por decidir / Despachados / Todos
 };
 
 // --- Abstracción de red: fetchJson -------------------------------------------
@@ -279,6 +298,30 @@ function renderMapIncidents(incidents) {
 
 // --- Renderizado de UI: Incidentes y Barrios ----------------------------------
 
+function paintDecisionFilter({ filter, counts }) {
+  if (typeof document === "undefined") return;
+  document.querySelectorAll("#decision-filter .filter-option").forEach((btn) => {
+    btn.setAttribute("aria-pressed", String(btn.dataset.filter === filter));
+  });
+  document.querySelectorAll("#decision-filter .filter-count").forEach((el) => {
+    el.textContent = String(counts[el.dataset.count] ?? 0);
+  });
+}
+
+function setupDecisionFilter() {
+  document.querySelectorAll("#decision-filter .filter-option").forEach((btn) => {
+    btn.onclick = () => {
+      state.decisionFilter = btn.dataset.filter;
+      try {
+        localStorage.setItem(DECISION_FILTER_KEY, state.decisionFilter);
+      } catch {
+        // Sin almacenamiento el filtro funciona igual; solo no se recuerda.
+      }
+      renderFeed();
+    };
+  });
+}
+
 function renderFeed() {
   const shortContainer = document.getElementById("short-list");
   const otherContainer = document.getElementById("other-list");
@@ -296,12 +339,15 @@ function renderFeed() {
     });
   }
 
-  const { shortList, otherList } = partitionAndSortIncidents(state.incidents);
+  // El selector filtra las dos listas; el mapa y los barrios muestran todo.
+  const filtered = filterByDecision(state.incidents, state.decisionFilter);
+  paintDecisionFilter(filtered);
+  const { shortList, otherList } = partitionAndSortIncidents(filtered.incidents);
 
   // Render lista corta (Nivel 4 y 3)
   if (shortList.length === 0) {
     shortContainer.innerHTML = `
-      <div class="empty-state card">No hay incidentes críticos ni de prioridad alta activos.</div>`;
+      <div class="empty-state card">${EMPTY_SHORT[filtered.filter]}</div>`;
   } else {
     shortContainer.innerHTML = shortList.map((inc) => renderIncidentCardHtml(inc)).join("");
   }
@@ -367,6 +413,7 @@ const STATUS_LABELS = {
   editada: "Editada",
   rechazada: "Rechazada",
   conflicto: "Conflicto",
+  sin_ficha: "Sin ficha",
 };
 
 function getPriorityLabel(level) {
@@ -1184,6 +1231,7 @@ async function init() {
   }
 
   setupOperator();
+  setupDecisionFilter();
   setupModal();
   setupSoughtInput();
   setupRadioPanel();
