@@ -1,8 +1,11 @@
 // Service Worker de la PWA Ciudadana (Guadua)
 // Permite que la app abra y funcione completamente sin red ni internet.
 
-// v2: la nota va comprimida con el diccionario (protocol/text.js + pako).
-const CACHE_NAME = "guadua-citizen-v2";
+// v3: red primero. Con "caché primero", un cambio en app.js o index.html no llegaba al
+// navegador mientras este archivo no cambiara (así se quedó sin la tarjeta de preguntas,
+// D5b/D5a). Ahora, con red, se usa siempre lo último; sin red, la copia guardada.
+const CACHE_NAME = "guadua-citizen-v3";
+const NETWORK_TIMEOUT_MS = 3000; // red lenta: pasado esto, la copia guardada
 const ASSETS_TO_CACHE = [
   "./",
   "./index.html",
@@ -10,6 +13,9 @@ const ASSETS_TO_CACHE = [
   "./app.js",
   "./report.js",
   "./queue.js",
+  "./questions.js",
+  "./safe.js",
+  "./debris.js",
   "./geohash.js",
   "./barrios.json",
   "./protocol/header.js",
@@ -45,27 +51,45 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Para recursos estáticos: intentar caché primero; si falla, red y guardar en caché
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request).then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== "basic") {
-          return networkResponse;
-        }
-        const responseToCache = networkResponse.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
-        return networkResponse;
-      });
-    }).catch(() => {
-      // Fallback a index.html si navega offline
-      if (event.request.mode === "navigate") {
-        return caches.match("./index.html");
-      }
-    }),
-  );
+  if (event.request.method !== "GET" || url.origin !== self.location.origin) {
+    return;
+  }
+  event.respondWith(networkFirst(event.request));
 });
+
+// Red primero: la respuesta nueva se guarda para usarla sin red. Si la red falla o tarda
+// más de NETWORK_TIMEOUT_MS, la copia guardada; al navegar sin copia, index.html.
+async function networkFirst(request) {
+  const cache = await caches.open(CACHE_NAME);
+  try {
+    const response = await withTimeout(fetch(request), NETWORK_TIMEOUT_MS);
+    if (response && response.status === 200 && response.type === "basic") {
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch {
+    const cached = await cache.match(request);
+    if (cached) return cached;
+    if (request.mode === "navigate") {
+      const index = await cache.match("./index.html");
+      if (index) return index;
+    }
+    return Response.error();
+  }
+}
+
+function withTimeout(promise, ms) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("la red tardó demasiado")), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
