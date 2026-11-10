@@ -161,8 +161,10 @@ class Node:
         self.coordinacion = AgenteCoordinacion(
             node_id,
             self.next_seq,
+            llm=llm,  # redacta el mensaje de despacho; sin LLM, la plantilla
             retriever=default_retriever() if retriever == "default" else retriever,
         )
+        self.coordinating: set[str] = set()  # incident_id con la ficha en redacción
         self.vigia = AgenteVigia(
             store, clock=clock, umbral_olvido_s=vigia_olvido_s, umbral_critico_s=vigia_critico_s
         )
@@ -484,7 +486,7 @@ class Node:
         if event.type == "decision":
             ficha = self.store.get(event.refs[0]) if event.refs else None
             if ficha is not None and self.owns(ficha.id):
-                self.coordinacion.procesar_decision(event, self.store)  # replanea si rechazan
+                self._replan(event)  # replanea si rechazan
         elif self.owns(event.id):
             match event.type:
                 case "reporte":
@@ -496,7 +498,7 @@ class Node:
                 case "urgencia_estimada":
                     self._start_triage(event)
                 case "incidente_agrupado":
-                    self.coordinacion.procesar_incidente(event, self.store)
+                    self._coordinate(event)
                 case "confirmacion_campo":
                     self._process_confirmacion_campo(event)
                 case "transcripcion_radio":
@@ -518,9 +520,9 @@ class Node:
             case "preguntar":
                 self._ask(work.event)
             case "ficha":
-                self.coordinacion.procesar_incidente(work.event, self.store)
+                self._coordinate(work.event)
             case "replanear":
-                self.coordinacion.procesar_decision(work.event, self.store)
+                self._replan(work.event)
             case "confirmacion_campo":
                 self._process_confirmacion_campo(work.event)
             case "separar":
@@ -600,6 +602,61 @@ class Node:
             self._publish_triage(case, f.result())
 
         future.add_done_callback(done)
+
+    def _replan(self, decision: Event) -> None:
+        incidente = self.coordinacion.incidente_a_replanear(decision, self.store)
+        if incidente is not None:
+            self._coordinate(incidente)
+
+    def _coordinate(self, incidente: Event) -> None:
+        """Agente de coordinación (N10): la ficha del incidente.
+
+        Lo determinista (responsable EMRE, unidades, riesgos, RAG) se arma aquí; la
+        redacción del mensaje con LLM corre en otro hilo, como el triaje, y la ficha se
+        guarda de vuelta en el hilo del nodo. Sin LLM o sin bucle de asyncio, en línea.
+        """
+        incident_id = incidente.payload.get("incident_id")
+        if incident_id in self.coordinating:
+            return  # ya se está redactando la ficha de este incidente
+        try:
+            caso = self.coordinacion.preparar(incidente, self.store)
+        except Exception:
+            logger.exception("%s: falló la coordinación de %s:%s", self.node_id, *incidente.id)
+            return
+        if caso is None:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if loop is None or self.coordinacion.llm is None:
+            self._publish_ficha(caso, *self.coordinacion.redactar(caso))
+            return
+        future = loop.run_in_executor(None, self.coordinacion.redactar, caso)
+        self.agent_tasks.add(future)
+        self.coordinating.add(incident_id)
+
+        def done(f: asyncio.Future) -> None:
+            self.agent_tasks.discard(f)
+            self.coordinating.discard(incident_id)
+            if f.cancelled():
+                return
+            if (exc := f.exception()) is not None:  # redactar no lanza; por si acaso
+                logger.error("%s: falló la redacción de la ficha: %r", self.node_id, exc)
+                self._publish_ficha(caso, *self.coordinacion.redactar_plantilla(caso))
+                return
+            self._publish_ficha(caso, *f.result())
+
+        future.add_done_callback(done)
+
+    def _publish_ficha(self, caso, mensaje: str, from_template: bool) -> None:
+        if not self.owns(caso.incidente_event.id):
+            logger.warning("%s: la ficha de %s ya no le toca", self.node_id, caso.incident_id)
+            return
+        try:
+            self.coordinacion.publicar(caso, mensaje, from_template, self.store)
+        except Exception:
+            logger.exception("%s: no se pudo publicar la ficha", self.node_id)
 
     def _ask(self, normalized: Event) -> None:
         """Agente de recepción (D5a): como máximo una pregunta de seguimiento por reporte.

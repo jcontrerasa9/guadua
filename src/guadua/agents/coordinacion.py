@@ -9,14 +9,16 @@ CONTRATO: genera y valida eventos `ficha` (docs/contratos.md §Catálogo).
 from __future__ import annotations
 
 import csv
+import json
+import logging
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 from guadua.knowledge.matriz_emre import cita_por_tipo, recursos_disponibles, responsable_por_tipo
-from guadua.knowledge.retriever import Retriever
+from guadua.knowledge.retriever import Passage, Retriever
 from guadua.protocol.header import Incident, People
-from guadua.providers.llm import LLMProvider, LLMUnavailable, Message
+from guadua.providers.llm import LLMProvider, Message
 from guadua.store.event_types import (
     Citation,
     Decision,
@@ -29,6 +31,8 @@ from guadua.store.events import Event, EventCategory, EventId, EventStore
 
 _DEFAULT_DATA_DIR = Path(__file__).resolve().parents[3] / "data"
 _RIESGOS_CSV = _DEFAULT_DATA_DIR / "riesgos_unidad.csv"
+
+logger = logging.getLogger("guadua.coordinacion")
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,11 +176,56 @@ def _generar_mensaje_plantilla(
     return msg
 
 
+@dataclass(frozen=True, slots=True)
+class CasoCoordinacion:
+    """Todo lo determinista de una ficha, listo para redactar el mensaje (con o sin LLM).
+
+    Se arma en el hilo del nodo leyendo el registro; la redacción con LLM puede correr en
+    otro hilo; `publicar` vuelve a revisar que la ficha siga haciendo falta.
+    """
+
+    incidente_event: Event
+    incident_id: str
+    tipo: Incident
+    miembros: tuple[ReporteNormalizado, ...]
+    confianza: float
+    rumor: bool
+    responsable: str | None
+    unidades: int | None
+    risk_warning: str | None
+    recomendacion_riesgo: str | None
+    unidades_riesgo: tuple[str, ...]
+    es_replanificacion: bool
+    citas: tuple[Citation, ...]
+    pasajes: tuple[Passage, ...]  # RAG: texto del protocolo para la redacción
+    fichas_previas: int  # cuántas fichas tenía el incidente al preparar
+
+
+# Redacción con LLM: lo que la unidad necesita oír por radio, sin inventar.
+SYSTEM_REDACCION = """Eres el redactor de despachos del sistema Guadua (Manizales). Escribes \
+el mensaje que el operador transmitirá por radio a la unidad asignada.
+Reglas:
+- Español, frases cortas e imperativas, máximo 4 frases y 450 caracteres.
+- Usa SOLO los datos del caso y los textos de los ciudadanos. No inventes direcciones, \
+cantidades, víctimas ni recursos.
+- Incluye: qué pasa y dónde (con la incertidumbre de la ubicación), cuántas personas si se \
+sabe, la advertencia de riesgo para la unidad si la hay y una o dos acciones del protocolo \
+aplicable que de verdad correspondan al caso.
+- Si la confianza es baja o es rumor, dilo ("verificar al llegar").
+- No cambies la entidad asignada ni prometas unidades que no estén.
+Responde SOLO con {"final": {"message": "<texto>"}}."""
+
+MAX_MENSAJE = 600
+MAX_TEXTO_CIUDADANO = 220
+MAX_PASAJE = 450
+
+
 class AgenteCoordinacion:
     """Agente de coordinación que genera fichas a partir de incidentes agrupados.
 
-    La asignación de responsables es 100% determinista según la matriz EMRE.
-    El LLM únicamente asiste en la redacción del mensaje si está disponible y habilitado.
+    La asignación de responsables es 100% determinista según la matriz EMRE. El LLM
+    redacta el mensaje de despacho con los textos de los ciudadanos y el protocolo que
+    recupera el RAG; si no hay LLM o falla, queda la plantilla (`from_template=True`).
     """
 
     def __init__(
@@ -191,16 +240,30 @@ class AgenteCoordinacion:
         self.llm = llm
         self.retriever = retriever
 
-    def procesar_incidente(
-        self,
-        incidente_event: Event,
-        store: EventStore,
-    ) -> Event | None:
-        """Genera una ficha para un incidente agrupado.
+    # --- API de siempre -------------------------------------------------------------------
+
+    def procesar_incidente(self, incidente_event: Event, store: EventStore) -> Event | None:
+        """Genera una ficha para un incidente agrupado (todo en línea).
 
         Si ya existe una ficha pendiente o aprobada para este incidente, no duplica.
         Si la última ficha fue rechazada, replanea generando una nueva ficha.
         """
+        caso = self.preparar(incidente_event, store)
+        if caso is None:
+            return None
+        mensaje, from_template = self.redactar(caso)
+        return self.publicar(caso, mensaje, from_template, store)
+
+    def procesar_decision(self, decision_event: Event, store: EventStore) -> Event | None:
+        """Procesa un evento decision; si fue rechazar, replanea y publica una nueva ficha."""
+        inc_ev = self.incidente_a_replanear(decision_event, store)
+        return self.procesar_incidente(inc_ev, store) if inc_ev is not None else None
+
+    # --- Pasos ----------------------------------------------------------------------------
+
+    def preparar(self, incidente_event: Event, store: EventStore) -> CasoCoordinacion | None:
+        """Lo determinista: responsable EMRE, unidades, riesgos, citas y pasajes del RAG.
+        None si el incidente ya tiene una ficha vigente (pendiente o aprobada)."""
         if incidente_event.type != "incidente_agrupado":
             raise ValueError(
                 f"Se esperaba evento incidente_agrupado, se recibió: {incidente_event.type!r}"
@@ -210,12 +273,10 @@ class AgenteCoordinacion:
         incident_id = inc_payload.incident_id
 
         # 1. Reconstruir estado actual de reportes y fichas del store
-        events = store.since({})
         reportes_by_id: dict[str, ReporteNormalizado] = {}
         fichas_del_incidente: list[tuple[Event, Ficha]] = []
         decisiones_by_ficha_id: dict[EventId, Decision] = {}
-
-        for e in events:
+        for e in store.since({}):
             if e.type == "reporte_normalizado":
                 r_p = ReporteNormalizado.model_validate(e.payload)
                 reportes_by_id[r_p.report_id] = r_p
@@ -224,41 +285,30 @@ class AgenteCoordinacion:
                 if f_p.incident_id == incident_id:
                     fichas_del_incidente.append((e, f_p))
             elif e.type == "decision" and e.refs:
-                d_p = Decision.model_validate(e.payload)
-                decisiones_by_ficha_id[e.refs[0]] = d_p
+                decisiones_by_ficha_id[e.refs[0]] = Decision.model_validate(e.payload)
 
-        # Ordenar fichas cronológicamente
         fichas_del_incidente.sort(key=lambda item: (item[0].received_at, item[0].seq))
 
         # 2. Idempotencia y control de ciclo de vida
         entidades_rechazadas: set[str] = set()
         if fichas_del_incidente:
-            ultima_ficha_ev, ultima_ficha_p = fichas_del_incidente[-1]
+            ultima_ficha_ev, _ = fichas_del_incidente[-1]
             decision = decisiones_by_ficha_id.get(ultima_ficha_ev.id)
+            if decision is None or decision.action in ("aprobar", "editar"):
+                return None  # ficha pendiente, o incidente ya gestionado
+            for f_ev, f_p in fichas_del_incidente:
+                dec = decisiones_by_ficha_id.get(f_ev.id)
+                if dec is not None and dec.action == "rechazar" and f_p.responsible:
+                    entidades_rechazadas.add(f_p.responsible)
 
-            if decision is None:
-                # Ya existe una ficha pendiente para este incidente; no duplicar
-                return None
-            elif decision.action in ("aprobar", "editar"):
-                # Incidente ya gestionado; no crear nueva ficha
-                return None
-            elif decision.action == "rechazar":
-                # Recopilar entidades previamente rechazadas para replanear
-                for f_ev, f_p in fichas_del_incidente:
-                    dec = decisiones_by_ficha_id.get(f_ev.id)
-                    if dec is not None and dec.action == "rechazar" and f_p.responsible:
-                        entidades_rechazadas.add(f_p.responsible)
-
-        # 3. Obtener reportes miembros
-        miembros: list[ReporteNormalizado] = []
-        for r_id in inc_payload.report_ids:
-            if r_id in reportes_by_id:
-                miembros.append(reportes_by_id[r_id])
-
+        # 3. Reportes miembros
+        miembros = tuple(
+            reportes_by_id[r_id] for r_id in inc_payload.report_ids if r_id in reportes_by_id
+        )
         if not miembros:
             return None
 
-        # Evaluación de señales de riesgo de los miembros (D3b)
+        # Señales de riesgo de los miembros (D3b)
         senales_riesgo: list[str] = []
         for r in miembros:
             for s in r.risk_signals:
@@ -276,209 +326,251 @@ class AgenteCoordinacion:
                     unidades_riesgo.append(info.unidad_recomendada)
             else:
                 advertencias.append(f"Riesgo en escena: {s}")
-
         risk_warning = "; ".join(advertencias) if advertencias else None
 
-        # 4. Tipo principal de incidente y responsable determinista según la EMRE
+        # 4. Tipo principal y responsable determinista según la EMRE
         tipo_principal = _seleccionar_tipo_incidente(miembros)
         responsable = responsable_por_tipo(tipo_principal, excluidos=entidades_rechazadas)
 
         # 5. Disponibilidad de unidades
         unidades = recursos_disponibles(responsable) if responsable else None
-
         recomendacion_riesgo = (
             _construir_recomendacion_riesgo(unidades_riesgo, responsable, tipo_principal)
             if unidades_riesgo
             else None
         )
 
-        # 6. Redacción del mensaje (LLM opcional o plantilla)
-        mensaje, from_template = self._redactar_mensaje(
-            tipo_principal,
-            miembros,
-            inc_payload.confidence,
-            responsable,
-            unidades,
-            recomendacion_riesgo=recomendacion_riesgo,
+        # 6. Citas y pasajes del protocolo
+        pasajes = self._buscar_pasajes(tipo_principal, miembros, senales_riesgo)
+        citas = self._citas(tipo_principal, responsable, pasajes)
+
+        return CasoCoordinacion(
+            incidente_event=incidente_event,
+            incident_id=incident_id,
+            tipo=tipo_principal,
+            miembros=miembros,
+            confianza=inc_payload.confidence,
+            rumor=inc_payload.rumor,
+            responsable=responsable,
+            unidades=unidades,
             risk_warning=risk_warning,
-            unidades_riesgo=unidades_riesgo,
+            recomendacion_riesgo=recomendacion_riesgo,
+            unidades_riesgo=tuple(unidades_riesgo),
             es_replanificacion=bool(entidades_rechazadas),
+            citas=citas,
+            pasajes=pasajes,
+            fichas_previas=len(fichas_del_incidente),
         )
 
-        # 7. Citas oficiales
-        citas = self._obtener_citas(tipo_principal, responsable, miembros[0])
+    @staticmethod
+    def redactar_plantilla(caso: CasoCoordinacion) -> tuple[str, bool]:
+        """El mensaje determinista (sin LLM)."""
+        plantilla = _generar_mensaje_plantilla(
+            caso.tipo,
+            caso.miembros,
+            caso.confianza,
+            caso.responsable,
+            caso.unidades,
+            recomendacion_riesgo=caso.recomendacion_riesgo,
+        )
+        if caso.es_replanificacion:
+            plantilla += " Replanificación por rechazo previo de ficha."
+        return plantilla, True
 
-        # 8. Construir evento Ficha
+    def redactar(self, caso: CasoCoordinacion) -> tuple[str, bool]:
+        """Mensaje de despacho: (texto, from_template). Puede correr en otro hilo: no toca
+        el registro. Sin LLM, o si responde algo que no sirve, la plantilla."""
+        plantilla, _ = self.redactar_plantilla(caso)
+        if self.llm is None:
+            return plantilla, True
+        try:
+            reply = self.llm.complete(
+                [
+                    Message("system", SYSTEM_REDACCION),
+                    Message("user", _prompt_redaccion(caso)),
+                ],
+                [],
+            )
+        except Exception as exc:  # LLMUnavailable, red, cuota…: queda la plantilla
+            logger.warning("%s: sin redacción del LLM (%s)", caso.incident_id, exc)
+            return plantilla, True
+        final = reply.final if isinstance(reply.final, dict) else {}
+        mensaje = " ".join(str(final.get("message") or "").split())
+        if len(mensaje) < 20:
+            logger.warning("%s: el LLM no devolvió un mensaje usable", caso.incident_id)
+            return plantilla, True
+        return _con_guardias(mensaje, caso), False
+
+    def publicar(
+        self, caso: CasoCoordinacion, mensaje: str, from_template: bool, store: EventStore
+    ) -> Event | None:
+        """Guarda la ficha. Si mientras se redactaba apareció otra ficha del incidente
+        (otro nodo, o un reintento), no duplica."""
+        actuales = sum(
+            1
+            for e in store.since({})
+            if e.type == "ficha" and e.payload.get("incident_id") == caso.incident_id
+        )
+        if actuales != caso.fichas_previas:
+            return None
         ficha_payload = Ficha(
-            incident_id=incident_id,
-            responsible=responsable,
-            units_available=unidades,
-            risk_warning=risk_warning,
+            incident_id=caso.incident_id,
+            responsible=caso.responsable,
+            units_available=caso.unidades,
+            risk_warning=caso.risk_warning,
             message=mensaje,
-            citations=citas,
+            citations=caso.citas,
             from_template=from_template,
         )
-
-        seq = self.next_seq()
         evento_ficha = Event(
             origin_node=self.node_id,
-            seq=seq,
+            seq=self.next_seq(),
             category=EventCategory.DERIVADO,
             type="ficha",
             payload=ficha_payload.model_dump(),
-            refs=(incidente_event.id,),
-            received_at=incidente_event.received_at,
+            refs=(caso.incidente_event.id,),
+            received_at=caso.incidente_event.received_at,
         )
-
         validate_event(evento_ficha)
         store.append(evento_ficha)
         return evento_ficha
 
-    def procesar_decision(
-        self,
-        decision_event: Event,
-        store: EventStore,
-    ) -> Event | None:
-        """Procesa un evento decision; si fue rechazar, replanea y publica una nueva ficha."""
+    def incidente_a_replanear(self, decision_event: Event, store: EventStore) -> Event | None:
+        """El incidente_agrupado de una decisión `rechazar`, o None."""
         if decision_event.type != "decision":
             raise ValueError(f"Se esperaba evento decision, se recibió: {decision_event.type!r}")
         dec_payload = Decision.model_validate(decision_event.payload)
         if dec_payload.action != "rechazar":
             return None
-
-        # Encontrar la ficha referenciada
         ficha_ev = store.get(decision_event.refs[0])
         if ficha_ev is None:
             return None
-
         ficha_payload = Ficha.model_validate(ficha_ev.payload)
-
-        # Encontrar el incidente_agrupado asociado a través de refs de la ficha
         inc_ev = store.get(ficha_ev.refs[0]) if ficha_ev.refs else None
         if inc_ev is None or inc_ev.type != "incidente_agrupado":
-            # Buscar el evento incidente_agrupado más reciente para ese incident_id
             for e in reversed(store.since({})):
                 if (
                     e.type == "incidente_agrupado"
                     and e.payload.get("incident_id") == ficha_payload.incident_id
                 ):
-                    inc_ev = e
-                    break
-
-        if inc_ev is None:
+                    return e
             return None
+        return inc_ev
 
-        return self.procesar_incidente(inc_ev, store)
+    # --- RAG ------------------------------------------------------------------------------
 
-    def _redactar_mensaje(
+    def _buscar_pasajes(
         self,
         tipo: Incident,
         miembros: Sequence[ReporteNormalizado],
-        confianza: float,
-        responsable: str | None,
-        unidades: int | None,
-        recomendacion_riesgo: str | None = None,
-        risk_warning: str | None = None,
-        unidades_riesgo: Sequence[str] = (),
-        es_replanificacion: bool = False,
-    ) -> tuple[str, bool]:
-        """Redacta el mensaje operativo. Si el LLM no está disponible o falla, usa la plantilla."""
-        mensaje_base = _generar_mensaje_plantilla(
-            tipo,
-            miembros,
-            confianza,
-            responsable,
-            unidades,
-            recomendacion_riesgo=recomendacion_riesgo,
+        senales_riesgo: Sequence[str],
+    ) -> tuple[Passage, ...]:
+        """Pasajes del protocolo para el caso: la consulta lleva el tipo, las señales de
+        riesgo y lo que escribieron los ciudadanos (no solo el barrio)."""
+        if self.retriever is None:
+            return ()
+        textos = " ".join((r.text or "")[:MAX_TEXTO_CIUDADANO] for r in miembros[:3])
+        query = " ".join(
+            [_CONSULTA_POR_TIPO.get(tipo, ""), " ".join(senales_riesgo).replace("_", " "), textos]
         )
-        if es_replanificacion:
-            mensaje_base += " Replanificación por rechazo previo de ficha."
-
-        if self.llm is None:
-            return mensaje_base, True
-
-        # Intento de redacción con LLM
         try:
-            prompt_usuario = (
-                f"Redacta un mensaje conciso de coordinación para la ficha de emergencia.\n"
-                f"Tipo: {_NOMBRES_INCIDENTE.get(tipo, 'Emergencia')}\n"
-                f"Ubicación: {miembros[0].location.label or 'Manizales'}\n"
-                f"Incertidumbre: aprox. {miembros[0].location.radius_m} m\n"
-                f"Personas: {_TEXTO_PERSONAS.get(miembros[0].people, 'desconocido')}\n"
-                f"Confianza: {int(confianza * 100)}%\n"
-                f"Entidad asignada: {responsable or 'Sin responsable'}\n"
-                f"Unidades disponibles: {unidades}\n"
-            )
-            if risk_warning:
-                prompt_usuario += f"Advertencia de riesgo en la escena: {risk_warning}\n"
-            if recomendacion_riesgo:
-                prompt_usuario += f"Recomendación de seguridad: {recomendacion_riesgo}\n"
+            encontrados = self.retriever.search(query, k=8)
+        except Exception:
+            logger.exception("falló el RAG de la coordinación")
+            return ()
+        # El mejor pasaje oficial (la cita verificable) y el mejor resumen del equipo (lo
+        # táctico, marcado como ejemplo). Si solo hay de un tipo, los dos primeros.
+        oficial = next((p for p in encontrados if not p.is_example), None)
+        ejemplo = next((p for p in encontrados if p.is_example), None)
+        elegidos = tuple(p for p in (oficial, ejemplo) if p is not None)
+        return elegidos if len(elegidos) == 2 else tuple(encontrados[:2])
 
-            reply = self.llm.complete(
-                messages=[
-                    Message(
-                        role="system",
-                        content="Eres el asistente de redacción de fichas del sistema Guadua.",
-                    ),
-                    Message(role="user", content=prompt_usuario),
-                ],
-                tools=[],
-            )
-
-            if reply.final and isinstance(reply.final, dict) and "message" in reply.final:
-                msg_llm = str(reply.final["message"]).strip()
-                # Garantizar que advertencia de recursos o sin responsable no se pierda
-                if unidades == 0 and "unidades" not in msg_llm.lower():
-                    msg_llm += (
-                        f" ADVERTENCIA: {responsable} no tiene unidades disponibles;"
-                        " escalar al coordinador."
-                    )
-                if (
-                    recomendacion_riesgo
-                    and unidades_riesgo
-                    and not any(u.lower() in msg_llm.lower() for u in unidades_riesgo)
-                ):
-                    msg_llm += f" {recomendacion_riesgo.strip()}"
-                return msg_llm, False
-
-        except (LLMUnavailable, Exception):
-            pass
-
-        return mensaje_base, True
-
-    def _obtener_citas(
-        self,
-        tipo: Incident,
-        responsable: str | None,
-        reporte: ReporteNormalizado,
+    @staticmethod
+    def _citas(
+        tipo: Incident, responsable: str | None, pasajes: Sequence[Passage]
     ) -> tuple[Citation, ...]:
-        """Recupera las citas normativas de la EMRE y del Retriever si está disponible."""
-        citas_list: list[Citation] = []
-
-        # 1. Cita oficial de la matriz EMRE
+        """La cita de la matriz EMRE (quién responde) y las de los pasajes del RAG."""
+        citas: list[Citation] = []
         cita_emre = cita_por_tipo(tipo, responsable)
         if cita_emre:
-            citas_list.append(cita_emre)
+            citas.append(cita_emre)
+        for p in pasajes:
+            citas.append(
+                Citation(
+                    document=p.document,
+                    section=p.section,
+                    version=p.version,
+                    is_example=p.is_example,
+                )
+            )
+        return tuple(citas)
 
-        # 2. Cita de Retriever (RAG) si está configurado
-        if self.retriever is not None:
-            try:
-                query = f"{_NOMBRES_INCIDENTE.get(tipo, '')} {reporte.location.label or ''}"
-                pasajes = self.retriever.search(query, k=1)
-                if pasajes:
-                    p = pasajes[0]
-                    citas_list.append(
-                        Citation(
-                            document=p.document,
-                            section=p.section,
-                            version=p.version,
-                            is_example=p.is_example,
-                        )
-                    )
-            except Exception:
-                pass
 
-        return tuple(citas_list)
+# Consulta al RAG por tipo: el vocabulario de los protocolos, no el del ciudadano.
+_CONSULTA_POR_TIPO: dict[Incident, str] = {
+    Incident.ATRAPADOS: "búsqueda y rescate de personas atrapadas en estructuras colapsadas",
+    Incident.COLAPSO: "colapso de edificación evaluación estructural búsqueda y rescate",
+    Incident.INCENDIO: "incendio estructural extinción evacuación",
+    Incident.FUGA_GAS: "fuga de gas suspensión del servicio fuentes de ignición evacuación",
+    Incident.HERIDO: "atención prehospitalaria heridos traslado a la red de urgencias",
+    Incident.VIA_BLOQUEADA: "vía bloqueada remoción de escombros desvío de tránsito",
+    Incident.OTRO: "atención de emergencias",
+}
+
+
+def _prompt_redaccion(caso: CasoCoordinacion) -> str:
+    primero = caso.miembros[0]
+    loc = primero.location
+    lugar = loc.label or (f"geohash {loc.geohash}" if loc.geohash else "ubicación sin registrar")
+    datos = {
+        "tipo": _NOMBRES_INCIDENTE.get(caso.tipo, "Emergencia"),
+        "lugar": lugar,
+        "incertidumbre_m": loc.radius_m,
+        "personas": _TEXTO_PERSONAS.get(primero.people, "desconocido"),
+        "senales_vitales": sorted({s for r in caso.miembros for s in r.vital_signs}),
+        "reportes": len(caso.miembros),
+        "textos_de_los_ciudadanos": [
+            (r.text or "")[:MAX_TEXTO_CIUDADANO] for r in caso.miembros[:3] if r.text
+        ],
+        "lo_vio_quien_reporta": any(r.direct_observation for r in caso.miembros),
+        "confianza": f"{round(caso.confianza * 100)} %",
+        "rumor": caso.rumor,
+        "entidad_asignada": caso.responsable or "sin responsable: escalar al coordinador",
+        "unidades_libres": caso.unidades,
+        "riesgo_para_la_unidad": caso.risk_warning,
+        "recomendacion_de_seguridad": caso.recomendacion_riesgo,
+        "replanificacion": caso.es_replanificacion,
+        "protocolo_aplicable": [
+            f"{p.document} {p.section}: {p.text[:MAX_PASAJE]}" for p in caso.pasajes
+        ],
+    }
+    return "Caso:\n" + json.dumps(datos, ensure_ascii=False)
+
+
+def _con_guardias(mensaje: str, caso: CasoCoordinacion) -> str:
+    """Lo que el LLM no puede omitir: el lugar, la falta de unidades y la unidad
+    especializada ante riesgos. Se agrega al final si no lo dijo."""
+    lugar = caso.miembros[0].location.label
+    if lugar and lugar.lower() not in mensaje.lower():
+        mensaje = f"{lugar}: {mensaje}"
+    if caso.unidades == 0 and "unidad" not in mensaje.lower():
+        mensaje += (
+            f" ADVERTENCIA: {caso.responsable} no tiene unidades disponibles;"
+            " escalar al coordinador."
+        )
+    if caso.responsable is None and "coordinador" not in mensaje.lower():
+        mensaje += " Sin responsable en la matriz EMRE: escalar al coordinador."
+    if (
+        caso.recomendacion_riesgo
+        and caso.unidades_riesgo
+        and not any(u.lower() in mensaje.lower() for u in caso.unidades_riesgo)
+    ):
+        mensaje += f" {caso.recomendacion_riesgo.strip()}"
+    if caso.es_replanificacion and "replan" not in mensaje.lower():
+        mensaje += " (Replanificación por rechazo previo.)"
+    if len(mensaje) > MAX_MENSAJE:
+        mensaje = mensaje[: MAX_MENSAJE - 1].rsplit(" ", 1)[0] + "…"
+    return mensaje
 
 
 def coordinar_incidente(

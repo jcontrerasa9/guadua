@@ -145,7 +145,8 @@ def test_publica_ficha_valida_con_contrato() -> None:
     assert payload.risk_warning is None  # D3b
     assert payload.from_template is True
     assert len(payload.citations) >= 1
-    assert payload.citations[0].document == "EMRE Manizales"
+    assert payload.citations[0].document == "EMRE Manizales 2024 - Anexo 1"
+    assert payload.citations[0].section == "Tarea 1.2, p. 6-8"
 
 
 def test_aprobacion_humana_fichas_pendientes() -> None:
@@ -235,8 +236,68 @@ def test_llm_no_puede_cambiar_el_responsable_de_la_matriz() -> None:
     assert isinstance(payload, Ficha)
     # El responsable DEBE ser Bomberos (según la EMRE), ignorando la sugerencia del LLM
     assert payload.responsible == "Cuerpo Oficial de Bomberos"
-    assert payload.message == "Incendio controlado por brigada vecinal."
+    # El lugar se antepone si el LLM no lo dijo (guardia de _con_guardias)
+    assert payload.message == "El Cable: Incendio controlado por brigada vecinal."
     assert payload.from_template is False
+
+
+class RecordingLLM:
+    """Guarda lo que recibe y responde un mensaje fijo."""
+
+    name = "grabador"
+
+    def __init__(self, message: str) -> None:
+        self.message = message
+        self.prompts: list[str] = []
+
+    def complete(self, messages, tools):
+        self.prompts.append(messages[-1].content)
+        return LLMReply(final={"message": self.message})
+
+
+def test_el_llm_recibe_textos_de_ciudadanos_y_protocolo_del_rag() -> None:
+    store = InMemoryEventStore()
+    r = make_reporte_normalizado("a1b2c3d4-1", Incident.FUGA_GAS, seq=1, risk_signals=("gas",))
+    store.append(r)
+    inc = make_incidente_agrupado("a1b2c3d4-1", ("a1b2c3d4-1",), seq=2)
+    store.append(inc)
+    pasaje = Passage(
+        document="EMRE Manizales - Anexo 2",
+        section="p. 7",
+        version="Actualización 2024",
+        text="Suspender el suministro de gas y aislar fuentes de ignición.",
+        score=1.0,
+    )
+    llm = RecordingLLM("Fuga de gas en El Cable. Suspender el suministro antes de entrar.")
+    agente = AgenteCoordinacion("A", SeqGen(10), llm=llm, retriever=StaticRetriever([pasaje]))
+    payload = validate_event(agente.procesar_incidente(inc, store))
+
+    (prompt,) = llm.prompts
+    assert "reporte de prueba" in prompt  # el texto del ciudadano
+    assert "Suspender el suministro de gas" in prompt  # el protocolo del RAG
+    assert payload.message.startswith("Fuga de gas en El Cable")
+    assert payload.citations[-1].section == "p. 7"
+
+
+def test_mensaje_vacio_del_llm_deja_la_plantilla() -> None:
+    store = InMemoryEventStore()
+    store.append(make_reporte_normalizado("a1b2c3d4-1", Incident.HERIDO, seq=1))
+    inc = make_incidente_agrupado("a1b2c3d4-1", ("a1b2c3d4-1",), seq=2)
+    store.append(inc)
+    agente = AgenteCoordinacion("A", SeqGen(10), llm=RecordingLLM("  "))
+    payload = validate_event(agente.procesar_incidente(inc, store))
+    assert payload.from_template is True and "Atención de heridos" in payload.message
+
+
+def test_publicar_no_duplica_si_aparecio_otra_ficha_mientras_redactaba() -> None:
+    store = InMemoryEventStore()
+    store.append(make_reporte_normalizado("a1b2c3d4-1", Incident.HERIDO, seq=1))
+    inc = make_incidente_agrupado("a1b2c3d4-1", ("a1b2c3d4-1",), seq=2)
+    store.append(inc)
+    agente = AgenteCoordinacion("A", SeqGen(10))
+    caso = agente.preparar(inc, store)
+    assert agente.procesar_incidente(inc, store) is not None  # otro camino la creó
+    assert agente.publicar(caso, "mensaje tardío", False, store) is None
 
 
 def test_tipo_otro_o_sin_responsable_resulta_none() -> None:
@@ -403,7 +464,7 @@ def test_integracion_con_retriever_agrega_cita() -> None:
     assert isinstance(p, Ficha)
     # Debe tener al menos dos citas: la de la EMRE y la del pasaje RAG
     docs_citados = [c.document for c in p.citations]
-    assert "EMRE Manizales" in docs_citados
+    assert "EMRE Manizales 2024 - Anexo 1" in docs_citados
     assert "Protocolo Rescate Urbano" in docs_citados
     assert any(c.section == "3.1" for c in p.citations)
 
