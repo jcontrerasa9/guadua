@@ -48,6 +48,7 @@ ROUTES: tuple[Route, ...] = (
         "POST", "/api/radio/demo/{clip_id}", "—", "RadioAck | ApiError", "barra de simulación", 2
     ),
     Route("GET", "/api/radio", "—", "RadioList", "tablero", 2),
+    Route("GET", "/api/digest", "—", "Digest", "barra de simulación", 2),
     Route("GET", "/api/radio/{audio_id}/audio", "—", "bytes (audio/*) | ApiError", "tablero", 2),
     Route(
         "POST",
@@ -242,6 +243,15 @@ class TranscriptionRequest(Schema):
     operator: str = Field(min_length=1)
 
 
+class Digest(Schema):
+    """GET /api/digest (D9): huella del registro de eventos del nodo. Si coincide en todos,
+    los nodos convergieron. `digest` es el SHA-256 del `EventStore`; `events`, cuántos tiene."""
+
+    node: str
+    digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    events: int = Field(ge=0)
+
+
 SCHEMAS: dict[str, type[Schema]] = {
     cls.__name__: cls
     for cls in (
@@ -258,5 +268,6 @@ SCHEMAS: dict[str, type[Schema]] = {
         RadioAck,
         RadioList,
         TranscriptionRequest,
+        Digest,
     )
 }

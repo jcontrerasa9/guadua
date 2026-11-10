@@ -300,6 +300,23 @@
         ]
       ],
       "received_at": 1794573600.0
+    },
+    {
+      "origin_node": "A",
+      "seq": 14,
+      "category": "derivado",
+      "type": "solicitud_vigia",
+      "payload": {
+        "incident_id": "a1b2c3d4-7",
+        "target": "tablero",
+        "action": "alerta_olvido",
+        "reason": "ALERTA DE OLVIDO: Incidente a1b2c3d4-7 de urgencia critica lleva 6 min sin despacho aprobado.",
+        "level": 4,
+        "age_s": 372.0,
+        "new_reports": 0
+      },
+      "refs": [["A", 4]],
+      "received_at": 1794573972.0
     }
   ],
   "invalid": [
@@ -763,6 +780,30 @@
         "payload": {"audio_id": "7c120c39db3eba4d", "text": "incendio en Chipre", "direct": false, "source": "operador"},
         "refs": [["C", 6]],
         "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "solicitud_vigia_sin_incidente_en_refs",
+      "event": {
+        "origin_node": "A",
+        "seq": 14,
+        "category": "derivado",
+        "type": "solicitud_vigia",
+        "payload": {"incident_id": "a1b2c3d4-7", "target": "tablero", "action": "alerta_olvido", "reason": "lleva 6 min", "level": 4, "age_s": 372.0},
+        "refs": [],
+        "received_at": 1794573972.0
+      }
+    },
+    {
+      "name": "solicitud_vigia_accion_de_otro_agente",
+      "event": {
+        "origin_node": "A",
+        "seq": 14,
+        "category": "derivado",
+        "type": "solicitud_vigia",
+        "payload": {"incident_id": "a1b2c3d4-7", "target": "triaje", "action": "alerta_olvido", "reason": "lleva 6 min", "level": 4, "age_s": 372.0},
+        "refs": [["A", 4]],
+        "received_at": 1794573972.0
       }
     }
   ]
