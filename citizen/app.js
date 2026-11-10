@@ -25,6 +25,7 @@ import {
 } from "./report.js";
 import { buildSafeBinary, MAX_NAME_BYTES } from "./safe.js";
 import { createQuestionManager } from "./questions.js";
+import { setupBatteryMonitor } from "./battery.js";
 
 // Estado de la interfaz
 const uiState = {
@@ -44,6 +45,9 @@ const uiState = {
   wakeLock: null,
   tapDetector: null,
   questionManager: null,
+  batteryLevel: null,
+  isCriticalBattery: false,
+  isCharging: false,
 };
 
 // --- Registro de Service Worker para funcionamiento 100% offline -------------
@@ -593,6 +597,7 @@ function setupBloque3() {
         notBreathing: uiState.notBreathing,
         geohash: uiState.geohash,
         barrioCode: uiState.selectedBarrioCode,
+        criticalBattery: uiState.isCriticalBattery,
       });
 
       const noteText = noteInput ? noteInput.value : "";
@@ -612,7 +617,10 @@ function setupBloque3() {
       });
 
       uiState.lastReportId = item.id;
-      showToast("¡Reporte guardado! Transmitiendo auxilio...");
+      const successToast = uiState.isCriticalBattery
+        ? "¡Reporte guardado! Modo batería crítica (21 B). Transmitiendo auxilio..."
+        : "¡Reporte guardado! Transmitiendo auxilio...";
+      showToast(successToast);
     } catch (err) {
       console.error("Error al armar o encolar el reporte:", err);
       showToast("Ocurrió un error al preparar el reporte.");
@@ -641,6 +649,7 @@ function showToast(message) {
 function setupConnectivityAndBattery() {
   const connText = document.getElementById("conn-text");
   const connIcon = document.querySelector("#conn-status span");
+  const batteryContainer = document.getElementById("battery-status");
   const batteryText = document.getElementById("battery-text");
 
   function updateOnlineStatus() {
@@ -657,18 +666,33 @@ function setupConnectivityAndBattery() {
   window.addEventListener("offline", updateOnlineStatus);
   updateOnlineStatus();
 
-  if ("getBattery" in navigator) {
-    navigator.getBattery().then((battery) => {
-      function updateBattery() {
-        const level = Math.round(battery.level * 100);
-        if (batteryText) {
-          batteryText.textContent = `🔋 ${level}%`;
+  setupBatteryMonitor({
+    onBatteryChange: (status) => {
+      uiState.batteryLevel = status.levelPercent;
+      uiState.isCriticalBattery = status.isCritical;
+      uiState.isCharging = status.isCharging;
+
+      if (batteryText) {
+        batteryText.textContent = status.text;
+      }
+      if (batteryContainer) {
+        batteryContainer.classList.toggle("battery-critical", status.isCritical);
+        batteryContainer.classList.toggle("battery-charging", status.isCharging);
+        if (status.isCritical) {
+          batteryContainer.setAttribute(
+            "title",
+            `Batería crítica (${status.levelPercent}%). Modo ahorro activado (reportes compactos de 21 B).`,
+          );
+        } else if (status.isCharging) {
+          batteryContainer.setAttribute("title", `Dispositivo cargando (${status.levelPercent}%).`);
+        } else if (status.levelPercent !== null) {
+          batteryContainer.setAttribute("title", `Nivel de batería: ${status.levelPercent}%.`);
+        } else {
+          batteryContainer.setAttribute("title", "Nivel de batería no disponible en este navegador.");
         }
       }
-      updateBattery();
-      battery.addEventListener("levelchange", updateBattery);
-    }).catch(() => {});
-  }
+    },
+  });
 }
 
 // --- Preguntas de seguimiento (D5b) -------------------------------------------
