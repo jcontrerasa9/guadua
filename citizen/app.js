@@ -43,6 +43,7 @@ const uiState = {
   wakeLock: null,
   tapDetector: null,
   questionManager: null,
+  questionLaterId: null, // pregunta que el ciudadano dejó para después
   batteryLevel: null,
   isCriticalBattery: false,
   isCharging: false,
@@ -96,7 +97,7 @@ async function loadBarrios() {
     ];
   }
 
-  select.innerHTML = `<option value="" disabled selected>Seleccione el barrio...</option>`;
+  select.innerHTML = `<option value="" disabled selected>Barrio…</option>`;
   for (const b of uiState.barriosList) {
     const opt = document.createElement("option");
     opt.value = b.code;
@@ -116,11 +117,19 @@ async function loadBarrios() {
 
 function setupIncidentButtons() {
   const buttons = document.querySelectorAll(".incident-btn");
+  const btnEnviar = document.getElementById("btn-pedir-ayuda");
   buttons.forEach((btn) => {
+    btn.setAttribute("role", "radio");
+    btn.setAttribute("aria-checked", "false");
     btn.onclick = () => {
-      buttons.forEach((b) => b.classList.remove("selected"));
+      buttons.forEach((b) => {
+        b.classList.remove("selected");
+        b.setAttribute("aria-checked", "false");
+      });
       btn.classList.add("selected");
+      btn.setAttribute("aria-checked", "true");
       uiState.selectedIncident = btn.dataset.id;
+      if (btnEnviar) btnEnviar.disabled = false; // sin incidente no hay reporte
     };
   });
 }
@@ -152,15 +161,26 @@ function setupLocationAndNote() {
   const noteInput = document.getElementById("note-input");
   const byteCounter = document.getElementById("byte-counter");
 
+  // Con GPS activo, el texto de estado ocupa el lugar del barrio (una sola fila).
+  function showGps(text) {
+    gpsStatus.textContent = text;
+    gpsStatus.classList.remove("hidden");
+    if (barrioContainer) barrioContainer.classList.add("hidden");
+  }
+  function showBarrio() {
+    gpsStatus.classList.add("hidden");
+    if (barrioContainer) barrioContainer.classList.remove("hidden");
+  }
+
   if (btnGps) {
     btnGps.onclick = () => {
       if (!uiState.gpsActive) {
         if (!navigator.geolocation) {
-          showToast("Tu dispositivo no soporta geolocalización GPS.");
+          showToast("Tu dispositivo no soporta GPS. Elige el barrio.");
           return;
         }
 
-        gpsStatus.textContent = "Obteniendo coordenadas...";
+        showGps("Buscando GPS…");
         navigator.geolocation.getCurrentPosition(
           (pos) => {
             const lat = pos.coords.latitude;
@@ -169,9 +189,8 @@ function setupLocationAndNote() {
               uiState.geohash = encodeGeohash(lat, lon, 7);
               uiState.gpsActive = true;
               btnGps.classList.add("active");
-              btnGps.textContent = "📍 GPS activo";
-              gpsStatus.textContent = `GPS: ${uiState.geohash}`;
-              if (barrioContainer) barrioContainer.style.opacity = "0.4";
+              btnGps.setAttribute("aria-pressed", "true");
+              showGps(`Ubicación GPS ✓ ${uiState.geohash}`);
               if (uiState.queue?.store?.saveLastLocation) {
                 uiState.queue.store.saveLastLocation({
                   geohash: uiState.geohash,
@@ -181,25 +200,41 @@ function setupLocationAndNote() {
                 }).catch(() => {});
               }
             } catch (err) {
-              gpsStatus.textContent = "Error al codificar GPS";
+              showBarrio();
+              showToast("Error al leer el GPS. Elige el barrio.");
               console.warn(err);
             }
           },
           (err) => {
-            gpsStatus.textContent = "No se pudo obtener GPS (usando barrio)";
-            showToast("No se pudo obtener la ubicación GPS.");
+            showBarrio();
+            showToast("No se pudo obtener el GPS. Elige el barrio.");
             console.warn(err);
           },
           { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
         );
       } else {
-        // Desactivar GPS
+        // Desactivar GPS: vuelve el barrio
         uiState.gpsActive = false;
         uiState.geohash = null;
         btnGps.classList.remove("active");
-        btnGps.textContent = "📍 Usar mi GPS";
-        gpsStatus.textContent = "Sin GPS (usando barrio)";
-        if (barrioContainer) barrioContainer.style.opacity = "1";
+        btnGps.setAttribute("aria-pressed", "false");
+        showBarrio();
+      }
+    };
+  }
+
+  // La nota es opcional: queda oculta tras "+ Agregar nota" para no ocupar la pantalla.
+  const btnNote = document.getElementById("btn-toggle-note");
+  if (btnNote && noteInput) {
+    btnNote.onclick = () => {
+      const open = noteInput.classList.toggle("hidden") === false;
+      btnNote.setAttribute("aria-expanded", String(open));
+      btnNote.textContent = open ? "− Quitar nota" : "+ Agregar nota";
+      if (open) {
+        noteInput.focus();
+      } else {
+        noteInput.value = "";
+        noteInput.dispatchEvent(new Event("input"));
       }
     };
   }
@@ -413,7 +448,7 @@ function setupSafeModal() {
   function populateSafeBarrios() {
     if (!safeBarrioSelect) return;
     if (safeBarrioSelect.options.length <= 1 && uiState.barriosList.length > 0) {
-      safeBarrioSelect.innerHTML = `<option value="" disabled selected>Seleccione el barrio...</option>`;
+      safeBarrioSelect.innerHTML = `<option value="" disabled selected>Barrio…</option>`;
       for (const b of uiState.barriosList) {
         const opt = document.createElement("option");
         opt.value = b.code;
@@ -534,6 +569,9 @@ function updatePipelineUi(status) {
 
   if (!stepGuardado || !stepEnviando || !stepRecibido) return;
 
+  // Los puntos de estado solo aparecen cuando ya hay algo enviado.
+  document.getElementById("status-pipeline")?.classList.remove("hidden");
+
   stepGuardado.className = "status-step";
   stepEnviando.className = "status-step";
   stepRecibido.className = "status-step";
@@ -559,13 +597,13 @@ function setupBloque3() {
   btnPedirAyuda.onclick = async () => {
     // 1. Validar que seleccionó incidente
     if (!uiState.selectedIncident) {
-      showToast("Por favor seleccione qué pasa (Paso 1).");
+      showToast("Elige qué pasa.");
       return;
     }
 
     // 2. Validar ubicación: GPS o Barrio
     if (!uiState.gpsActive && !uiState.selectedBarrioCode) {
-      showToast("Por favor active el GPS o seleccione su barrio (Paso 3).");
+      showToast("Elige tu barrio o usa el GPS.");
       return;
     }
 
@@ -601,6 +639,8 @@ function setupBloque3() {
       });
 
       uiState.lastReportId = item.id;
+      // La cola avisa "guardado" antes de que tengamos el id: se pinta aquí.
+      updatePipelineUi(item.status ?? ReportStatus.GUARDADO);
       const successToast = uiState.isCriticalBattery
         ? "¡Reporte guardado! Modo batería crítica (21 B). Transmitiendo auxilio..."
         : "¡Reporte guardado! Transmitiendo auxilio...";
@@ -632,18 +672,15 @@ function showToast(message) {
 
 function setupConnectivityAndBattery() {
   const connText = document.getElementById("conn-text");
-  const connIcon = document.querySelector("#conn-status span");
+  const connIcon = document.querySelector("#conn-status .conn-dot");
   const batteryContainer = document.getElementById("battery-status");
   const batteryText = document.getElementById("battery-text");
 
   function updateOnlineStatus() {
-    if (navigator.onLine) {
-      if (connText) connText.textContent = "Conexión detectada";
-      if (connIcon) connIcon.textContent = "🟢";
-    } else {
-      if (connText) connText.textContent = "Listo sin internet";
-      if (connIcon) connIcon.textContent = "🟠";
-    }
+    // Sin internet la app sigue funcionando: es un estado normal, no un error.
+    const online = navigator.onLine;
+    if (connText) connText.textContent = online ? "En línea" : "Sin internet";
+    if (connIcon) connIcon.classList.toggle("offline", !online);
   }
 
   window.addEventListener("online", updateOnlineStatus);
@@ -694,7 +731,7 @@ function setupQuestionsCard() {
     queue: uiState.queue,
     getDeviceIdFn: () => uiState.queue.store.getDeviceId(),
     onQuestionChange: (q) => {
-      if (q && q.text) {
+      if (q && q.text && q.question_id !== uiState.questionLaterId) {
         if (textEl) textEl.textContent = q.text;
         cardEl.classList.remove("hidden");
       } else {
@@ -702,6 +739,15 @@ function setupQuestionsCard() {
       }
     },
   });
+
+  // "Después" oculta la pregunta actual sin responderla; la siguiente sí aparece.
+  const btnLater = document.getElementById("btn-question-later");
+  if (btnLater) {
+    btnLater.onclick = () => {
+      uiState.questionLaterId = uiState.questionManager?.getCurrentQuestion?.()?.question_id ?? null;
+      cardEl.classList.add("hidden");
+    };
+  }
 
   if (btnNo) {
     btnNo.onclick = async () => {

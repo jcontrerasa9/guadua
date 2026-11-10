@@ -67,34 +67,33 @@ La v3 junta dos aportes del equipo con lo que contó el comandante de Bomberos d
 
 Ambas pantallas aplican **divulgación progresiva**: lo vital a la vista y el detalle a un toque.
 
-### **3.1. Ciudadano: tres bloques**
+### **3.1. Ciudadano: una sola pantalla**
 
-El ciudadano nunca ve términos técnicos (geohash, gossip, nodo, bytes). Fondo negro de alto contraste, que ahorra batería en pantallas OLED.
+El ciudadano nunca ve términos técnicos (geohash, gossip, nodo, bytes). Fondo negro OLED (ahorra batería) con la paleta del logo (`docs/img/guadua-logo.webp`): verde guadua, naranja de las ondas de radio y rojo **solo** para el SOS. Todo cabe en la pantalla de un celular sin hacer scroll (probado desde 360×640), sin fuentes ni imágenes externas.
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│  🟢 Listo sin internet                   🔋 13%  [Ayuda] │
-├──────────────────────────────────────────────────────────┤
-│  BLOQUE 1: SI ESTÁS ATRAPADO O A SALVO                   │
-│  [ 🚨 ESTOY ATRAPADO BAJO ESCOMBROS (SOS + SONIDO)     ] │
-│    (o agita el celular / toca 5 veces sin mirar)         │
-│  [ ✅ ESTOY A SALVO (avisar a familia y Bomberos)       ] │
-├──────────────────────────────────────────────────────────┤
-│  BLOQUE 2: REPORTAR EN 3 TOQUES                          │
-│  Paso 1: ¿Qué pasa?                                      │
-│  [🏚️ Derrumbe] [🔥 Incendio] [⚠️ Fuga de gas]            │
-│  [🩸 Herido ] [🚧 Vía cerrada] [🆘 Atrapados]             │
-│  Paso 2: (●) Sí, lo veo ( ) Me contaron                  │
-│          [📷 Foto opcional]                              │
-│  Paso 3: [ Barrio: El Cable ▼ ] [ Nota opcional... ]     │
-├──────────────────────────────────────────────────────────┤
-│  BLOQUE 3: [ 📢 PEDIR AYUDA AHORA ]                      │
-│  Estado: ● Guardado ──► ○ Enviando ──► ○ Recibido        │
-└──────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────┐
+│  🎋 GUADUA                ● Sin internet  🔋 13% │
+├════════════════════════ (línea naranja) ═┤
+│  [   🚨 Estoy atrapado                  ] │  rojo
+│     SOS con sonido · o toca 5 veces       │
+│  [   ✅ Estoy a salvo                   ] │  contorno verde
+│ ┌──────────────────────────────────────┐ │
+│ │ REPORTAR EMERGENCIA                  │ │
+│ │ [🏚️ Derrumbe] [🔥 Incendio] [⚠️ Gas]  │ │
+│ │ [🩸 Herido] [🚧 Vía cerrada] [🆘 Atrap.]│ │
+│ │ (● Lo veo | Me contaron)             │ │
+│ │ [ Barrio… ▼              ] [📍 GPS]  │ │
+│ │ + Agregar nota                       │ │
+│ │ [        Enviar reporte          ]   │ │  naranja
+│ │ ● Guardado ── ○ Enviando ── ○ Recibido│ │  tras el primer envío
+│ └──────────────────────────────────────┘ │
+└──────────────────────────────────────────┘
 ```
 
+* **Enviar reporte** queda deshabilitado hasta elegir qué pasa. La nota es opcional y está oculta tras "+ Agregar nota"; el contador de bytes solo aparece cerca del límite.
 * **Modo escombros:** desaparece el formulario y queda la pantalla negra con un círculo rojo que indica que la alerta salió y que el sonido está activo. Incluye un consejo breve, por ejemplo: "No enciendas fuego. Golpea un tubo o pared para que te escuchen". El texto final se validará con las recomendaciones oficiales de autoprotección.  
-* **Pregunta de seguimiento del Agente 1:** aparece como una tarjeta arriba con dos botones grandes (`Sí` / `No`).  
+* **Pregunta de seguimiento del Agente 1:** aparece como una hoja inferior con dos botones grandes (`Sí` / `No`) y "Después" para cerrarla sin responder.  
 * **Sin casillas de riesgo ni de señales vitales:** el ciudadano no marca "huele a gas" ni "alguien no respira". El nodo saca la urgencia (reglas de piso) y el riesgo para rescatistas (`classifier/risk.py`) del tipo de incidente y de la nota, y si falta el dato lo pregunta en la tarjeta de seguimiento. Los bits 1 y 3 de la cabecera siguen en el contrato; la PWA solo marca el 3 cuando el incidente es fuga de gas.
 
 ### **3.2. Comandante: tarjetas sin saturación**
