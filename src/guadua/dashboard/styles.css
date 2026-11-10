@@ -463,6 +463,16 @@ button {
   border: 1px solid #ddd2ec;
 }
 
+/* Posible duplicado: la correlación no estaba segura; decide el comandante */
+.duplicate-box {
+  background-color: #f2eef8;
+  border: 1px solid #ddd2ec;
+  border-radius: 6px;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.8125rem;
+  color: #4a3570;
+}
+
 /* Riesgo para rescatistas: franja visible, no cambia la urgencia */
 .risk-box {
   display: flex;

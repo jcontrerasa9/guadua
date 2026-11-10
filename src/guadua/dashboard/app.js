@@ -14,6 +14,7 @@ import {
   matchSoughtPeople,
   nodesStartingWith,
   partitionAndSortIncidents,
+  possibleDuplicates,
   updateNodeHealth,
 } from "./logic.js";
 import { audioContentType, DEMO_CLIP, radioListHtml, radioSignature } from "./radio.js";
@@ -71,6 +72,7 @@ export const state = {
   radioSignature: "",
   radioDrafts: {}, // audio_id -> texto que el operador lleva escrito
   mapSignature: "", // incidentes del último encuadre del mapa
+  duplicates: new Map(), // incident_id → posibles duplicados (logic.possibleDuplicates)
   barrioLayer: null,
   decisionFilter: readDecisionFilter(), // selector Por decidir / Despachados / Todos
 };
@@ -388,6 +390,7 @@ function renderFeed() {
   const filtered = filterByDecision(state.incidents, state.decisionFilter);
   paintDecisionFilter(filtered);
   const { shortList, otherList } = partitionAndSortIncidents(filtered.incidents);
+  state.duplicates = possibleDuplicates(state.incidents, decodeGeohash);
 
   // Render lista corta (Nivel 4 y 3)
   if (shortList.length === 0) {
@@ -484,6 +487,17 @@ function getPriorityLabel(level) {
   }
 }
 
+function duplicateNoticeHtml(inc) {
+  const others = state.duplicates?.get(inc.incident_id);
+  if (!others || others.length === 0) return "";
+  const names = others
+    .slice(0, 2)
+    .map((o) => `«${escapeHtml(o.title)}»`)
+    .join(" y ");
+  const more = others.length > 2 ? ` y ${others.length - 2} más` : "";
+  return `<div class="duplicate-box">Posible mismo hecho que ${names}${more}: mismo lugar y tipo compatible en menos de 30 min. Verifique antes de despachar dos veces.</div>`;
+}
+
 export function renderIncidentCardHtml(inc) {
   const conf = computeConfidence(inc.confidence, inc.verify_now, inc.rumor);
   const risk = computeRiskWarning(inc);
@@ -523,6 +537,8 @@ export function renderIncidentCardHtml(inc) {
 
       <h3 class="card-title">${escapeHtml(inc.title)}</h3>
       <div class="card-meta">${INCIDENT_LABELS[inc.incident] ? `${INCIDENT_LABELS[inc.incident]}<span class="sep">·</span>` : ""}${escapeHtml(locationText)}<span class="sep">·</span>${escapeHtml(confidenceText)}</div>
+
+      ${duplicateNoticeHtml(inc)}
 
       ${risk.show ? `
         <div class="risk-box" role="alert">

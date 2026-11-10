@@ -19,6 +19,7 @@ import {
   nodesStartingWith,
   normalizeName,
   partitionAndSortIncidents,
+  possibleDuplicates,
   updateNodeHealth,
 } from "../../src/guadua/dashboard/logic.js";
 
@@ -588,4 +589,30 @@ test("nameMatchScore exige cada palabra y no confunde nombres cortos", () => {
   assert.equal(nameMatchScore("an", "ana"), 0); // prefijo de menos de 3 letras
   assert.equal(nameMatchScore("juan gomez", "juan perez"), 0); // falta una palabra
   assert.equal(nameMatchScore("de la", "maria de la cruz"), 0); // solo conectores
+});
+
+test("possibleDuplicates avisa mismo barrio, tipo compatible y menos de 30 min", () => {
+  const base = { location: { barrio: 3 }, received_at: 1000 };
+  const incidents = [
+    { ...base, incident_id: "a", incident: 1, title: "Se cayó la casa" }, // derrumbe
+    { ...base, incident_id: "b", incident: 0, title: "SOS", received_at: 1300 }, // atrapados
+    { ...base, incident_id: "c", incident: 5, title: "Vía cerrada" }, // otro tipo de hecho
+    { ...base, incident_id: "d", incident: 1, title: "Otro barrio", location: { barrio: 4 } },
+    { ...base, incident_id: "e", incident: 1, title: "Mucho después", received_at: 1000 + 3600 },
+  ];
+  const dup = possibleDuplicates(incidents);
+  assert.deepEqual(dup.get("a").map((x) => x.incident_id), ["b"]);
+  assert.deepEqual(dup.get("b").map((x) => x.incident_id), ["a"]);
+  assert.equal(dup.has("c") || dup.has("d"), false);
+  assert.equal(dup.get("e"), undefined);
+});
+
+test("possibleDuplicates con GPS usa la distancia (600 m)", () => {
+  const near = { lat: 5.0689, lon: -75.5174 };
+  const far = { lat: 5.0800, lon: -75.5174 }; // ~1,2 km
+  const decode = (g) => (g === "cerca" ? near : g === "lejos" ? far : near);
+  const mk = (id, g) => ({ incident_id: id, incident: 2, title: id, received_at: 0, location: { geohash: g } });
+  const dup = possibleDuplicates([mk("x", "base"), mk("y", "cerca"), mk("z", "lejos")], decode);
+  assert.deepEqual(dup.get("x").map((d) => d.incident_id), ["y"]);
+  assert.equal(dup.get("z"), undefined);
 });

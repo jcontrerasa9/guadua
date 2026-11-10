@@ -521,3 +521,67 @@ export const DASHBOARD_MOCK_PEOPLE = {
     },
   ],
 };
+
+// --- Posibles duplicados ---------------------------------------------------------------
+// La correlación del nodo no fusiona reportes del mismo barrio si no está segura (en un
+// sismo hay varios colapsos por barrio y fusionar dos direcciones escondería atrapados):
+// los deja como "vínculo dudoso" para una persona. Aquí se le muestra esa duda al
+// comandante, para que no despache dos veces lo mismo. No se fusiona nada.
+
+export const DUPLICATE_WINDOW_S = 30 * 60;
+const DUPLICATE_RADIUS_M = 600;
+// Tipos que describen el mismo hecho desde ángulos distintos (Incident de la cabecera)
+const SAME_EVENT_TYPES = [
+  new Set([0, 1, 4]), // atrapados, derrumbe, herido
+  new Set([2, 3]), // incendio, fuga de gas
+];
+
+function compatibleTypes(a, b) {
+  return a === b || SAME_EVENT_TYPES.some((g) => g.has(a) && g.has(b));
+}
+
+function distanceM(lat1, lon1, lat2, lon2) {
+  const rad = Math.PI / 180;
+  const dLat = (lat2 - lat1) * rad;
+  const dLon = (lon2 - lon1) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.sqrt(h));
+}
+
+function samePlace(a, b, decode) {
+  const la = a.location || {};
+  const lb = b.location || {};
+  if (la.geohash && lb.geohash && decode) {
+    const pa = decode(la.geohash);
+    const pb = decode(lb.geohash);
+    return distanceM(pa.lat, pa.lon, pb.lat, pb.lon) <= DUPLICATE_RADIUS_M;
+  }
+  return la.barrio != null && la.barrio === lb.barrio;
+}
+
+/**
+ * Para cada incidente, los otros que podrían ser el mismo hecho: mismo barrio (o GPS a
+ * menos de 600 m), tipos compatibles y menos de 30 min entre sus primeros reportes.
+ *
+ * @param {Array<Object>} incidents - IncidentCard
+ * @param {(geohash: string) => {lat: number, lon: number}} [decode]
+ * @returns {Map<string, Array<{incident_id: string, title: string, deltaS: number}>>}
+ */
+export function possibleDuplicates(incidents = [], decode = null) {
+  const out = new Map();
+  const list = Array.isArray(incidents) ? incidents : [];
+  for (let i = 0; i < list.length; i++) {
+    for (let j = i + 1; j < list.length; j++) {
+      const a = list[i];
+      const b = list[j];
+      const deltaS = Math.abs(Number(a.received_at) - Number(b.received_at));
+      if (!(deltaS <= DUPLICATE_WINDOW_S)) continue;
+      if (!compatibleTypes(a.incident, b.incident) || !samePlace(a, b, decode)) continue;
+      for (const [x, y] of [[a, b], [b, a]]) {
+        if (!out.has(x.incident_id)) out.set(x.incident_id, []);
+        out.get(x.incident_id).push({ incident_id: y.incident_id, title: y.title, deltaS });
+      }
+    }
+  }
+  return out;
+}
