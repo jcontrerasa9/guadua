@@ -97,12 +97,25 @@ Se asignan al terminar el nivel 1, según cómo vaya cada frente:
 - **RAG y tabla de recursos** (D8).
 - **Entregables finales** y extras del nivel 3.
 
+## Revisión previa a la sustentación (10 de noviembre)
+
+Probado de punta a punta con un nodo, Ollama y reportes realistas. Corregido:
+
+- PWA: sin casillas de riesgo ni de señal vital (las calcula el nodo); rediseño con la marca, sin scroll; preguntas que no aparecían (id repetido al reiniciar el nodo); la cola no reintenta un 400.
+- Nodo: "Estoy a salvo" (tipo 4) se rechazaba y `/api/people` devolvía vacío (D2b no funcionaba de punta a punta).
+- Triaje: zona gris con animales y duda; reportes de animales sin piso vital; el agente baja un nivel aunque proponga más y corrige una cita inválida.
+- Coordinación: el agente se creaba sin LLM (siempre plantilla); ahora redacta con los textos y el protocolo. Las unidades libres descuentan los despachos aprobados.
+- RAG (D8): el corpus eran resúmenes con secciones inventadas y un documento inexistente; ahora es el texto de los PDF con página. La matriz EMRE citaba una página equivocada. El Dockerfile no copiaba el corpus ni `riesgos_unidad.csv`.
+- Tablero: rediseño, selector Por decidir / Despachados / Todos, título desde el texto, posible duplicado, "sin despacho" del vigía, buscador de personas tolerante, mapa con barrios y calles de OpenStreetMap con Internet.
+
+Pendiente: verificar las coordenadas aproximadas de los barrios (`data/barrios.json`) y D10 (HTTPS para el GPS).
+
 ## Decisiones abiertas (de §18)
 
 - [x] Tope para reportes de segunda mano en la fórmula de confianza (fijado en 0.25 para mantener rumores en confianza baja).
-- [ ] Documentos oficiales (EMRE, PMGRD): qué entra al RAG y qué entidades son reales.
+- [x] Documentos oficiales: el RAG indexa los 9 PDF de la EMRE 2024 (`data/fuentes`), citados por página; los resúmenes del equipo van como ejemplo. PMGRD no se recibió.
 - [ ] Modelo de Gemini en la capa gratuita.
-- [ ] Modelo de Ollama para los agentes sin Internet.
+- [x] Modelo de Ollama para los agentes sin Internet: `qwen2.5:7b` (GPU de 8 GB; `qwen2.5:3b` si no hay GPU).
 - [ ] Modelo de embeddings (multilingüe, pequeño, ONNX).
 - [ ] Texto del consejo de autoprotección del modo escombros.
 - [ ] Docker disponible en ambos equipos.

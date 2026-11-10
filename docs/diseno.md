@@ -98,26 +98,31 @@ El ciudadano nunca ve términos técnicos (geohash, gossip, nodo, bytes). Fondo 
 
 ### **3.2. Comandante: tarjetas sin saturación**
 
-Cada tarjeta de la lista corta muestra cuatro cosas a primera vista: prioridad y qué pasa, confianza, advertencia de riesgo y sugerencia. El resto va en un desplegable.
+Cada tarjeta de la lista corta muestra cuatro cosas a primera vista: prioridad y qué pasa, confianza, advertencia de riesgo y sugerencia. El resto va en un desplegable. Sin emojis: etiquetas de texto y colores del triaje; la marca (logo, verde y naranja) va en la barra superior.
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│ 🔴 CRÍTICA • COLAPSO CON 3 ATRAPADOS          📍 El Cable (GPS)     │
-│ Confianza: ALTA (3 testigos directos + radio)  ⏱️ Hace 4 min        │
-├────────────────────────────────────────────────────────────────────┤
-│ ⚠️ RIESGO PARA RESCATISTAS: fuga de gas y cables caídos reportados. │
-│    No se recomienda el ingreso de ambulancia estándar sin que       │
-│    una unidad HazMat asegure la escena.                             │
-├────────────────────────────────────────────────────────────────────┤
-│ 🚒 Sugerencia (EMRE): Bomberos Manizales (2 unidades libres)        │
-│ 💬 Qué decir: "Colapso en El Cable, 3 atrapados en primer piso,     │
-│    precaución por fuga de gas."                      [🖼️ Ver foto] │
-│ [🔎 Por qué está aquí / evidencia / agentes ▼] [❌ Replanear] [✅ Aprobar] │
+│ [CRÍTICA] [PENDIENTE] [SIN DESPACHO · 7 MIN]              hace 7 min │
+│ Se cayó la casa de dos pisos                                        │
+│ Derrumbe · Chipre · Confianza media (60 %)                          │
+│ ┌ Posible mismo hecho que «Colapso en chipre»: verifique antes de   │
+│ └ despachar dos veces.                                              │
+│ ┌ ⚠ Riesgo para rescatistas: fuga de gas reportada…                 │
+│ UNIDAD (EMRE)  Cuerpo Oficial de Bomberos (3 unidades libres)       │
+│ MENSAJE        Chipre, casa de dos pisos colapsada. Gritos de       │
+│                personas atrapadas.                                  │
+│ [Aprobar] [Editar mensaje] Replanear                                │
+│ › Por qué está aquí: evidencia y agentes                            │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-* **Debajo de la lista corta:** "+N incidentes de prioridad media o baja", desplegables. Nada se oculta, solo se ordena.  
-* **Paneles:** riesgo de olvido (casos viejos sin atender), contradicciones y vínculos dudosos por resolver, solicitudes de los agentes, registro de personas a salvo, recursos por entidad (editable) y mapa con puntos para ubicaciones exactas y círculos para las aproximadas.  
+* **Título:** sale del texto del reporte ("Hay un gato atrapado en un árbol…" → "Gato atrapado en un árbol"); el tipo de incidente va en la línea gris. Sin texto, el título por tipo.  
+* **Selector Por decidir / Despachados / Todos** con contadores: por defecto, solo lo que espera una decisión.  
+* **Debajo de la lista corta:** "N incidentes de prioridad media o baja", desplegables. Nada se oculta, solo se ordena.  
+* **Posible duplicado:** la correlación deja como incidente aparte lo que no puede confirmar en el mismo barrio (§12); la tarjeta avisa si otro incidente tiene el mismo lugar, tipo compatible y menos de 30 min. No se fusiona nada.  
+* **Sin despacho:** con los umbrales del vigía (5 min crítica y alta, 15 las demás) la tarjeta lo muestra a la vista, no solo en el desplegable.  
+* **Paneles:** mapa, ubicación aproximada por barrio (incidentes sin GPS), radio VHF y registro de personas a salvo con buscador (nombres parciales, en otro orden o con una letra mal).  
+* **Mapa:** con Internet, calles de OpenStreetMap; sin red, fondo liso con los barrios en su centro aproximado. Punto por incidente y círculo con su radio de incertidumbre.  
 * **Trazabilidad** (en el desplegable): reglas activadas, probabilidad del clasificador, fuentes y pasos de cada agente.  
 * **Barra de simulación plegable para el jurado:** cambiar el perfil del canal, lanzar una ráfaga, inyectar un clip de radio, apagar el nodo A y ver los hashes de convergencia.
 
@@ -141,7 +146,7 @@ Todo es **Python 3.13**, salvo la PWA ciudadana y el tablero, que son **HTML5 \+
 | Embeddings y duplicados | Modelo multilingüe pequeño en ONNX (`fastembed`, sin PyTorch) \+ `rapidfuzz` | RAG semántico y similitud entre reportes | Español, sin conexión, liviano |
 | RAG | SQLite FTS5 \+ embeddings en la misma SQLite (búsqueda híbrida) | Protocolos y matriz de la EMRE con citas | Sin servidor vectorial aparte |
 | Transcripción de radio | `faster-whisper` (`small` o `base`, español) en CPU | Audio VHF a texto | Local y gratuito |
-| Tablero y mapas | HTML \+ JS con cambio automático de nodo \+ Leaflet con mapas de Manizales en local | Lista corta, advertencias, mapa sin Internet, aprobaciones | Funciona con el Wi-Fi sin Internet |
+| Tablero y mapas | HTML \+ JS con cambio automático de nodo \+ Leaflet: calles de OpenStreetMap con Internet, barrios sobre fondo liso sin él | Lista corta, advertencias, mapa, aprobaciones | Funciona con el Wi-Fi sin Internet |
 | HTTPS en celular | `adb reverse` primero; luego `mkcert` | GPS y modo offline en el navegador | Requieren contexto seguro (HTTPS o `localhost`) |
 | Ejecución y CI | Docker Compose (o script), pytest, ruff, GitHub Actions | Levantar nodos, banco de fallos, validar cada push | Un solo comando para el jurado |
 
@@ -334,8 +339,9 @@ Cada agente tendrá su ficha en `docs/fichas/` con los campos que pide el PDF: *
 Hay tres capas. El **piso** lo fijan solo las reglas y nadie automático lo baja. Encima del piso, el clasificador y el agente **sugieren** un nivel; la decisión final es de una persona.
 
 1. **Reglas de prioridad mínima.** Las señales vitales (atrapados, no respira, sangrado fuerte, inconsciente, incendio, SOS escombros) fijan el piso en **crítica**. Objetivo de tiempo: menos de 1 ms.  
+   **Excepción, solo animales:** si el texto habla solo de animales (no nombra a ninguna persona), la cabecera no cuenta personas y no es un SOS, atrapados, no respira, sangrado e inconsciente no fijan piso ("hay un gato atrapado en un árbol"). El caso no baja solo: va a la zona gris del agente y, sin LLM, a una persona. Incendio, SOS y la bandera "alguien no respira" siguen fijando el piso. Queda escrito en "por qué está aquí".  
 2. **Clasificador local calibrado.** TF-IDF de n-gramas de caracteres (tolera faltas de ortografía) \+ regresión logística con `CalibratedClassifierCV`, entrenado con reportes sintéticos en español colombiano. Sube el nivel sugerido por encima del piso, nunca lo deja por debajo. Si el texto tiene muchas palabras que nunca vio, el caso queda "ambiguo, revisar". Objetivo: menos de 2 ms por reporte.  
-3. **Agente de triaje (LLM) en la zona gris.** Actúa cuando la probabilidad máxima es baja (umbral inicial 0,5), cuando las dos categorías principales están muy parejas o cuando hay contradicciones. Los umbrales se ajustan con el conjunto de prueba. Puede subir el nivel, o bajar lo que agregó el clasificador cuando el texto lo contradice (p. ej., "un gato herido" marcado como "Herido"): un nivel por vez, con un motivo que cite el texto, nunca por debajo del piso y siempre visible en la tarjeta ("bajada por el agente"). Sin LLM no se baja nada: el caso queda "ambiguo, revisar". La tarjeta toma la urgencia más reciente de cada reporte (la que ninguna otra reemplaza, §9); los pasos del agente, con la bajada y su motivo, se ven en el desplegable "por qué está aquí".
+3. **Agente de triaje (LLM) en la zona gris.** Actúa cuando la probabilidad máxima es baja (umbral inicial 0,5), cuando las dos categorías principales están muy parejas, cuando hay contradicciones o cuando el texto trae lo que la bolsa de palabras no entiende: **solo animales** o **duda** de quien escribe ("creo que", "no sé si"; `classifier/cues.py`). "Dicen que" no cuenta como duda: es segunda mano y ya lo marca la cabecera. Con esto, el 18 % del conjunto de prueba llega a revisión. Los umbrales se ajustan con el conjunto de prueba. Puede subir el nivel, o bajar lo que agregó el clasificador cuando el texto lo contradice (p. ej., "un gato herido" marcado como "Herido"): un nivel por vez (si propone más, se baja uno y queda escrito), con un motivo que cite el texto (si la cita no está en el texto, se le pide otra una vez), nunca por debajo del piso y siempre visible en la tarjeta ("bajada por el agente"). Sin LLM no se baja nada: el caso queda "ambiguo, revisar". La tarjeta toma la urgencia más reciente de cada reporte (la que ninguna otra reemplaza, §9); los pasos del agente, con la bajada y su motivo, se ven en el desplegable "por qué está aquí".
 
 **Riesgo para rescatistas (criterio, no regla).** Las señales de peligro en la escena (gas u olor a gas, cables caídos, cilindros expuestos, colapso secundario, vía bloqueada) se marcan como **señales de riesgo**. No cambian la urgencia por sí solas. Los agentes de triaje y coordinación **deben considerarlas**: la ficha muestra la advertencia en una franja visible y la recomendación tiene en cuenta el tipo de unidad adecuado (por ejemplo, HazMat antes que una ambulancia estándar). La decisión final es de la persona.
 
@@ -478,7 +484,7 @@ Los valores reales, los errores observados y las limitaciones van al documento d
 | LLM | Gemini u Ollama, solo en la zona gris | Modelo local con buen uso de herramientas, según el hardware de cada nodo; evaluación continua con casos reales revisados |
 | RAG | FTS5 \+ embeddings, documentos recibidos | Documentos oficiales versionados con responsable; pruebas de calidad automáticas |
 | Matriz y recursos | CSV basados en la EMRE | Integración con los sistemas de las entidades |
-| Ubicación y mapas | GPS o barrio; mapas de Manizales descargados | Integración con el SIG de la Alcaldía; servidor de mapas propio en cada nodo |
+| Ubicación y mapas | GPS o barrio (centro aproximado); OpenStreetMap con Internet | Integración con el SIG de la Alcaldía; servidor de mapas propio en cada nodo |
 | Seguridad | Sin autenticación ni cifrado entre nodos | Autenticación de operadores, cifrado, eventos firmados, protección de datos personales según la ley colombiana |
 | Escala | Cientos o miles de mensajes simulados | Pruebas de carga por etapas antes de prometer cifras |
 | Aprobación humana | Botones en el tablero | Roles y permisos por entidad según el Sistema de Comando de Incidentes |

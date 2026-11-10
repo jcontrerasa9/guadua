@@ -9,13 +9,13 @@ Código: `src/guadua/agents/triaje.py` (N8). Evaluación: `python -m guadua.agen
 | Salidas | Una `urgencia_estimada` nueva con `source="agente"`, `refs` a la de N7, el mismo piso, `verify_now` si lo pidió y sus pasos en `steps`. Resuelta (`ambiguous=False`) o "ambiguo, revisar" (`ambiguous=True`, nivel de N7) |
 | Herramientas | `incidentes_cercanos` (mismo barrio o geohash de 6 caracteres, ventana de 10 a 180 min), `radio_en_zona` (D7: lo que dijo la radio en el mismo lugar y ventana, con si lo vieron en el sitio; no cuenta los reportes de radio sin lugar ni los de una transcripción corregida), `marcar_verificar_ya` (con motivo), `fijar_urgencia` (termina). Nada más: otra herramienta manda el caso a revisión |
 | Memoria | Corto plazo: los mensajes y pasos del caso en curso. Largo plazo: ninguna; el estado vive en el registro de eventos |
-| Límites | No diagnostica. Sube sin límite. Baja solo un nivel desde el de N7, con una cita textual del reporte (se compara sin tildes ni mayúsculas) y nunca bajo el piso de las reglas (`apply_floor`). Máximo 6 llamadas al LLM y 180 s por caso. La decisión final es de una persona |
+| Límites | No diagnostica. Sube sin límite. Baja solo un nivel desde el de N7: si propone más, se baja uno y queda escrito. Con una cita textual del reporte (se compara sin tildes ni mayúsculas; si no está, se le devuelve el error una sola vez para que la corrija) y nunca bajo el piso de las reglas (`apply_floor`). Máximo 6 llamadas al LLM y 180 s por caso. La decisión final es de una persona |
 | Errores | Sin LLM (`NullLLM`, ninguno configurado en la cadena), respuesta que no es JSON del protocolo, herramienta no permitida, argumentos inválidos, propuesta que viola la regla 1, pasos o tiempo agotados, o una excepción: el caso queda "ambiguo, revisar" con el nivel de N7 y el motivo en el último paso. Nunca tumba el nodo, el ACK ni la correlación |
 | Terminación | Urgencia publicada (resuelta o a revisión humana) |
 
 ## Cuándo actúa
 
-Solo con lo que N7 marca `ambiguous` (ninguna regla activada y el clasificador duda, o texto con muchas palabras desconocidas). En el conjunto `test` es el 14 % de los reportes. Nunca actúa sobre su propia urgencia (no hay bucle) ni en un nodo que no es el dueño del reporte.
+Solo con lo que N7 marca `ambiguous`: ninguna regla activada y el clasificador duda, texto con muchas palabras desconocidas, o texto con señales que el clasificador no entiende (`classifier/cues.py`: `SOLO_ANIMALES`, `DUDA`; se le pasan al LLM en `senales_de_lenguaje`). En el conjunto `test` es el 18,2 % de los reportes. Nunca actúa sobre su propia urgencia (no hay bucle) ni en un nodo que no es el dueño del reporte.
 
 **Limitación conocida:** el clasificador no entiende significado; combinaciones nuevas de palabras conocidas ("no encontramos a mi mamá, estaba adentro") salen con confianza y no llegan al agente. En el conjunto `ambiguo`, 176 de 318 casos salen mal sin quedar marcados. Ver "Pendiente de N8" en `docs/plan.md`.
 
