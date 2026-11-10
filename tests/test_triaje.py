@@ -9,8 +9,10 @@ import pytest
 
 from guadua.agents.triaje import (
     MAX_STEPS,
+    SYSTEM_PROMPT,
     AgenteTriaje,
     TriageCase,
+    _case_prompt,
     decide_level,
     incidentes_cercanos,
     needs_agent,
@@ -357,6 +359,19 @@ def test_con_bucle_el_agente_corre_aparte_y_no_frena_el_ack() -> None:
 def test_llm_unavailable_es_la_unica_salida_sin_respuesta() -> None:
     with pytest.raises(LLMUnavailable):
         NullLLM().complete([], [])
+
+
+# --- Riesgo para rescatistas (D3a) -------------------------------------------------------
+
+
+def test_el_agente_ve_el_riesgo_y_lo_conserva_sin_que_cambie_el_nivel() -> None:
+    case = case_for("hay un gato herido y huele a gas")
+    assert case.urgency.risk_signals == ("gas",)
+    out = run([final(3)], case)
+    assert out.risk_signals == ("gas",)
+    assert (out.level, out.floor) == (case.urgency.level, case.urgency.floor)
+    assert '"senales_de_riesgo": ["gas"]' in _case_prompt(case)
+    assert "NO suben ni bajan el nivel" in SYSTEM_PROMPT
 
 
 # --- Evaluación ---------------------------------------------------------------------------
