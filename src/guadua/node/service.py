@@ -7,6 +7,8 @@ asignación de consecutivos y las escrituras no compiten entre sí.
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import functools
 import logging
 import time
 from collections.abc import Callable
@@ -27,10 +29,18 @@ from guadua.agents.recepcion_radio import (
     split_done,
     superseded,
 )
+from guadua.agents.vigia import (
+    DEFAULT_UMBRAL_CRITICO_S,
+    DEFAULT_UMBRAL_OLVIDO_S,
+    AgenteVigia,
+    solicitud_event,
+)
 from guadua.classifier.triage import UrgencyClassifier, default_classifier
+from guadua.knowledge.retriever import Retriever
 from guadua.node.api import (
     DecisionAck,
     DecisionRequest,
+    Digest,
     Health,
     MessageAck,
     RadioAck,
@@ -99,6 +109,9 @@ class Node:
         question_kinds: frozenset[QuestionKind] = DEFAULT_KINDS,
         transcriber: Transcriber | None = None,
         clips: ClipStore | None = None,
+        retriever: Retriever | None | Literal["default"] = "default",
+        vigia_critico_s: float = DEFAULT_UMBRAL_CRITICO_S,
+        vigia_olvido_s: float = DEFAULT_UMBRAL_OLVIDO_S,
     ) -> None:
         """`classifier="default"` entrena el de data/sinteticos (una vez por proceso);
         None deja solo las reglas. Sin `llm` no hay agente de triaje (N8): los casos dudosos
@@ -108,8 +121,13 @@ class Node:
         seguimiento salen de las reglas. `question_kinds`: los tipos de pregunta que la PWA
         sabe mostrar. `transcriber` y `clips` son de la radio (D7): sin transcriptor, los
         clips quedan pendientes para el operador; el audio se guarda en `clips` (en memoria
-        si no se da). La separación de la radio usa el mismo LLM que la recepción."""
+        si no se da). La separación de la radio usa el mismo LLM que la recepción.
+        `retriever` es el RAG de la coordinación (D8): `"default"` indexa
+        data/emre_passages.json (una vez por proceso); None deja solo la matriz EMRE.
+        `vigia_critico_s` y `vigia_olvido_s` son los umbrales del vigía (D6): segundos sin
+        atender para un caso crítico o alto, y para los demás."""
         self.node_id = node_id
+        self.powered = True  # False: apagado simulado desde la barra del jurado (D9)
         self.classifier = default_classifier() if classifier == "default" else classifier
         self.triaje = _agente_triaje(llm)
         self.agent_tasks: set[asyncio.Future] = set()  # ciclos del agente en curso
@@ -135,7 +153,14 @@ class Node:
             if transport is not None
             else None
         )
-        self.coordinacion = AgenteCoordinacion(node_id, self.next_seq)
+        self.coordinacion = AgenteCoordinacion(
+            node_id,
+            self.next_seq,
+            retriever=default_retriever() if retriever == "default" else retriever,
+        )
+        self.vigia = AgenteVigia(
+            store, clock=clock, umbral_olvido_s=vigia_olvido_s, umbral_critico_s=vigia_critico_s
+        )
         self.resilience = Resilience(
             self, timeout=peer_timeout, monotonic=monotonic, restarted=bool(known)
         )
@@ -159,6 +184,25 @@ class Node:
     def health(self) -> Health:
         alive = self.gossip.peers_alive() if self.gossip else ()
         return Health(node=self.node_id, version=__version__, peers_alive=alive)
+
+    def digest(self) -> Digest:
+        """Huella del registro: si coincide en los tres nodos, convergieron (D9)."""
+        return Digest(
+            node=self.node_id, digest=self.store.digest(), events=len(self.store.since({}))
+        )
+
+    def set_power(self, on: bool) -> None:
+        """Apagado simulado (D9). Apagado, la API responde 503 y el gossip calla, así que
+        los vecinos lo dan por caído y toman su trabajo (N12). Al encenderlo se pone al día
+        desde su registro y el gossip, como al reiniciar."""
+        if on == self.powered:
+            return
+        self.powered = on
+        if self.gossip is not None:
+            self.gossip.muted = not on
+        if on:
+            self.resilience.resume()
+        logger.warning("%s: %s (simulación)", self.node_id, "encendido" if on else "apagado")
 
     def receive_message(self, data: bytes) -> MessageAck:
         """Bytes de la PWA → evento `reporte` o `respuesta_seguimiento`. Lanza IntakeError
@@ -356,6 +400,56 @@ class Node:
                 self.record(event)
         except Exception:
             logger.exception("%s: no se pudieron publicar los reportes de radio", self.node_id)
+
+    # --- Vigía (D6) --------------------------------------------------------------------------
+
+    def watch(self, now: float | None = None) -> list[Event]:
+        """Una ronda del vigía: publica una `solicitud_vigia` por cada caso olvidado que sea
+        de este nodo (el dueño de su `incidente_agrupado` más reciente), como máximo una por
+        incidente y acción. Nunca cambia urgencias. Apagado (D9) no hace nada. Nunca lanza."""
+        if not self.powered:
+            return []
+        try:
+            return self._watch(now)
+        except Exception:
+            logger.exception("%s: falló la ronda del vigía", self.node_id)
+            return []
+
+    def _watch(self, now: float | None) -> list[Event]:
+        events = self.store.since({})
+        incidents: dict[str, Event] = {}
+        for e in events:
+            if e.type == "incidente_agrupado":
+                iid = e.payload["incident_id"]
+                known = incidents.get(iid)
+                if known is None or (e.received_at, e.id) > (known.received_at, known.id):
+                    incidents[iid] = e
+        done = {
+            (e.payload["incident_id"], e.payload["action"])
+            for e in events
+            if e.type == "solicitud_vigia"
+        }
+        published: list[Event] = []
+        for request in self.vigia.revisar_casos_olvidados(now):
+            anchor = incidents.get(request.incident_id)
+            key = (request.incident_id, request.action)
+            if anchor is None or key in done or not self.owns(anchor.id):
+                continue
+            done.add(key)
+            event = solicitud_event(
+                request, anchor, node_id=self.node_id, seq=self.next_seq(), received_at=self.clock()
+            )
+            if self.record(event):
+                published.append(event)
+                logger.info("%s: vigía → %s", self.node_id, request.reason)
+        return published
+
+    async def run_vigia(self, interval: float = 30.0, stop: asyncio.Event | None = None) -> None:
+        stop = stop or asyncio.Event()
+        while not stop.is_set():
+            self.watch()
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(stop.wait(), timeout=interval)
 
     # --- Registro y agentes ----------------------------------------------------------------
 
@@ -566,6 +660,18 @@ class Node:
             self.record(self.triaje.event(case, payload, node_id=self.node_id, seq=self.next_seq()))
         except Exception:
             logger.exception("%s: no se pudo publicar el triaje del agente", self.node_id)
+
+
+@functools.cache
+def default_retriever() -> Retriever | None:
+    """RAG de la coordinación (D8) con el corpus de data/. Si no carga, solo la matriz EMRE."""
+    try:
+        from guadua.knowledge.hybrid_retriever import HybridRetriever
+
+        return HybridRetriever.default()
+    except Exception:
+        logger.exception("no se pudo cargar el RAG: las fichas citan solo la matriz EMRE")
+        return None
 
 
 def _agente_triaje(llm: LLMProvider | None) -> AgenteTriaje | None:

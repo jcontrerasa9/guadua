@@ -239,6 +239,16 @@ class Resilience:
         self._ready = False
         self._tried: set[tuple[str, EventId]] = set()
 
+    def resume(self) -> None:
+        """El nodo vuelve de un apagado simulado (D9): como al reiniciar, no da a nadie por
+        caído hasta ponerse al día con un vecino (sus latidos viejos no cuentan)."""
+        self.started_at = self.monotonic()
+        self._ready = False
+        self.stats.restarted = True
+        if self.node.gossip is not None:
+            self.node.gossip.last_seen.clear()
+            self.node.gossip.caught_up.clear()
+
     # --- Latidos ---------------------------------------------------------------------------
 
     def silent_for(self, peer: str, now: float | None = None) -> float:
@@ -279,7 +289,9 @@ class Resilience:
 
     def check(self) -> list[Work]:
         """Una ronda: detecta caídos, toma su trabajo y hace los pasos propios pendientes.
-        Devuelve los pasos que intentó. Nunca lanza."""
+        Devuelve los pasos que intentó. Nunca lanza. Con el nodo apagado (D9) no hace nada."""
+        if not getattr(self.node, "powered", True):
+            return []
         try:
             return self._check()
         except Exception:

@@ -121,6 +121,7 @@ class _Log:
     questions: dict[str, list[Event]] = field(default_factory=lambda: defaultdict(list))
     answers: dict[str, list[Event]] = field(default_factory=lambda: defaultdict(list))
     transcriptions: dict[EventId, Event] = field(default_factory=dict)
+    watch: dict[str, list[Event]] = field(default_factory=lambda: defaultdict(list))  # D6
 
     @classmethod
     def read(cls, events: Iterable[Event]) -> _Log:
@@ -149,6 +150,8 @@ class _Log:
                     log.questions[event.payload["report_id"]].append(event)
                 case "respuesta_seguimiento":
                     log.answers[event.payload["question_id"]].append(event)
+                case "solicitud_vigia":
+                    log.watch[event.payload["incident_id"]].append(event)
         for event in derived:  # después de los reportes, que pueden llegar en otro orden
             report = log.reports.get(event.payload["report_id"])
             if report is None:
@@ -299,6 +302,7 @@ def _build(iid: str, incident_event: Event | None, members: list[_Report], log: 
         origin = "plantilla" if ficha.from_template else "redactada con LLM"
         detail = f"ficha {event_id_str(ficha_event)}: {_suggestion(ficha)}; {origin}"
         steps.append(AgentStep(agent="coordinacion", detail=detail))
+    steps.extend(_watch_steps(log.watch.get(iid, [])))
 
     top = max(current, key=lambda u: u.level, default=None)
     return {
@@ -327,6 +331,25 @@ def _build(iid: str, incident_event: Event | None, members: list[_Report], log: 
         "citations": ficha.citations if ficha else (),
         "steps": tuple(steps),
     }
+
+
+WATCH_LABELS = {
+    "reevaluacion_triaje": "pidió al triaje reevaluar",
+    "crear_ficha": "pidió a coordinación la ficha",
+    "revisar_demora": "avisó a coordinación de la demora",
+    "alerta_olvido": "alerta de olvido en el tablero",
+}
+
+
+def _watch_steps(requests: list[Event]) -> list[AgentStep]:
+    """Lo que pidió el vigía (D6) por este incidente. No cambia el nivel: solo lo cuenta."""
+    return [
+        AgentStep(
+            agent="vigia",
+            detail=f"{WATCH_LABELS[e.payload['action']]}: {e.payload['reason']}",
+        )
+        for e in sorted(requests, key=_key)
+    ]
 
 
 def _source(report: _Report) -> str:

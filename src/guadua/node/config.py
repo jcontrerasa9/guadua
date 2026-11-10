@@ -16,6 +16,9 @@ Variables (todas opcionales; sin ninguna, arranca un nodo "A" solo, en memoria):
     SARD_PEER_TIMEOUT     segundos sin latidos → vecino caído     10.0
     SARD_QUESTION_KINDS   tipos de pregunta que muestra la PWA    si_no
                           (si_no, opciones, texto; separados por coma)
+    SARD_VIGIA_INTERVAL   segundos entre rondas del vigía (D6)    30
+    SARD_VIGIA_CRITICO_S  sin atender → alerta, crítico o alto    300
+    SARD_VIGIA_OLVIDO_S   sin atender → solicitud, los demás      900
 """
 
 from __future__ import annotations
@@ -47,6 +50,9 @@ class NodeConfig:
     gossip_interval: float = 2.0
     peer_timeout: float = 10.0
     question_kinds: tuple[str, ...] = ("si_no",)
+    vigia_interval: float = 30.0
+    vigia_critico_s: float = 300.0
+    vigia_olvido_s: float = 900.0
 
     def __post_init__(self) -> None:
         if not self.node_id.isalnum():
@@ -57,6 +63,8 @@ class NodeConfig:
         if self.peer_addrs and missing:
             raise ConfigError(f"faltan direcciones en SARD_PEER_ADDRS para {missing}")
         bad = set(self.question_kinds) - QUESTION_KINDS
+        if self.vigia_interval <= 0 or self.vigia_critico_s < 0 or self.vigia_olvido_s < 0:
+            raise ConfigError("SARD_VIGIA_*: el intervalo va > 0 y los umbrales ≥ 0")
         if not self.question_kinds or bad:
             raise ConfigError(
                 f"SARD_QUESTION_KINDS inválido: {sorted(bad) or 'vacío'} "
@@ -92,6 +100,9 @@ class NodeConfig:
             question_kinds=tuple(
                 k.strip() for k in env.get("SARD_QUESTION_KINDS", "si_no").split(",") if k.strip()
             ),
+            vigia_interval=float(number("SARD_VIGIA_INTERVAL", "30", float)),
+            vigia_critico_s=float(number("SARD_VIGIA_CRITICO_S", "300", float)),
+            vigia_olvido_s=float(number("SARD_VIGIA_OLVIDO_S", "900", float)),
         )
 
 

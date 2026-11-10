@@ -7,6 +7,10 @@
 #   Nodos:            http://localhost:8000 · 8001 · 8002    (lo que espera el tablero)
 #   Proxy:            http://localhost:8080/_channel/stats
 #
+# Barra de simulación del tablero (D9): los perfiles y la ráfaga van al proxy (:8080); "Apagar
+# nodo A" usa POST /_sim/power del nodo (API en 503 y gossip callado: B toma su trabajo en
+# ~10 s). Vigía (D6): para la demo, SARD_VIGIA_CRITICO_S=60 SARD_VIGIA_INTERVAL=10 docker compose up
+#
 # El gossip viaja por UDP con tramas de 200 B (como LoRa). Para simular pérdida entre nodos:
 #   SARD_CHANNEL_PROFILE=lora docker compose up
 #
@@ -28,6 +32,9 @@
 x-llm: &llm
   SARD_TRANSCRIBER: ${SARD_TRANSCRIBER:-auto}
   WHISPER_THREADS: ${WHISPER_THREADS:-2}
+  SARD_VIGIA_INTERVAL: ${SARD_VIGIA_INTERVAL:-30}
+  SARD_VIGIA_CRITICO_S: ${SARD_VIGIA_CRITICO_S:-300}
+  SARD_VIGIA_OLVIDO_S: ${SARD_VIGIA_OLVIDO_S:-900}
   LLM_PROVIDER: ${LLM_PROVIDER:-auto}
   GEMINI_API_KEY: ${GEMINI_API_KEY:-}
   GEMINI_MODEL: ${GEMINI_MODEL:-}

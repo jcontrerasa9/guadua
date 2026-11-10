@@ -48,3 +48,22 @@ De acuerdo con la **Regla 1 de `AGENTS.md`** y el diseño del sistema SARD Guadu
 
 - **Con LLM:** Utiliza el modelo configurado (Gemini en la nube u Ollama en local) para sintetizar la cronología de eventos y redactar un motivo explicativo claro en lenguaje natural para el despachador.
 - **Sin LLM (`NullLLM`):** Construye el motivo de la solicitud usando una plantilla determinista basada en el tipo de siniestro, tiempo transcurrido y cantidad de reportes nuevos. Nunca falla ni se bloquea.
+
+## 5. En el nodo y en el tablero
+
+El nodo (`Node.watch`, en `node/service.py`) corre una ronda cada `SARD_VIGIA_INTERVAL` segundos (30) con los umbrales `SARD_VIGIA_CRITICO_S` (300: crítico o alto sin despacho → alerta) y `SARD_VIGIA_OLVIDO_S` (900: los demás). Cada `Solicitud` se publica como evento `solicitud_vigia` (`solicitud_event`), así queda en el registro y viaja por gossip:
+
+- Solo la publica el dueño del incidente (el del `incidente_agrupado` más reciente, o quien lo tomó tras una caída).
+- Como máximo una por incidente y acción: el vigía no repite el aviso en cada ronda.
+- Redacta el motivo con la plantilla (sin LLM), para no llamar al modelo en cada ronda.
+- Con el nodo apagado desde la barra (D9) no hace nada.
+
+En el tablero se ve en "por qué está aquí", con el agente `vigia`: p. ej. `alerta de olvido en el tablero: ALERTA DE OLVIDO: Incidente … lleva 6 min sin despacho aprobado.`
+
+Para la demo, bajar el umbral para no esperar 5 minutos:
+
+```bash
+SARD_VIGIA_CRITICO_S=60 SARD_VIGIA_INTERVAL=10 docker compose up
+```
+
+Pendiente: las solicitudes no disparan todavía una acción en triaje ni en coordinación (se ven y quedan en el registro); la tarjeta no tiene un distintivo propio de olvido (sería un campo nuevo en `IncidentCard`).
