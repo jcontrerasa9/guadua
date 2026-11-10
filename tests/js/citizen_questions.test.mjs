@@ -12,6 +12,7 @@ import {
   People,
 } from "../../citizen/protocol/header.js";
 import {
+  answeredKey,
   armarRespuesta,
   createQuestionManager,
   formatDeviceIdHex,
@@ -85,12 +86,22 @@ test("pickNextQuestion selecciona máximo 1 pregunta pendiente y filtra las resp
   assert.equal(next1.question_id, "q-1");
 
   // q-1 ya respondida: entrega q-2
-  const next2 = pickNextQuestion(questions, new Set(["q-1"]));
+  const next2 = pickNextQuestion(questions, new Set([answeredKey(questions[0])]));
   assert.equal(next2.question_id, "q-2");
 
   // Todas respondidas: entrega null
-  const next3 = pickNextQuestion(questions, new Set(["q-1", "q-2"]));
+  const next3 = pickNextQuestion(questions, new Set(questions.map(answeredKey)));
   assert.equal(next3, null);
+});
+
+test("una pregunta nueva con un id ya usado (nodo reiniciado) no se descarta", () => {
+  // Antes de reiniciar el nodo se respondió A:11 del reporte 007caa53-3; después del
+  // reinicio, A:11 es otra pregunta, de otro reporte del mismo dispositivo.
+  const answered = new Set([answeredKey({ question_id: "A:11", report_id: "007caa53-3" })]);
+  const nueva = { question_id: "A:11", report_id: "007caa53-52", text: "¿Alguien no respira?" };
+  assert.equal(pickNextQuestion([nueva], answered), nueva);
+  // La misma pregunta del mismo reporte sí queda como respondida
+  assert.equal(pickNextQuestion([{ ...nueva, report_id: "007caa53-3" }], answered), null);
 });
 
 // --- 2. Pruebas de integración del gestor de preguntas -----------------------
@@ -193,7 +204,7 @@ test("responder la pregunta la encola en la cola de N13 y desaparece de la UI", 
 
   // La pregunta quedó marcada como respondida en el almacenamiento
   const answeredSet = await store.getAnsweredQuestionIds();
-  assert.ok(answeredSet.has("q-10"));
+  assert.ok(answeredSet.has(answeredKey({ question_id: "q-10" })));
 
   // La respuesta entró a la cola y se despachó al endpoint /api/messages
   assert.ok(dispatchedPayload);

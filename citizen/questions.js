@@ -87,16 +87,28 @@ export function armarRespuesta(
 }
 
 /**
+ * Clave de una pregunta respondida. El question_id es el id del evento en el nodo (A:11) y
+ * se repite si el nodo arranca con la base vacía; el report_id lleva el consecutivo de este
+ * dispositivo y no se repite. Juntos identifican la pregunta sin chocar con las de antes.
+ *
+ * @param {{ question_id: string, report_id?: string }} q
+ * @returns {string}
+ */
+export function answeredKey(q) {
+  return `${q?.report_id ?? ""}|${q?.question_id ?? ""}`;
+}
+
+/**
  * Selecciona como máximo 1 pregunta pendiente no respondida.
  *
  * @param {Array<{ question_id: string, report_id: string, text: string }>} questions
- * @param {Set<string>} answeredIdsSet
+ * @param {Set<string>} answeredIdsSet - claves de answeredKey()
  * @returns {Object | null}
  */
 export function pickNextQuestion(questions = [], answeredIdsSet = new Set()) {
   if (!Array.isArray(questions)) return null;
   for (const q of questions) {
-    if (q && q.question_id && !answeredIdsSet.has(q.question_id)) {
+    if (q && q.question_id && !answeredIdsSet.has(answeredKey(q))) {
       return q;
     }
   }
@@ -162,7 +174,7 @@ export function createQuestionManager({
 
     // 1. Marcar como respondida inmediatamente para que la UI la oculte y no reaparezca
     if (store.markQuestionAnswered) {
-      await store.markQuestionAnswered(answeredId);
+      await store.markQuestionAnswered(answeredKey(q));
     }
     currentQuestion = null;
     if (onQuestionChange) onQuestionChange(null);

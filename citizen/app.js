@@ -24,7 +24,7 @@ import {
   truncateUtf8,
 } from "./report.js";
 import { buildSafeBinary, MAX_NAME_BYTES } from "./safe.js";
-import { createQuestionManager } from "./questions.js";
+import { answeredKey, createQuestionManager } from "./questions.js";
 import { setupBatteryMonitor } from "./battery.js";
 
 // Estado de la interfaz
@@ -731,7 +731,7 @@ function setupQuestionsCard() {
     queue: uiState.queue,
     getDeviceIdFn: () => uiState.queue.store.getDeviceId(),
     onQuestionChange: (q) => {
-      if (q && q.text && q.question_id !== uiState.questionLaterId) {
+      if (q && q.text && answeredKey(q) !== uiState.questionLaterId) {
         if (textEl) textEl.textContent = q.text;
         cardEl.classList.remove("hidden");
       } else {
@@ -744,7 +744,8 @@ function setupQuestionsCard() {
   const btnLater = document.getElementById("btn-question-later");
   if (btnLater) {
     btnLater.onclick = () => {
-      uiState.questionLaterId = uiState.questionManager?.getCurrentQuestion?.()?.question_id ?? null;
+      const current = uiState.questionManager?.getCurrentQuestion?.();
+      uiState.questionLaterId = current ? answeredKey(current) : null;
       cardEl.classList.add("hidden");
     };
   }
@@ -814,6 +815,10 @@ async function init() {
   // Inicializar cola de reportes con IndexedDB
   uiState.queue = createReportQueue({
     onStatusChange: (item) => {
+      if (item.status === ReportStatus.RECHAZADO) {
+        console.warn("El nodo rechazó un mensaje:", item.id, item.error);
+        showToast("El nodo no aceptó el mensaje. Avisa por otro medio.");
+      }
       if (item.id === uiState.lastReportId) {
         updatePipelineUi(item.status);
       }

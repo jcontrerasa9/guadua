@@ -5,7 +5,13 @@ export const ReportStatus = Object.freeze({
   GUARDADO: "guardado",
   ENVIANDO: "enviando",
   RECIBIDO: "recibido",
+  RECHAZADO: "rechazado", // el nodo respondió 400: el mensaje no sirve y no se reintenta
 });
+
+/** Estados finales: no se vuelven a enviar. */
+export function isFinalStatus(status) {
+  return status === ReportStatus.RECIBIDO || status === ReportStatus.RECHAZADO;
+}
 
 export const RETRY_CONFIG = Object.freeze({
   BASE_DELAY_MS: 1000,
@@ -61,9 +67,7 @@ export class MemoryReportStore {
   }
 
   async getPending() {
-    return Array.from(this.items.values()).filter(
-      (item) => item.status !== ReportStatus.RECIBIDO,
-    );
+    return Array.from(this.items.values()).filter((item) => !isFinalStatus(item.status));
   }
 
   async getDeviceId() {
@@ -178,7 +182,7 @@ export class IndexedDbReportStore {
 
   async getPending() {
     const all = await this.getAll();
-    return all.filter((item) => item.status !== ReportStatus.RECIBIDO);
+    return all.filter((item) => !isFinalStatus(item.status));
   }
 
   async getDeviceId() {
@@ -325,8 +329,8 @@ export async function processQueue({
   });
 
   for (const item of pending) {
-    // Si ya está recibido, no se reenvía nunca
-    if (item.status === ReportStatus.RECIBIDO) continue;
+    // Si ya está recibido o rechazado, no se reenvía nunca
+    if (isFinalStatus(item.status)) continue;
 
     // Si aún no vence el tiempo de reintento exponencial, esperar
     if (item.nextRetry && now < item.nextRetry) {
@@ -353,8 +357,12 @@ export async function processQueue({
         item.status = ReportStatus.RECIBIDO;
         item.ack = ack || { status: "recibido", duplicate: false };
         item.sentAt = clockFn();
+      } else if (res && res.status === 400) {
+        // El nodo leyó el mensaje y no lo acepta: reintentarlo no cambia nada.
+        item.status = ReportStatus.RECHAZADO;
+        item.error = typeof res.json === "function" ? (await res.json().catch(() => null))?.error : null;
       } else {
-        // Falló la respuesta del servidor
+        // Falló la respuesta del servidor (caído, saturado): se reintenta
         item.status = ReportStatus.GUARDADO;
         item.attempts = (item.attempts || 0) + 1;
         const delay = calculateBackoffDelay(item.attempts);

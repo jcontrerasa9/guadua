@@ -77,6 +77,32 @@ test("un reporte Recibido no se reenvía; duplicate: true cuenta como Recibido",
   assert.equal(fetchCallCount, 1, "No debe reenviar reportes con estado Recibido");
 });
 
+test("un 400 del nodo deja el mensaje Rechazado y no se reintenta; un 503 sí", async () => {
+  const store = new MemoryReportStore();
+  const calls = { bad: 0, busy: 0 };
+  const mockFetch = async (_url, { body }) => {
+    if (body[0] === 1) {
+      calls.bad++;
+      return { status: 400, json: async () => ({ error: "tipo de mensaje no soportado" }) };
+    }
+    calls.busy++;
+    return { status: 503, json: async () => ({}) };
+  };
+  const base = { status: ReportStatus.GUARDADO, attempts: 0, nextRetry: 0 };
+  await store.put({ ...base, id: "malo", rawBytes: new Uint8Array([1]) });
+  await store.put({ ...base, id: "ocupado", rawBytes: new Uint8Array([2]) });
+
+  await processQueue({ store, fetchFn: mockFetch, clockFn: () => 1000 });
+  const malo = await store.get("malo");
+  assert.equal(malo.status, ReportStatus.RECHAZADO);
+  assert.equal(malo.error, "tipo de mensaje no soportado");
+  assert.equal((await store.get("ocupado")).status, ReportStatus.GUARDADO);
+
+  // Mucho después: el rechazado no vuelve a salir; el que falló por 503 sí
+  await processQueue({ store, fetchFn: mockFetch, clockFn: () => 10_000_000 });
+  assert.deepEqual(calls, { bad: 1, busy: 2 });
+});
+
 // --- Criterio exacto de docs/plan.md (N13) -------------------------------------
 
 test("criterio de plan.md: con un fetch que falla y luego responde, un reporte guardado sin red se envía solo al volver la conexión y termina en Recibido", async () => {
