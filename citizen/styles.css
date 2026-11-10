@@ -61,6 +61,22 @@ body {
 
 .battery-indicator {
   color: var(--text-secondary);
+  transition: color 0.3s ease;
+}
+
+.battery-indicator.battery-critical {
+  color: var(--accent-red);
+  font-weight: 700;
+  animation: pulse-critical 2s infinite ease-in-out;
+}
+
+.battery-indicator.battery-charging {
+  color: var(--accent-green);
+}
+
+@keyframes pulse-critical {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
 /* Contenedor principal centrado para celular */
