@@ -20,7 +20,10 @@ import {
   fitNote,
   INCIDENT_BUTTONS,
   MAX_NOTE_BYTES,
+  measureUtf8Bytes,
+  truncateUtf8,
 } from "./report.js";
+import { buildSafeBinary, MAX_NAME_BYTES } from "./safe.js";
 
 // Estado de la interfaz
 const uiState = {
@@ -404,9 +407,122 @@ function setupRapidTapDetector() {
 
 // --- Bloque 1: Botones de vida o muerte ---------------------------------------
 
+function setupSafeModal() {
+  const btnASalvo = document.getElementById("btn-a-salvo");
+  const safeOverlay = document.getElementById("safe-overlay");
+  const safeBarrioSelect = document.getElementById("safe-barrio-select");
+  const safeNameInput = document.getElementById("safe-name-input");
+  const safeNameCounter = document.getElementById("safe-name-counter");
+  const btnCancel = document.getElementById("btn-safe-cancel");
+  const btnSubmit = document.getElementById("btn-safe-submit");
+
+  if (!btnASalvo || !safeOverlay) return;
+
+  function populateSafeBarrios() {
+    if (!safeBarrioSelect) return;
+    if (safeBarrioSelect.options.length <= 1 && uiState.barriosList.length > 0) {
+      safeBarrioSelect.innerHTML = `<option value="" disabled selected>Seleccione el barrio...</option>`;
+      for (const b of uiState.barriosList) {
+        const opt = document.createElement("option");
+        opt.value = b.code;
+        opt.textContent = b.name;
+        safeBarrioSelect.appendChild(opt);
+      }
+    }
+    if (uiState.selectedBarrioCode) {
+      safeBarrioSelect.value = String(uiState.selectedBarrioCode);
+    } else if (uiState.queue?.store?.getLastBarrio) {
+      uiState.queue.store.getLastBarrio().then((code) => {
+        if (code) safeBarrioSelect.value = String(code);
+      }).catch(() => {});
+    }
+  }
+
+  btnASalvo.onclick = () => {
+    populateSafeBarrios();
+    if (safeNameInput) {
+      safeNameInput.value = "";
+    }
+    if (safeNameCounter) {
+      safeNameCounter.textContent = `0 / ${MAX_NAME_BYTES} bytes`;
+      safeNameCounter.className = "byte-counter";
+    }
+    safeOverlay.classList.remove("hidden");
+  };
+
+  if (btnCancel) {
+    btnCancel.onclick = () => {
+      safeOverlay.classList.add("hidden");
+    };
+  }
+
+  if (safeNameInput && safeNameCounter) {
+    safeNameInput.oninput = () => {
+      let val = safeNameInput.value;
+      if (measureUtf8Bytes(val) > MAX_NAME_BYTES) {
+        val = truncateUtf8(val, MAX_NAME_BYTES);
+        safeNameInput.value = val;
+      }
+      const bytes = measureUtf8Bytes(val);
+      safeNameCounter.textContent = `${bytes} / ${MAX_NAME_BYTES} bytes`;
+      safeNameCounter.className = "byte-counter";
+      if (bytes >= 35 && bytes < MAX_NAME_BYTES) {
+        safeNameCounter.classList.add("warning");
+      } else if (bytes >= MAX_NAME_BYTES) {
+        safeNameCounter.classList.add("danger");
+      }
+    };
+  }
+
+  if (btnSubmit) {
+    btnSubmit.onclick = async () => {
+      const barrioCode = Number(safeBarrioSelect?.value);
+      if (!barrioCode || isNaN(barrioCode) || barrioCode <= 0) {
+        showToast("Por favor selecciona un barrio.");
+        if (safeBarrioSelect) safeBarrioSelect.focus();
+        return;
+      }
+
+      const rawName = safeNameInput ? safeNameInput.value.trim() : "";
+
+      try {
+        const store = uiState.queue.store;
+        const deviceId = await store.getDeviceId();
+        const seq = await store.getNextSeq();
+
+        const { headerFields, fullBytes } = buildSafeBinary({
+          deviceId,
+          seq,
+          barrioCode,
+          name: rawName,
+          dictionary: uiState.dictionary,
+        });
+
+        if (store.saveLastBarrio) {
+          await store.saveLastBarrio(barrioCode).catch(() => {});
+        }
+
+        const item = await uiState.queue.enqueue({
+          headerFields,
+          fullBytes,
+          priority: 0,
+        });
+
+        uiState.lastReportId = item.id;
+        updatePipelineUi(ReportStatus.GUARDADO);
+
+        safeOverlay.classList.add("hidden");
+        showToast("Mensaje 'Estoy a salvo' guardado y enviando...");
+      } catch (err) {
+        console.error("Error al armar o encolar Estoy a salvo:", err);
+        showToast("Error al enviar el mensaje 'Estoy a salvo'.");
+      }
+    };
+  }
+}
+
 function setupBloque1() {
   const btnSos = document.getElementById("btn-sos-escombros");
-  const btnASalvo = document.getElementById("btn-a-salvo");
 
   if (btnSos) {
     btnSos.onclick = () => {
@@ -414,13 +530,7 @@ function setupBloque1() {
     };
   }
 
-  if (btnASalvo) {
-    btnASalvo.onclick = () => {
-      // Stub vacío según contrato: pendiente (D2a)
-      console.log("pendiente (D1 / D2a): reporte estoy a salvo");
-      showToast("Estoy a salvo pendiente de implementación (D2a)");
-    };
-  }
+  setupSafeModal();
 }
 
 // --- Bloque 3: Envío del reporte y Pipeline de Estados ------------------------

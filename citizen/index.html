@@ -161,6 +161,37 @@
     </div>
   </aside>
 
+  <!-- Modal de ESTOY A SALVO (oculto por defecto) -->
+  <aside id="safe-overlay" class="safe-modal-overlay hidden" aria-live="polite" role="dialog" aria-modal="true" aria-labelledby="safe-title">
+    <div class="safe-modal-container">
+      <div class="safe-modal-header">
+        <span class="safe-modal-icon">✅</span>
+        <h2 id="safe-title" class="safe-modal-title">Estoy a salvo</h2>
+      </div>
+      <p class="safe-modal-desc">
+        Avisa a familiares y Bomberos que estás bien. Esto ayuda a enfocar la búsqueda en quienes siguen atrapados.
+      </p>
+
+      <div class="safe-form-group">
+        <label for="safe-barrio-select" class="safe-label">¿En qué barrio estás? *</label>
+        <select id="safe-barrio-select" class="barrio-select" aria-label="Seleccionar barrio donde estás a salvo">
+          <option value="" disabled selected>Seleccione el barrio...</option>
+        </select>
+      </div>
+
+      <div class="safe-form-group">
+        <label for="safe-name-input" class="safe-label">Tu nombre (opcional, máx. 40 letras)</label>
+        <input type="text" id="safe-name-input" class="safe-input" placeholder="Ej. Juan Pérez" maxlength="40" autocomplete="name">
+        <div id="safe-name-counter" class="byte-counter">0 / 40 bytes</div>
+      </div>
+
+      <div class="safe-modal-actions">
+        <button type="button" id="btn-safe-cancel" class="btn-safe-cancel">Cancelar</button>
+        <button type="button" id="btn-safe-submit" class="btn-safe-submit">✅ Avisar que estoy a salvo</button>
+      </div>
+    </div>
+  </aside>
+
   <!-- Script principal como módulo ES -->
   <script type="module" src="app.js"></script>
 </body>
