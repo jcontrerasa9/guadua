@@ -14,8 +14,10 @@ La decisión final siempre es de una persona.
 - **Zona gris** → `ambiguous=True` ("ambiguo, revisar"): ninguna regla se activó y el
   clasificador duda (probabilidad máxima < 0,5 o las dos primeras a menos de 0,15), o no
   hay clasificador, o el texto tiene muchas palabras que el clasificador nunca vio (no
-  entiende significado: ver `Vocabulary` en model.py). Esos casos los investiga el agente de
-  triaje (N8); sin LLM, los revisa una persona.
+  entiende significado: ver `Vocabulary` en model.py), o el texto trae señales que la bolsa
+  de palabras no capta: habla solo de animales o quien escribe duda ("creo que", "no sé si";
+  ver classifier/cues.py). Esos casos los investiga el agente de triaje (N8); sin LLM, los
+  revisa una persona.
 - Si el clasificador falla o no está instalado (extra `ml`), quedan las reglas.
 """
 
@@ -27,6 +29,7 @@ from dataclasses import dataclass, field
 from functools import cache
 from typing import Protocol
 
+from guadua.classifier.cues import language_cues
 from guadua.classifier.rules import apply_rules
 from guadua.classifier.urgency import Urgency, apply_floor
 from guadua.protocol.header import Incident
@@ -83,7 +86,10 @@ def triage(
         if not rules.rules:
             source = "clasificador"
     ambiguous = not rules.rules and (
-        prediction is None or prediction.unfamiliar or in_gray_zone(prediction.probabilities)
+        prediction is None
+        or prediction.unfamiliar
+        or in_gray_zone(prediction.probabilities)
+        or bool(language_cues(reporte.text))
     )
     return UrgenciaEstimada(
         report_id=reporte.report_id,

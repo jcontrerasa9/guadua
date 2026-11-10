@@ -42,6 +42,7 @@ from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
+from guadua.classifier.cues import language_cues
 from guadua.classifier.urgency import Urgency, apply_floor
 from guadua.node.views import incident_details
 from guadua.providers.llm import LLMProvider, LLMReply, LLMUnavailable, Message, ToolSpec
@@ -108,6 +109,11 @@ copiar en "quote" las palabras exactas del reporte que lo justifican. Si dudas, 
 - Tienes como máximo {MAX_STEPS} pasos. Usa herramientas solo si ayudan.
 - Las "senales_de_riesgo" son peligros para los rescatistas (gas, cables caídos…), no \
 gravedad de la víctima: menciónalas en tu motivo, pero NO suben ni bajan el nivel.
+- La urgencia mide el riesgo para la vida de PERSONAS. Si "senales_de_lenguaje" dice \
+"solo animales" y el texto no menciona personas afectadas, baja un nivel; en "quote" \
+copia la frase del texto que nombra al animal (p. ej. "un perro"), no la señal.
+- Si dice "duda en el texto", quien reporta no está seguro: no subas por eso y marca \
+verify_now en true para que alguien lo verifique en campo.
 - Una persona toma la decisión final.
 Termina con fijar_urgencia o con {{"final": {{"level": n, "reason": "...", "quote": "...", \
 "verify_now": false}}}}."""
@@ -272,6 +278,7 @@ def _case_prompt(case: TriageCase) -> str:
         "piso_de_las_reglas": LEVEL_NAMES[u.floor],
         "probabilidades_del_clasificador": u.probabilities,
         "reglas_activadas": list(u.rules),
+        "senales_de_lenguaje": list(language_cues(r.text)),  # classifier/cues.py
     }
     return "Reporte dudoso:\n" + json.dumps(data, ensure_ascii=False)
 

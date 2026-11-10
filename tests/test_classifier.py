@@ -145,7 +145,7 @@ def test_sensibilidad_en_criticos_con_el_conjunto_de_prueba(rows, classifier) ->
     assert report.test_size == sum(r.split == "test" for r in rows)
     assert report.system.sensitivity >= 0.90  # medido: 94,4 %
     assert report.system.precision >= 0.90  # medido: 97,1 %
-    assert report.ambiguous_rate <= 0.20  # medido: 14,1 %; no todo puede ir a revisión
+    assert report.ambiguous_rate <= 0.20  # medido: 18,2 % (con animales y duda, cues.py)
     assert report.rules_ms[0] < 1 and report.classifier_ms[0] < 2
     assert "Matriz de confusión" in render(report)
 
@@ -200,6 +200,31 @@ def test_texto_desconocido_es_ambiguo_aunque_el_clasificador_este_seguro() -> No
     assert result.level == Urgency.ALTA and result.ambiguous  # no baja: lo revisa alguien
     with_rule = triage(reporte("tortuga atrapada"), sure)
     assert with_rule.level == Urgency.CRITICA and not with_rule.ambiguous  # la regla manda
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Hay un perro que tiene una herida abierta",  # solo animales: el clasificador dice alta
+        "Creo que hay una fuga de gas donde mi vecino o no se si es la basura",  # duda
+    ],
+)
+def test_animales_o_duda_van_al_agente_aunque_el_clasificador_este_seguro(text: str) -> None:
+    result = triage(reporte(text), FixedClassifier(Urgency.ALTA, CONFIDENT_HIGH))
+    assert result.level == Urgency.ALTA  # el nivel no cambia aquí: lo revisa el agente (N8)
+    assert result.ambiguous
+
+
+def test_las_senales_de_lenguaje_no_tocan_un_piso_vital() -> None:
+    sure = FixedClassifier(Urgency.ALTA, CONFIDENT_HIGH)
+    result = triage(reporte("creo que hay una persona atrapada"), sure)
+    assert result.level == Urgency.CRITICA and not result.ambiguous
+
+
+def test_segunda_mano_no_es_duda() -> None:
+    sure = FixedClassifier(Urgency.ALTA, CONFIDENT_HIGH)
+    result = triage(reporte("dicen que hay un herido"), sure)
+    assert not result.ambiguous  # "Me contaron" ya lo marca la cabecera
 
 
 def test_zona_gris() -> None:

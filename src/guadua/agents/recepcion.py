@@ -36,6 +36,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 from guadua.classifier import rules as R
+from guadua.classifier.cues import ANIMAL, PERSON, about_animal_only  # noqa: F401
 from guadua.classifier.risk import CABLES_CAIDOS, GAS, GAS_O_CABLES
 from guadua.classifier.rules import apply_rules
 from guadua.protocol.header import Flag, Incident, MessageType, People
@@ -113,21 +114,8 @@ VITAL_TEXT_RULES = {R.NO_RESPIRA_O_SANGRADO, R.NO_RESPIRA, R.SANGRADO, R.INCONSC
 GAS_OR_CABLES = {GAS, CABLES_CAIDOS, GAS_O_CABLES}
 
 # El texto se compara sin tildes y en minúsculas (`rules.fold`).
-ANIMAL = re.compile(
-    r"\b(?:gat[oa]s?|gatic[oa]s?|perr[oa]s?|perrit[oa]s?|mascotas?|animal(?:es|ito)?|"
-    r"caballos?|vacas?|gallinas?|pajar(?:o|os|ito)|loros?)\b"
-)
-PERSON = re.compile(
-    r"\b(?:personas?|gente|senor(?:a|es|as)?|nin[oa]s?|bebes?|hombres?|mujer(?:es)?|"
-    r"abuel[oa]s?|vecin[oa]s?|familia|hij[oa]s?|mama|papa|alguien|muert[oa]s?)\b"
-)
+# ANIMAL, PERSON y about_animal_only viven en classifier/cues.py (también los usa el triaje).
 DEAD = re.compile(r"\bmuert[oa]s?\b|fallecid|cadaver|sin vida")
-
-
-def about_animal_only(text: str | None) -> bool:
-    """El texto habla de un animal y no de personas ("hay un gato herido")."""
-    folded = R.fold(text or "")
-    return bool(ANIMAL.search(folded)) and not PERSON.search(folded)
 
 
 def why_not_ask(reporte: Reporte) -> str | None:
