@@ -587,3 +587,119 @@ textarea.note-input:focus {
   transition: width 0.05s linear;
   z-index: 1;
 }
+
+/* Modal ESTOY A SALVO (D2a) */
+.safe-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1500;
+  padding: 1rem;
+}
+
+.safe-modal-overlay.hidden {
+  display: none !important;
+}
+
+.safe-modal-container {
+  background-color: var(--surface-dark);
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 480px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.safe-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.safe-modal-icon {
+  font-size: 1.75rem;
+}
+
+.safe-modal-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.safe-modal-desc {
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+  margin: 0.75rem 0 1.25rem 0;
+  line-height: 1.4;
+}
+
+.safe-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1.1rem;
+}
+
+.safe-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.safe-input {
+  background-color: #000000;
+  border: 1px solid var(--surface-border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  padding: 0.75rem;
+  font-size: 1rem;
+  outline: none;
+}
+
+.safe-input:focus {
+  border-color: var(--accent-green);
+}
+
+.safe-modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.btn-safe-cancel {
+  background-color: #262626;
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  padding: 0 1.25rem;
+  min-height: var(--touch-min);
+  cursor: pointer;
+}
+
+.btn-safe-submit {
+  flex: 1;
+  background-color: var(--accent-green);
+  border: none;
+  border-radius: 8px;
+  color: #000000;
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 0.75rem 1rem;
+  min-height: var(--touch-min);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-safe-submit:hover {
+  filter: brightness(1.1);
+}
+
