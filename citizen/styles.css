@@ -703,3 +703,91 @@ textarea.note-input:focus {
   filter: brightness(1.1);
 }
 
+/* Tarjeta de pregunta de seguimiento (D5b) */
+.question-card {
+  background-color: var(--surface-dark);
+  border: 2px solid var(--accent-orange, #f59e0b);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.15);
+}
+
+.question-card.hidden {
+  display: none !important;
+}
+
+.question-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.question-card-icon {
+  font-size: 1.25rem;
+}
+
+.question-card-title {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent-orange, #f59e0b);
+}
+
+.question-card-text {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.35;
+}
+
+.question-card-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.btn-question-no {
+  flex: 1;
+  background-color: #262626;
+  border: 2px solid var(--surface-border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 1.15rem;
+  font-weight: 700;
+  min-height: var(--touch-min);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-question-no:active {
+  background-color: #333333;
+}
+
+.btn-question-yes {
+  flex: 1;
+  background-color: var(--accent-green);
+  border: 2px solid var(--accent-green);
+  border-radius: 8px;
+  color: #000000;
+  font-size: 1.15rem;
+  font-weight: 700;
+  min-height: var(--touch-min);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-question-yes:active {
+  filter: brightness(1.1);
+}
+
+

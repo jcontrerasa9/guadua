@@ -96,6 +96,17 @@ export class MemoryReportStore {
   async getLastBarrio() {
     return this.meta.get("last_barrio") ?? null;
   }
+
+  async getAnsweredQuestionIds() {
+    return new Set(this.meta.get("answered_questions") || []);
+  }
+
+  async markQuestionAnswered(questionId) {
+    const current = this.meta.get("answered_questions") || [];
+    if (!current.includes(questionId)) {
+      this.meta.set("answered_questions", [...current, questionId]);
+    }
+  }
 }
 
 /**
@@ -247,6 +258,38 @@ export class IndexedDbReportStore {
       const req = store.get("last_barrio");
       req.onsuccess = () => resolve(req.result ? req.result.value : null);
       req.onerror = () => reject(req.error);
+    });
+  }
+
+  async getAnsweredQuestionIds() {
+    const db = await this._getDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction("meta", "readonly");
+      const store = tx.objectStore("meta");
+      const req = store.get("answered_questions");
+      req.onsuccess = () => {
+        const val = req.result?.value;
+        resolve(new Set(Array.isArray(val) ? val : []));
+      };
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async markQuestionAnswered(questionId) {
+    const db = await this._getDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction("meta", "readwrite");
+      const store = tx.objectStore("meta");
+      const getReq = store.get("answered_questions");
+      getReq.onsuccess = () => {
+        const current = Array.isArray(getReq.result?.value) ? getReq.result.value : [];
+        if (!current.includes(questionId)) {
+          current.push(questionId);
+          store.put({ key: "answered_questions", value: current });
+        }
+        resolve();
+      };
+      getReq.onerror = () => reject(getReq.error);
     });
   }
 }

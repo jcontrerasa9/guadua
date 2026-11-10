@@ -9,9 +9,12 @@ import {
   computeConfidence,
   computeRiskWarning,
   createInitialNodeState,
+  DASHBOARD_MOCK_PEOPLE,
   formatDecisionRequest,
   formatTimeAgo,
+  matchSoughtPeople,
   nodesStartingWith,
+  normalizeName,
   partitionAndSortIncidents,
   updateNodeHealth,
 } from "../../src/guadua/dashboard/logic.js";
@@ -413,3 +416,106 @@ test("invariante: el riesgo no cambia el orden de prioridad ni la urgencia en pa
     ["inc-2", "inc-3", "inc-4", "inc-1"],
   );
 });
+
+// --- Pruebas de normalización y cruce de personas a salvo (D2b) ---------------
+
+test("normalizeName elimina tildes, pasa a minúsculas y colapsa espacios", () => {
+  assert.equal(
+    normalizeName("   Carlos    Gómez   "),
+    "carlos gomez",
+  );
+  assert.equal(
+    normalizeName("MARÍA JOSÉ PÉREZ"),
+    "maria jose perez",
+  );
+  assert.equal(
+    normalizeName("Ángel Raúl Ñáñez"),
+    "angel raul nanez",
+  );
+  assert.equal(normalizeName(""), "");
+  assert.equal(normalizeName(null), "");
+  assert.equal(normalizeName(undefined), "");
+});
+
+test("matchSoughtPeople cruza con tildes y mayúsculas distintas", () => {
+  const safePeople = DASHBOARD_MOCK_PEOPLE.people;
+
+  // Carlos Gómez (en mock: 'Carlos Gómez' en Chipre)
+  // María José Pérez (en mock: 'María José Pérez' en El Cable)
+  // Ana (en mock: 'Ana' en Palermo)
+  const sought = [
+    "carlos gomez", // sin tildes ni mayúsculas
+    "MARIA JOSE PEREZ", // todo mayúsculas sin tildes
+    "  ana  ", // con espacios
+  ];
+
+  const results = matchSoughtPeople(sought, safePeople);
+  assert.equal(results.length, 3);
+
+  assert.equal(results[0].found, true);
+  assert.equal(results[0].person.name, "Carlos Gómez");
+  assert.equal(results[0].statusText, "Encontrada a salvo en Chipre");
+
+  assert.equal(results[1].found, true);
+  assert.equal(results[1].person.name, "María José Pérez");
+  assert.equal(results[1].statusText, "Encontrada a salvo en El Cable");
+
+  assert.equal(results[2].found, true);
+  assert.equal(results[2].person.name, "Ana");
+  assert.equal(results[2].statusText, "Encontrada a salvo en Palermo");
+});
+
+test("matchSoughtPeople maneja a_salvo con y sin nombre sin falsos positivos", () => {
+  const safePeople = [
+    { report_id: "00000001-1", name: null, barrio_label: "Centro", received_at: 100 },
+    { report_id: "00000002-1", name: "", barrio_label: "Milán", received_at: 105 },
+    { report_id: "00000003-1", name: "Gloria", barrio_label: "Palermo", received_at: 110 },
+  ];
+
+  // Ni buscar 'Centro', ni 'null', ni espacios debe coincidir con un reporte sin nombre
+  const results = matchSoughtPeople(["Centro", "Milán", "null", "Gloria"], safePeople);
+  assert.equal(results.length, 4);
+
+  assert.equal(results[0].found, false);
+  assert.equal(results[1].found, false);
+  assert.equal(results[2].found, false);
+
+  assert.equal(results[3].found, true);
+  assert.equal(results[3].person.name, "Gloria");
+  assert.equal(results[3].statusText, "Encontrada a salvo en Palermo");
+});
+
+test("matchSoughtPeople indica coincidencia ausente cuando la persona no está a salvo", () => {
+  const safePeople = DASHBOARD_MOCK_PEOPLE.people;
+  const results = matchSoughtPeople(["Pedro Picapiedra"], safePeople);
+
+  assert.equal(results.length, 1);
+  assert.equal(results[0].query, "Pedro Picapiedra");
+  assert.equal(results[0].found, false);
+  assert.equal(results[0].person, null);
+  assert.equal(results[0].statusText, "Sin reporte a salvo");
+});
+
+test("matchSoughtPeople procesa entrada multilínea con líneas vacías", () => {
+  const safePeople = DASHBOARD_MOCK_PEOPLE.people;
+  const multiText = `
+    Carlos Gómez
+
+    
+    Persona Inexistente
+    
+    ANA
+  `;
+
+  const results = matchSoughtPeople(multiText, safePeople);
+  assert.equal(results.length, 3);
+  assert.equal(results[0].query, "Carlos Gómez");
+  assert.equal(results[0].found, true);
+
+  assert.equal(results[1].query, "Persona Inexistente");
+  assert.equal(results[1].found, false);
+
+  assert.equal(results[2].query, "ANA");
+  assert.equal(results[2].found, true);
+});
+
