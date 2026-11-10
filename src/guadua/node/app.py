@@ -26,6 +26,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from guadua.agents.personas_a_salvo import armar_people_list
 from guadua.node.api import (
     DecisionAck,
     DecisionRequest,
@@ -177,11 +178,11 @@ def create_app(
         pending = pending_questions(node.store.since({}), device_id, now=node.clock())
         return QuestionList(questions=tuple(pending))
 
-    # Nivel 2: existe con su formato, todavía vacía.
+    # D2b: personas que avisaron "Estoy a salvo" (eventos a_salvo de todos los nodos).
 
     @app.get("/api/people", response_model=PeopleList)
     async def people() -> PeopleList:
-        return PeopleList(people=())
+        return armar_people_list(node.store.since({}))
 
     # Radio VHF (D7): el audio entra, se transcribe en otro hilo y se separa en reportes.
 

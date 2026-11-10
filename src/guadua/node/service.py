@@ -49,12 +49,14 @@ from guadua.node.api import (
 from guadua.node.intake import (
     IntakeError,
     ParsedAnswer,
+    a_salvo_event,
     check_answer,
     parse_message,
     reporte_event,
     respuesta_event,
 )
 from guadua.node.pipeline import normalized_event, urgency_event
+from guadua.protocol.header import MessageType
 from guadua.providers.llm import LLMProvider
 from guadua.providers.transcriber import NullTranscriber, Transcriber, TranscriberUnavailable
 from guadua.providers.transport import Transport
@@ -77,6 +79,9 @@ if TYPE_CHECKING:
     from guadua.agents.triaje import AgenteTriaje, TriageCase
 
 logger = logging.getLogger("guadua.node")
+
+# Eventos que nacen de un mensaje de la PWA con su report_id (para detectar repetidos).
+MESSAGE_EVENTS = frozenset({"reporte", "a_salvo"})
 
 
 class NotFound(LookupError):
@@ -144,7 +149,7 @@ class Node:
         self.clock = clock
         self._seq = self._max_own_seq()
         known = store.since({})  # al reiniciar, el estado sale de la SQLite
-        self._report_ids = {e.payload["report_id"] for e in known if e.type == "reporte"}
+        self._report_ids = {e.payload["report_id"] for e in known if e.type in MESSAGE_EVENTS}
         self.ownership = Ownership(known)
         self.gossip = (
             GossipNode(
@@ -212,9 +217,8 @@ class Node:
             return self._receive_answer(message)
         if message.report_id in self._report_ids:
             return MessageAck(report_id=message.report_id, duplicate=True)
-        event = reporte_event(
-            message, node_id=self.node_id, seq=self.next_seq(), received_at=self.clock()
-        )
+        build = a_salvo_event if message.header.msg_type == MessageType.A_SALVO else reporte_event
+        event = build(message, node_id=self.node_id, seq=self.next_seq(), received_at=self.clock())
         self.record(event)
         return MessageAck(report_id=message.report_id)
 
@@ -463,7 +467,7 @@ class Node:
 
     def _after_append(self, event: Event) -> None:
         """Se llama con cada evento nuevo, venga de la API o del gossip."""
-        if event.type == "reporte":
+        if event.type in MESSAGE_EVENTS:
             self._report_ids.add(event.payload["report_id"])
         self.ownership.add(event)  # una reasignación cambia de quién es el trabajo
         try:

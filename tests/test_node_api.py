@@ -96,10 +96,10 @@ def test_compressed_text_is_stored_decompressed(api: TestClient) -> None:
     [
         (encode(COLAPSO)[:20], "al menos 21"),
         (encode(COLAPSO) + b"texto plano", "texto inválido"),
-        (encode(Header(4, 1, 1, 0, 6, 0, 0x20, barrio=5)), "no soportado"),
+        (encode(Header(6, 1, 1, 0, 6, 0, 0x20, barrio=5)), "no soportado"),
         (b"\x20" + bytes(20), "versión"),
     ],
-    ids=["corto", "texto_sin_prefijo", "a_salvo_nivel_2", "version"],
+    ids=["corto", "texto_sin_prefijo", "pregunta_no_se_recibe", "version"],
 )
 def test_bad_messages_are_400(api: TestClient, data: bytes, fragment: str) -> None:
     response = api.post("/api/messages", content=data)
@@ -107,6 +107,31 @@ def test_bad_messages_are_400(api: TestClient, data: bytes, fragment: str) -> No
     body = check(response, "ApiError", "POST /api/messages → 400")
     assert fragment in body["error"]
     assert api.app.state.node.store.since({}) == []
+
+
+def _a_salvo(seq: int = 1, name: str = "") -> bytes:
+    header = Header(MessageType.A_SALVO, 0xA1B2C3D4, seq, 0, 6, 0, 0x20, barrio=5)
+    return encode(header) + (encode_text(name) if name else b"")
+
+
+def test_a_salvo_reaches_people_list(api: TestClient) -> None:
+    response = api.post("/api/messages", content=_a_salvo(name="Ana Gómez"))
+    assert response.status_code == 200
+    assert check(response, "MessageAck")["report_id"] == "a1b2c3d4-1"
+    (event,) = api.app.state.node.store.since({})
+    assert event.type == "a_salvo"  # no es un reporte: no crea incidente ni ficha
+    assert event.payload == {"report_id": "a1b2c3d4-1", "name": "Ana Gómez", "barrio": 5}
+    (person,) = check(api.get("/api/people"), "PeopleList")["people"]
+    assert person["name"] == "Ana Gómez"
+    assert api.get("/api/incidents").json()["incidents"] == []
+
+
+def test_a_salvo_without_name_and_duplicate(api: TestClient) -> None:
+    assert api.post("/api/messages", content=_a_salvo(seq=2)).json()["duplicate"] is False
+    again = api.post("/api/messages", content=_a_salvo(seq=2))
+    assert again.status_code == 200 and again.json()["duplicate"] is True
+    (event,) = api.app.state.node.store.since({})
+    assert event.payload["name"] is None
 
 
 # --- Incidentes -----------------------------------------------------------------------------

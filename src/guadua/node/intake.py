@@ -19,6 +19,7 @@ from guadua.store.event_types import (
     MAX_OPTIONS,
     MAX_QUESTION_ID,
     AnswerKind,
+    ASalvo,
     Channel,
     PreguntaSeguimiento,
     Reporte,
@@ -27,8 +28,15 @@ from guadua.store.event_types import (
 )
 from guadua.store.events import Event, EventCategory
 
-# Reporte y SOS (nivel 1) y respuesta de seguimiento (D5a). "Estoy a salvo" aún no.
-SUPPORTED_TYPES = frozenset({MessageType.REPORTE, MessageType.SOS_ESCOMBROS, MessageType.RESPUESTA})
+# Reporte y SOS (nivel 1), "Estoy a salvo" (D2) y respuesta de seguimiento (D5a).
+SUPPORTED_TYPES = frozenset(
+    {
+        MessageType.REPORTE,
+        MessageType.SOS_ESCOMBROS,
+        MessageType.A_SALVO,
+        MessageType.RESPUESTA,
+    }
+)
 
 # Byte 0 de la respuesta (docs/contratos.md, "Respuesta de seguimiento").
 ANSWER_CODES: dict[int, AnswerKind] = {0: "no", 1: "si", 2: "no_se"}
@@ -114,6 +122,23 @@ def reporte_event(
         seq=seq,
         category=EventCategory.HECHO,
         type="reporte",
+        payload=payload.model_dump(mode="json"),
+        received_at=received_at,
+    )
+
+
+def a_salvo_event(message: ParsedMessage, *, node_id: str, seq: int, received_at: float) -> Event:
+    """ "Estoy a salvo" (tipo 4): el texto tras la cabecera es el nombre opcional."""
+    payload = ASalvo(
+        report_id=message.report_id,
+        name=(message.text or "").strip() or None,
+        barrio=message.header.barrio,
+    )
+    return Event(
+        origin_node=node_id,
+        seq=seq,
+        category=EventCategory.HECHO,
+        type="a_salvo",
         payload=payload.model_dump(mode="json"),
         received_at=received_at,
     )
