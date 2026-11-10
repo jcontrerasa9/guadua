@@ -56,7 +56,7 @@ Lo que N8 dejó fuera a propósito y en qué tarea va. Ficha completa: `docs/fic
 | Pendiente | Va con | Qué falta |
 | :---- | :---- | :---- |
 | Herramienta `radio_en_zona` | D7 | Que existan eventos `transcripcion_radio`; luego se agrega a `TOOLS` en `agents/triaje.py` |
-| Herramienta `respuesta_seguimiento` | D5a | Que el agente de recepción haga preguntas y existan respuestas |
+| Herramienta `respuesta_seguimiento` | Tarea nueva (frente B), tras D5a ✅ | Ya hay preguntas y respuestas (`docs/fichas/recepcion.md`). Falta que el triaje las lea: un "Sí" a `no_respira_o_sangrado` sube a crítica; un "Sí" a `gas_o_cables` es señal de riesgo |
 | Herramienta `solicitar_verificacion_campo` | D6 o tarea nueva | Un tipo de evento nuevo (cambio de contrato). Mientras tanto, `marcar_verificar_ya` |
 | Disparador por palabras de duda ("no sé", "creo", "dicen"…) | Tarea nueva, **SIN ASIGNAR** (frente B) | Hoy N8 solo ve lo que N7 marca `ambiguous`: en el conjunto `ambiguo`, 176 de 318 casos salen mal sin marcar. Calibrar con un conjunto distinto de `ambiguo` |
 | ~~Retomar casos que el agente no terminó porque el nodo se cayó~~ | N12 ✅ | Al volver, el nodo retoma el triaje cortado; si otro nodo tomó el caso, lo hace ese (`docs/fichas/resiliencia.md`) |
@@ -73,7 +73,7 @@ Lo que N8 dejó fuera a propósito y en qué tarea va. Ficha completa: `docs/fic
 | D3b | Riesgo para rescatistas en coordinación | Oscar | La ficha recomienda la unidad adecuada (p. ej., HazMat) | ✅ |
 | D3c | Franja de advertencia de riesgo en las tarjetas | Oscar | Visible sin abrir el desplegable | ✅ |
 | D4 | Confianza y rumores a fondo + correlación agéntica | Oscar | 40 copias "me contaron" → confianza baja; 3 testigos directos → alta | ✅ |
-| D5a | Preguntas de seguimiento: agente de recepción | **SIN ASIGNAR** | Máximo 1 pregunta por reporte, visible en el tablero | ☐ |
+| D5a | Preguntas de seguimiento: agente de recepción | Jacobo | Máximo 1 pregunta por reporte, visible en el tablero | ✅ |
 | D5b | Preguntas de seguimiento: tarjeta Sí / No en la PWA | Oscar | Se responde con un toque al volver la señal | ✅ |
 | D6 | Agente vigía | **SIN ASIGNAR** | Casos olvidados generan solicitudes; nunca cambia prioridades | ☐ |
 | D7 | Radio VHF con `faster-whisper` | Oscar | Clip con dos incidentes → dos reportes ligados al mismo audio | ☐ |
@@ -93,7 +93,6 @@ Documentos de arquitectura, fichas de agentes (`docs/fichas/`), protocolo y resu
 
 Se asignan al terminar el nivel 1, según cómo vaya cada frente:
 
-- Agente de **recepción** y sus preguntas de seguimiento (D5a).
 - Agente **vigía** (D6).
 - **RAG y tabla de recursos** (D8).
 - **Entregables finales** y extras del nivel 3.
