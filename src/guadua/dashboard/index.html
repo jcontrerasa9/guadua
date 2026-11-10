@@ -3,45 +3,49 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SARD Guadua — Tablero del Comandante</title>
+  <title>Guadua — Tablero de comando</title>
+  <link rel="icon" href="img/icon-192.png" type="image/png">
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <!-- Barra superior del sistema -->
+  <!-- Barra superior -->
   <header class="topbar">
     <div class="topbar-brand">
-      <h1>Guadua // Sistema SARD</h1>
-      <span class="badge-tag">Tablero de Comando</span>
+      <img src="img/logo-mark.png" alt="" class="brand-mark" width="36" height="36">
+      <div class="brand-text">
+        <h1>GUADUA</h1>
+        <span class="brand-subtitle">Tablero de comando</span>
+      </div>
     </div>
 
     <div class="topbar-meta">
       <div class="node-status-pill" id="node-status-pill">
         <span class="status-dot" id="status-dot"></span>
-        <span id="node-status-text">Conectando...</span>
+        <span id="node-status-text">Conectando…</span>
       </div>
 
       <div class="operator-badge">
-        <span>Operador:</span>
+        <span>Operador</span>
         <strong id="operator-name">comandante-1</strong>
         <button id="btn-change-operator" class="btn-secondary-sm" title="Cambiar nombre de operador">Cambiar</button>
       </div>
 
-      <span id="last-update" style="color: #94a3b8; font-family: var(--font-mono); font-size: 0.75rem;"></span>
+      <span id="last-update" class="last-update"></span>
     </div>
   </header>
 
   <!-- Barra plegable de simulación para el jurado (D9) -->
   <details class="simulation-bar" id="simulation-bar">
     <summary class="simulation-summary">
-      <span class="simulation-title">⚡ Simulación y control de fallos (Jurado)</span>
-      <span class="convergence-badge" id="sim-convergence-badge">3/3 Nodos Convergidos</span>
+      <span class="simulation-title">Modo demostración: simulación de canal y fallos</span>
+      <span class="convergence-badge" id="sim-convergence-badge">3/3 nodos convergidos</span>
     </summary>
 
     <div class="simulation-content">
       <!-- Grupo 1: Perfiles del canal simulado (Wi-Fi, Radio/LoRa, SMS) -->
       <div class="sim-group">
-        <span class="sim-group-label">Canal:</span>
+        <span class="sim-group-label">Canal</span>
         <div class="sim-buttons" role="group" aria-label="Perfiles de canal">
           <button id="btn-sim-profile-wifi" class="btn-sim active" data-profile="wifi" title="Canal rápido (~1200 B)">Wi-Fi</button>
           <button id="btn-sim-profile-lora" class="btn-sim" data-profile="radio_lora" title="Canal lento con pérdidas 30-60% (~200 B)">Radio / LoRa</button>
@@ -51,31 +55,31 @@
 
       <!-- Grupo 2: Acciones de inyección y resiliencia -->
       <div class="sim-group">
-        <span class="sim-group-label">Acciones:</span>
+        <span class="sim-group-label">Acciones</span>
         <div class="sim-buttons">
-          <button id="btn-sim-burst" class="btn-sim btn-sim-action" title="Inyecta 10 reportes sintéticos">⚡ Ráfaga (10)</button>
-          <button id="btn-sim-radio" class="btn-sim btn-sim-action" title="Inyecta clip de radio con 2 incidentes">📻 Inyectar radio</button>
-          <button id="btn-sim-kill-a" class="btn-sim btn-sim-danger" title="Apaga o revive el nodo A">💀 Apagar nodo A</button>
+          <button id="btn-sim-burst" class="btn-sim btn-sim-action" title="Inyecta 10 reportes sintéticos">Ráfaga de 10</button>
+          <button id="btn-sim-radio" class="btn-sim btn-sim-action" title="Inyecta clip de radio con 2 incidentes">Inyectar radio</button>
+          <button id="btn-sim-kill-a" class="btn-sim btn-sim-danger" title="Apaga o revive el nodo A">Apagar nodo A</button>
         </div>
       </div>
 
       <!-- Grupo 3: Hashes de convergencia A, B, C -->
       <div class="sim-group sim-hashes-group">
-        <span class="sim-group-label">Hashes SHA-256:</span>
+        <span class="sim-group-label">SHA-256</span>
         <div class="sim-hashes-list">
           <div class="sim-hash-item" id="sim-hash-box-a" title="Nodo A">
-            <span class="sim-node-tag">Nodo A:</span>
+            <span class="sim-node-tag">A</span>
             <code class="sim-hash-code" id="sim-hash-a">e3b0c442...</code>
           </div>
           <div class="sim-hash-item" id="sim-hash-box-b" title="Nodo B">
-            <span class="sim-node-tag">Nodo B:</span>
+            <span class="sim-node-tag">B</span>
             <code class="sim-hash-code" id="sim-hash-b">e3b0c442...</code>
           </div>
           <div class="sim-hash-item" id="sim-hash-box-c" title="Nodo C">
-            <span class="sim-node-tag">Nodo C:</span>
+            <span class="sim-node-tag">C</span>
             <code class="sim-hash-code" id="sim-hash-c">e3b0c442...</code>
           </div>
-          <button id="btn-sim-refresh-hashes" class="btn-secondary-sm" title="Refrescar hashes de los 3 nodos">🔄</button>
+          <button id="btn-sim-refresh-hashes" class="btn-secondary-sm" title="Refrescar hashes de los 3 nodos">Refrescar</button>
         </div>
       </div>
 
@@ -95,21 +99,19 @@
 
       <div class="section-header">
         <div>
-          <h2 class="section-title">Incidentes Prioritarios</h2>
-          <p class="section-subtitle">Nivel 4 (Crítica) y Nivel 3 (Alta) ordenados por gravedad y antigüedad</p>
+          <h2 class="section-title">Incidentes prioritarios</h2>
+          <p class="section-subtitle">Crítica y alta, ordenados por gravedad y antigüedad</p>
         </div>
       </div>
 
       <!-- Lista corta de incidentes críticos y altos -->
       <div id="short-list" class="cards-list">
-        <div style="padding: 2rem; text-align: center; color: var(--text-muted);">
-          Cargando incidentes...
-        </div>
+        <div class="empty-state">Cargando incidentes…</div>
       </div>
 
       <!-- Desplegable con incidentes de menor prioridad (Nivel 2 y 1) -->
       <details id="other-incidents-details" class="other-incidents-details">
-        <summary id="other-incidents-summary">+0 incidentes de prioridad media o baja</summary>
+        <summary id="other-incidents-summary">0 incidentes de prioridad media o baja</summary>
         <div id="other-list" class="cards-list"></div>
       </details>
     </section>
@@ -117,27 +119,27 @@
     <!-- Columna derecha: Mapa offline y ubicaciones por barrio -->
     <section class="map-column">
       <div class="map-header">
-        <h2>Mapa de Incidentes</h2>
-        <span style="font-size: 0.75rem; color: #94a3b8;">Manizales · Offline</span>
+        <h2>Mapa de incidentes</h2>
+        <span class="muted">Manizales · sin conexión</span>
       </div>
 
       <!-- Contenedor del mapa Leaflet con fondo liso -->
       <div id="map" class="map-container">
-        <div class="map-offline-notice">Modo offline · Fondo liso (Manizales)</div>
+        <div class="map-offline-notice">Mapa sin teselas (offline)</div>
       </div>
 
       <!-- Incidentes georreferenciados solo por barrio (lat/lon null) -->
       <div class="barrios-panel">
-        <h3>📍 Ubicación aproximada por barrio</h3>
+        <div class="panel-header"><h3>Ubicación aproximada por barrio</h3></div>
         <div id="barrios-list">
-          <p style="font-size: 0.8125rem; color: var(--text-muted);">No hay reportes aproximados por barrio pendientes.</p>
+          <p class="panel-empty">No hay reportes aproximados por barrio pendientes.</p>
         </div>
       </div>
 
       <!-- Radio VHF (D7): clips, transcripción y respaldo manual -->
       <div class="radio-panel" id="radio-panel">
-        <div class="radio-panel-header">
-          <h3>📻 Radio VHF (<span id="radio-count">0</span>)</h3>
+        <div class="panel-header">
+          <h3>Radio VHF <span class="panel-count" id="radio-count">0</span></h3>
           <div class="radio-panel-actions">
             <label class="btn-secondary-sm radio-upload" title="Subir un clip de audio">
               Subir clip <input type="file" id="radio-upload-input" accept="audio/*,.ogg,.opus,.oga,.m4a,.mp4,.webm,.3gp,.amr" hidden>
@@ -151,31 +153,27 @@
         </div>
       </div>
 
-      <!-- Panel de Personas a salvo y cruce de buscados (D2b) -->
+      <!-- Personas a salvo y cruce de buscados (D2b) -->
       <div class="safe-people-panel" id="safe-people-panel">
-        <div class="safe-people-header">
-          <h3>👥 Personas a salvo (<span id="safe-people-count">0</span>)</h3>
+        <div class="panel-header">
+          <h3>Personas a salvo <span class="panel-count" id="safe-people-count">0</span></h3>
         </div>
 
-        <!-- Buscador / lista de buscados -->
         <div class="sought-container">
-          <label for="sought-names-input" class="sought-label">
-            Buscar personas (un nombre por línea):
-          </label>
+          <label for="sought-names-input" class="sought-label">Buscar personas (un nombre por línea)</label>
           <textarea
             id="sought-names-input"
             class="sought-textarea"
             rows="3"
-            placeholder="Escriba nombres a buscar...&#10;Ej: Carlos Gómez&#10;Ana"
+            placeholder="Carlos Gómez&#10;Ana"
           ></textarea>
           <div id="sought-matches-list" class="sought-matches-list"></div>
         </div>
 
-        <!-- Lista de personas a salvo -->
         <details class="safe-people-details" open>
           <summary class="safe-people-summary">Registro de personas reportadas</summary>
           <div id="safe-people-list" class="safe-people-list">
-            <p style="font-size: 0.8125rem; color: var(--text-muted);">No hay reportes de personas a salvo aún.</p>
+            <p class="panel-empty">No hay reportes de personas a salvo aún.</p>
           </div>
         </details>
       </div>
@@ -186,10 +184,8 @@
   <div id="modal-edit" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal-box">
       <h3 id="modal-title">Editar mensaje de despacho</h3>
-      <p style="font-size: 0.875rem; color: var(--text-muted);">
-        Ajuste las instrucciones de salida antes de transmitir a la unidad asignada.
-      </p>
-      <textarea id="modal-edit-text" placeholder="Escriba el mensaje para el despacho..."></textarea>
+      <p>Ajuste las instrucciones antes de transmitirlas a la unidad asignada.</p>
+      <textarea id="modal-edit-text" placeholder="Mensaje para la unidad…"></textarea>
       <div class="modal-actions">
         <button id="modal-edit-cancel" class="btn-secondary">Cancelar</button>
         <button id="modal-edit-submit" class="btn-primary">Guardar y despachar</button>
