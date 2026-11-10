@@ -2,37 +2,37 @@
   {
     "code": 1,
     "name": "El Cable",
-    "lat": null,
-    "lon": null
+    "lat": 5.0566,
+    "lon": -75.4908
   },
   {
     "code": 2,
     "name": "Av. Santander",
-    "lat": null,
-    "lon": null
+    "lat": 5.0612,
+    "lon": -75.501
   },
   {
     "code": 3,
     "name": "Chipre",
-    "lat": null,
-    "lon": null
+    "lat": 5.0728,
+    "lon": -75.5255
   },
   {
     "code": 4,
     "name": "Centro",
-    "lat": null,
-    "lon": null
+    "lat": 5.0689,
+    "lon": -75.5174
   },
   {
     "code": 5,
     "name": "Palermo",
-    "lat": null,
-    "lon": null
+    "lat": 5.0512,
+    "lon": -75.488
   },
   {
     "code": 6,
     "name": "Milán",
-    "lat": null,
-    "lon": null
+    "lat": 5.0533,
+    "lon": -75.4822
   }
 ]

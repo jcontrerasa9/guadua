@@ -772,6 +772,18 @@ button:disabled {
   background-size: 40px 40px;
 }
 
+/* Nombre del barrio sobre el mapa sin teselas */
+.barrio-label {
+  color: rgba(242, 240, 234, 0.75);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  transform: translate(-50%, 14px);
+  text-shadow: 0 1px 2px #000;
+  pointer-events: none;
+}
+
 .map-offline-notice {
   position: absolute;
   bottom: 8px;

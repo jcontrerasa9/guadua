@@ -70,6 +70,8 @@ export const state = {
   radioClips: [], // D7: GET /api/radio
   radioSignature: "",
   radioDrafts: {}, // audio_id -> texto que el operador lleva escrito
+  mapSignature: "", // incidentes del último encuadre del mapa
+  barrioLayer: null,
   decisionFilter: readDecisionFilter(), // selector Por decidir / Despachados / Todos
 };
 
@@ -226,73 +228,116 @@ const LEVEL_COLORS = {
   1: "#2e7d32", // Baja
 };
 
+// Varios incidentes del mismo barrio caen en el mismo centro: se reparten en una espiral
+// corta (unos 90 m por vuelta) para que se vean y se puedan tocar por separado.
+export function spreadOffset(index, metersPerStep = 90) {
+  if (index === 0) return [0, 0];
+  const angle = index * 2.4; // ángulo áureo aproximado: no se alinean
+  const r = metersPerStep * Math.sqrt(index);
+  const dLat = (r * Math.cos(angle)) / 111320;
+  const dLon = (r * Math.sin(angle)) / (111320 * Math.cos((5.07 * Math.PI) / 180));
+  return [dLat, dLon];
+}
+
+function incidentPopup(inc) {
+  const where = inc.location?.label ? escapeHtml(inc.location.label) : "";
+  const how = inc.location?.geohash ? "GPS" : `barrio, radio ${inc.location?.radius_m || 0} m`;
+  return `<strong>${escapeHtml(inc.title)}</strong><br>${getPriorityLabel(inc.level)} · ${escapeHtml(
+    STATUS_LABELS[inc.status] || inc.status,
+  )}<br>${where} (${how})`;
+}
+
 function renderMapIncidents(incidents) {
   if (!state.mapMarkersLayer) return;
   state.mapMarkersLayer.clearLayers();
 
   const bounds = [];
+  const perBarrio = new Map(); // barrio → cuántos ya se dibujaron
 
   for (const inc of incidents) {
-    const color = LEVEL_COLORS[inc.level] || "#2563eb";
+    const color = LEVEL_COLORS[inc.level] || "#6b6f6a";
     let lat = null;
     let lon = null;
-    let isExact = false;
 
     if (inc.location?.geohash) {
       try {
         const coords = decodeGeohash(inc.location.geohash);
         lat = coords.lat;
         lon = coords.lon;
-        isExact = true;
       } catch (err) {
         console.warn("Error decodificando geohash:", inc.location.geohash, err);
       }
     } else if (inc.location?.barrio) {
       const barrio = state.barriosMap.get(inc.location.barrio);
       if (barrio && barrio.lat !== null && barrio.lon !== null) {
-        lat = barrio.lat;
-        lon = barrio.lon;
+        const n = perBarrio.get(barrio.code) || 0;
+        perBarrio.set(barrio.code, n + 1);
+        const [dLat, dLon] = spreadOffset(n);
+        lat = barrio.lat + dLat;
+        lon = barrio.lon + dLon;
       }
     }
+    if (lat === null || lon === null) continue;
+    bounds.push([lat, lon]);
 
-    if (lat !== null && lon !== null) {
-      bounds.push([lat, lon]);
-
-      // Punto para ubicación exacta (geohash)
-      if (isExact) {
-        const marker = L.circleMarker([lat, lon], {
-          radius: 6,
-          fillColor: color,
-          color: "#ffffff",
-          weight: 2,
-          opacity: 1,
-          fillOpacity: 0.9,
-        });
-
-        marker.bindPopup(`
-          <strong>${escapeHtml(inc.title)}</strong><br>
-          <em>Prioridad: ${inc.level}</em><br>
-          ${inc.location?.label ? escapeHtml(inc.location.label) : ""}
-        `);
-        state.mapMarkersLayer.addLayer(marker);
-      }
-
-      // Círculo para radio de incertidumbre si radius_m > 0
-      if (inc.location?.radius_m && inc.location.radius_m > 0) {
-        const circle = L.circle([lat, lon], {
+    // Radio de incertidumbre (todo el barrio si no hubo GPS)
+    if (inc.location?.radius_m > 0) {
+      state.mapMarkersLayer.addLayer(
+        L.circle([lat, lon], {
           radius: inc.location.radius_m,
           color,
           fillColor: color,
-          fillOpacity: 0.15,
-          weight: 1.5,
-        });
-        state.mapMarkersLayer.addLayer(circle);
-      }
+          fillOpacity: inc.status === "pendiente" ? 0.12 : 0.05,
+          weight: 1,
+          interactive: false,
+        }),
+      );
     }
+    // Punto del incidente, con o sin GPS
+    const marker = L.circleMarker([lat, lon], {
+      radius: inc.level >= 3 ? 8 : 6,
+      fillColor: color,
+      color: "#ffffff",
+      weight: 2,
+      fillOpacity: inc.status === "pendiente" || inc.status === "sin_ficha" ? 0.95 : 0.45,
+    });
+    marker.bindPopup(incidentPopup(inc));
+    state.mapMarkersLayer.addLayer(marker);
   }
 
-  if (bounds.length > 0 && state.mapInstance) {
-    state.mapInstance.fitBounds(bounds, { padding: [20, 20], maxZoom: 15 });
+  // Encuadrar solo cuando cambia el conjunto de incidentes: no deshace el zoom del operador.
+  const signature = incidents.map((i) => i.incident_id).sort().join(",");
+  if (bounds.length > 0 && state.mapInstance && signature !== state.mapSignature) {
+    state.mapSignature = signature;
+    state.mapInstance.fitBounds(bounds, { padding: [30, 30], maxZoom: 15 });
+  }
+}
+
+// Nombres de los barrios sobre el mapa sin teselas: dan la referencia que no dan las calles.
+function drawBarrioLabels() {
+  if (!state.mapInstance || state.barrioLayer) return;
+  state.barrioLayer = L.layerGroup().addTo(state.mapInstance);
+  const points = [];
+  for (const b of state.barriosMap.values()) {
+    if (b.lat === null || b.lon === null) continue;
+    points.push([b.lat, b.lon]);
+    L.circle([b.lat, b.lon], {
+      radius: 600,
+      color: "#8bc34a",
+      weight: 1,
+      opacity: 0.35,
+      fill: false,
+      dashArray: "4 6",
+      interactive: false,
+    }).addTo(state.barrioLayer);
+    L.marker([b.lat, b.lon], {
+      icon: L.divIcon({ className: "barrio-label", html: escapeHtml(b.name), iconSize: null }),
+      interactive: false,
+      keyboard: false,
+    }).addTo(state.barrioLayer);
+  }
+  if (points.length > 0) {
+    state.mapInstance.fitBounds(points, { padding: [30, 30], maxZoom: 15 });
   }
 }
 
@@ -365,18 +410,14 @@ function renderFeed() {
   }
 
   // Render panel de barrios sin coordenadas
-  const barriosSinCoords = state.incidents.filter((inc) => {
-    if (inc.location?.geohash) return false;
-    if (inc.location?.barrio) {
-      const b = state.barriosMap.get(inc.location.barrio);
-      return !b || b.lat === null || b.lon === null;
-    }
-    return false;
-  });
+  // Sin GPS: ubicados solo por barrio (en el mapa, en el centro aproximado del barrio)
+  const barriosSinCoords = state.incidents.filter(
+    (inc) => !inc.location?.geohash && inc.location?.barrio != null,
+  );
 
   if (barriosContainer) {
     if (barriosSinCoords.length === 0) {
-      barriosContainer.innerHTML = `<p class="panel-empty">No hay reportes aproximados por barrio sin coordenadas.</p>`;
+      barriosContainer.innerHTML = `<p class="panel-empty">Todos los incidentes tienen ubicación por GPS.</p>`;
     } else {
       barriosContainer.innerHTML = barriosSinCoords
         .map((inc) => {
@@ -1249,6 +1290,7 @@ async function init() {
   setupRadioPanel();
   initMap();
   await loadBarrios();
+  drawBarrioLabels();
   setupSimulationBar();
   await updateHashesUi();
 
