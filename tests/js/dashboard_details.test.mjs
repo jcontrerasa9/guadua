@@ -93,7 +93,7 @@ test("buildIncidentDetailInnerHtml formatea correctamente todas las secciones de
 
   // Reglas
   assert.ok(html.includes("Reglas de urgencia aplicadas"));
-  assert.ok(html.includes("🔹 atrapados → crítica"));
+  assert.ok(html.includes("<li>atrapados → crítica</li>"));
 
   // Probabilidades
   assert.ok(html.includes("Probabilidades del clasificador"));
@@ -102,8 +102,8 @@ test("buildIncidentDetailInnerHtml formatea correctamente todas las secciones de
 
   // Fuentes
   assert.ok(html.includes("Fuentes de los reportes"));
-  assert.ok(html.includes("📡 ciudadano directo"));
-  assert.ok(html.includes("📡 radio directo"));
+  assert.ok(html.includes("<li>ciudadano directo</li>"));
+  assert.ok(html.includes("<li>radio directo</li>"));
 
   // Contradicciones vacías
   assert.ok(html.includes("Sin contradicciones reportadas."));
@@ -114,8 +114,8 @@ test("buildIncidentDetailInnerHtml formatea correctamente todas las secciones de
 
   // Trazabilidad de agentes
   assert.ok(html.includes("Trazabilidad de agentes"));
-  assert.ok(html.includes("🤖 <strong>triaje:</strong> reglas: piso crítica por atrapados"));
-  assert.ok(html.includes("🤖 <strong>coordinacion:</strong> matriz EMRE: Bomberos"));
+  assert.ok(html.includes("<li><strong>triaje:</strong> reglas: piso crítica por atrapados"));
+  assert.ok(html.includes("<li><strong>coordinacion:</strong> matriz EMRE: Bomberos"));
 
   // Reportes agrupados
   assert.ok(html.includes("Reportes agrupados (4)"));
@@ -129,7 +129,7 @@ test("buildIncidentDetailInnerHtml muestra contradicciones con alerta si existen
   };
 
   const html = buildIncidentDetailInnerHtml(detailConContradiccion);
-  assert.ok(html.includes("⚠️ Reporte A dice 0 atrapados"));
+  assert.ok(html.includes("<li>Reporte A dice 0 atrapados"));
   assert.ok(!html.includes("Sin contradicciones reportadas."));
 });
 
@@ -154,4 +154,15 @@ test("simulación de re-renderizado periódico (polling): el desplegable no se c
   state.openDetails.delete("inc-colapso-1");
   const htmlCerrado = renderIncidentCardHtml(SAMPLE_INCIDENT);
   assert.ok(!htmlCerrado.includes('data-details-id="inc-colapso-1" open'));
+});
+
+test("la tarjeta no usa emojis: urgencia, acciones y riesgo van en texto e ícono SVG", () => {
+  const html = renderIncidentCardHtml({
+    ...SAMPLE_INCIDENT,
+    risk_warning: "Fuga de gas reportada.",
+  });
+  assert.ok(html.includes(">Aprobar</button>"));
+  assert.ok(html.includes("Riesgo para rescatistas"));
+  assert.ok(html.includes('<svg class="risk-icon"'));
+  assert.doesNotMatch(html, /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
 });

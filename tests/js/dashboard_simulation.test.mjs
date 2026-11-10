@@ -122,7 +122,7 @@ test("checkConvergence: hashes iguales en los 3 nodos se marcan como convergidos
   const result = checkConvergence(hashes);
   assert.equal(result.converged, true);
   assert.equal(result.commonHash, hashes.A);
-  assert.match(result.message, /3\/3 Nodos convergidos/);
+  assert.match(result.message, /3\/3 nodos convergidos/);
 });
 
 test("checkConvergence: hashes distintos se marcan como no convergidos", () => {
@@ -267,7 +267,7 @@ test("UI barra de simulación: cada botón llama a su función y actualiza el ta
   const killBtn = document.getElementById("btn-sim-kill-a");
   await killBtn.click();
   assert.equal(mockClient.killedNodes.has("A"), true);
-  assert.equal(killBtn.textContent, "❤️ Revivir nodo A");
+  assert.equal(killBtn.textContent, "Revivir nodo A");
   assert.equal(killBtn.classList.contains("active-killed"), true);
 
   // Verificar que los hashes ahora marcan divergencia en el badge
@@ -280,7 +280,7 @@ test("UI barra de simulación: cada botón llama a su función y actualiza el ta
   // 6. Probar botón de revivir nodo A
   await killBtn.click();
   assert.equal(mockClient.killedNodes.has("A"), false);
-  assert.equal(killBtn.textContent, "💀 Apagar nodo A");
+  assert.equal(killBtn.textContent, "Apagar nodo A");
   assert.equal(killBtn.classList.contains("active-killed"), false);
 
   // El badge vuelve a marcar convergencia

@@ -68,7 +68,7 @@ export function radioClipHtml(clip, nodeBase, draft = null) {
   return `
     <div class="radio-clip ${clip.status === "pendiente" ? "pending" : ""}" data-audio-id="${id}">
       <div class="radio-clip-head">
-        <strong>📻 ${escapeHtml(clip.name || clip.audio_id)}</strong>
+        <strong>${escapeHtml(clip.name || clip.audio_id)}</strong>
         <span class="radio-muted">${escapeHtml(radioSourceLabel(clip))}${clip.corrections ? ` · ${clip.corrections} corrección(es)` : ""}</span>
       </div>
       ${audio}

@@ -52,7 +52,7 @@ export function checkConvergence(hashesMap, expectedNodes = ["A", "B", "C"]) {
       converged: true,
       hashes,
       commonHash: first,
-      message: `3/3 Nodos convergidos (${first.slice(0, 8)}…)`,
+      message: `3/3 nodos convergidos (${first.slice(0, 8)}…)`,
     };
   }
 

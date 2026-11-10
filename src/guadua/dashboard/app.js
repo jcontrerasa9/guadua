@@ -201,10 +201,10 @@ function initMap() {
 }
 
 const LEVEL_COLORS = {
-  4: "#dc2626", // Crítica
-  3: "#ea580c", // Alta
-  2: "#d97706", // Media
-  1: "#16a34a", // Baja
+  4: "#c62828", // Crítica (mismos tonos que styles.css)
+  3: "#e65100", // Alta
+  2: "#b7791f", // Media
+  1: "#2e7d32", // Baja
 };
 
 function renderMapIncidents(incidents) {
@@ -301,23 +301,19 @@ function renderFeed() {
   // Render lista corta (Nivel 4 y 3)
   if (shortList.length === 0) {
     shortContainer.innerHTML = `
-      <div style="padding: 2rem; text-align: center; color: var(--text-muted); background: white; border-radius: 8px;">
-        No hay incidentes críticos o de alta prioridad activos.
-      </div>`;
+      <div class="empty-state card">No hay incidentes críticos ni de prioridad alta activos.</div>`;
   } else {
     shortContainer.innerHTML = shortList.map((inc) => renderIncidentCardHtml(inc)).join("");
   }
 
   // Render lista desplegable (Nivel 2 y 1)
   if (otherSummary) {
-    otherSummary.textContent = `+${otherList.length} incidentes de prioridad media o baja`;
+    otherSummary.textContent = `${otherList.length} ${otherList.length === 1 ? "incidente" : "incidentes"} de prioridad media o baja`;
   }
 
   if (otherList.length === 0) {
     otherContainer.innerHTML = `
-      <div style="padding: 1.5rem; text-align: center; color: var(--text-muted);">
-        No hay incidentes de prioridad media o baja.
-      </div>`;
+      <div class="empty-state">No hay incidentes de prioridad media o baja.</div>`;
   } else {
     otherContainer.innerHTML = otherList.map((inc) => renderIncidentCardHtml(inc)).join("");
   }
@@ -334,7 +330,7 @@ function renderFeed() {
 
   if (barriosContainer) {
     if (barriosSinCoords.length === 0) {
-      barriosContainer.innerHTML = `<p style="font-size: 0.8125rem; color: var(--text-muted);">No hay reportes aproximados por barrio sin coordenadas.</p>`;
+      barriosContainer.innerHTML = `<p class="panel-empty">No hay reportes aproximados por barrio sin coordenadas.</p>`;
     } else {
       barriosContainer.innerHTML = barriosSinCoords
         .map((inc) => {
@@ -344,11 +340,11 @@ function renderFeed() {
           <div class="barrio-item">
             <div>
               <strong>${escapeHtml(barrioName)}</strong>
-              <div style="color: var(--text-muted); font-size: 0.75rem;">
-                ${escapeHtml(inc.title)} · Radio: ${inc.location.radius_m || 0} m
+              <div class="barrio-sub">
+                ${escapeHtml(inc.title)} · radio ${inc.location.radius_m || 0} m
               </div>
             </div>
-            <span class="barrio-tag">Nivel ${inc.level}</span>
+            <span class="barrio-tag priority-tag level-${inc.level}">${getPriorityLabel(inc.level)}</span>
           </div>`;
         })
         .join("");
@@ -362,18 +358,29 @@ function renderFeed() {
   attachCardEvents();
 }
 
+// Ícono de advertencia en línea (SVG): sin emojis ni dependencias.
+const WARNING_ICON = `<svg class="risk-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 15 14H1L8 1.5Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 6v3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="11.75" r=".9" fill="currentColor"/></svg>`;
+
+const STATUS_LABELS = {
+  pendiente: "Pendiente",
+  aprobada: "Aprobada",
+  editada: "Editada",
+  rechazada: "Rechazada",
+  conflicto: "Conflicto",
+};
+
 function getPriorityLabel(level) {
   switch (level) {
     case 4:
-      return "🔴 CRÍTICA";
+      return "Crítica";
     case 3:
-      return "🟠 ALTA";
+      return "Alta";
     case 2:
-      return "🟡 MEDIA";
+      return "Media";
     case 1:
-      return "🟢 BAJA";
+      return "Baja";
     default:
-      return `NIVEL ${level}`;
+      return `Nivel ${level}`;
   }
 }
 
@@ -387,77 +394,65 @@ export function renderIncidentCardHtml(inc) {
 
   let locationText = "Ubicación sin datos";
   if (inc.location?.label) {
-    locationText = `📍 ${inc.location.label}`;
+    locationText = inc.location.label;
   } else if (inc.location?.geohash) {
-    locationText = `📍 GPS (${inc.location.geohash})`;
+    locationText = `GPS ${inc.location.geohash}`;
   } else if (inc.location?.barrio) {
-    const bName = state.barriosMap.get(inc.location.barrio)?.name || `Barrio #${inc.location.barrio}`;
-    locationText = `📍 ${bName}`;
+    locationText = state.barriosMap.get(inc.location.barrio)?.name || `Barrio #${inc.location.barrio}`;
   }
+  const confidenceText = `Confianza ${conf.label.toLowerCase()}${conf.score !== null ? ` (${Math.round(conf.score * 100)} %)` : ""}`;
 
   const isOpen = state.openDetails.has(inc.incident_id);
   const cachedDetail = state.detailCache.get(inc.incident_id);
   const detailInnerHtml = isOpen && cachedDetail
     ? buildIncidentDetailInnerHtml(cachedDetail)
-    : `<div style="color: var(--text-muted);">Cargando trazabilidad...</div>`;
+    : `<div class="muted">Cargando trazabilidad...</div>`;
 
   return `
     <article class="incident-card level-${inc.level}" data-incident-id="${escapeHtml(inc.incident_id)}">
-      <div class="card-top">
-        <div class="card-title-group">
-          <div class="card-badge-row">
-            <span class="priority-tag level-${inc.level}">${priorityText}</span>
-            <span class="status-badge status-${inc.status}">${inc.status}</span>
-            <span class="card-location">${escapeHtml(locationText)}</span>
-          </div>
-          <h3 class="card-title">${escapeHtml(inc.title)}</h3>
-        </div>
-
-        <div class="card-meta-row">
-          <span class="confidence-chip">Confianza: ${conf.label}${conf.score !== null ? ` (${Math.round(conf.score * 100)}%)` : ""}</span>
+      <div class="card-head">
+        <div class="card-tags">
+          <span class="priority-tag level-${inc.level}">${priorityText}</span>
+          <span class="status-badge status-${inc.status}">${escapeHtml(STATUS_LABELS[inc.status] || inc.status)}</span>
           ${conf.tags.map((tag) => tag === "VERIFICAR YA"
-            ? `<span class="tag-alert">${tag}</span>`
-            : `<span class="tag-rumor">${tag}</span>`).join("")}
-          <span>⏱️ ${timeAgo}</span>
+            ? `<span class="tag-alert">Verificar ya</span>`
+            : `<span class="tag-rumor">${escapeHtml(tag.charAt(0) + tag.slice(1).toLowerCase())}</span>`).join("")}
         </div>
+        <span class="card-time">${timeAgo}</span>
       </div>
+
+      <h3 class="card-title">${escapeHtml(inc.title)}</h3>
+      <div class="card-meta">${escapeHtml(locationText)}<span class="sep">·</span>${escapeHtml(confidenceText)}</div>
 
       ${risk.show ? `
         <div class="risk-box" role="alert">
-          <div class="risk-stripe-header">
-            <span class="risk-icon" aria-hidden="true">${risk.icon}</span>
-            <strong class="risk-title">${escapeHtml(risk.title)}</strong>
+          ${WARNING_ICON}
+          <div>
+            <strong class="risk-title">Riesgo para rescatistas</strong>
+            <span class="risk-message">${escapeHtml(risk.text)}</span>
           </div>
-          <div class="risk-message">${escapeHtml(risk.text)}</div>
         </div>` : ""}
 
       ${(inc.suggestion || inc.message) ? `
-        <div class="suggestion-box">
-          ${inc.suggestion ? `<div class="suggestion-text">🚒 Sugerencia (EMRE): ${escapeHtml(inc.suggestion)}</div>` : ""}
-          ${inc.message ? `<div class="message-text">💬 Qué decir: "${escapeHtml(inc.message)}"</div>` : ""}
-        </div>` : ""}
+        <dl class="suggestion-box">
+          ${inc.suggestion ? `<dt>Unidad (EMRE)</dt><dd class="suggestion-text">${escapeHtml(inc.suggestion)}</dd>` : ""}
+          ${inc.message ? `<dt>Mensaje</dt><dd class="message-text">${escapeHtml(inc.message)}</dd>` : ""}
+        </dl>` : ""}
 
       <!-- Botones de acción del comandante -->
       <div class="card-actions">
         <button class="btn-primary ${!isActionable ? "btn-disabled" : ""}"
-          data-action="aprobar" data-ficha-id="${inc.ficha_id || ""}" ${!isActionable ? "disabled" : ""}>
-          ✅ Aprobar
-        </button>
+          data-action="aprobar" data-ficha-id="${inc.ficha_id || ""}" ${!isActionable ? "disabled" : ""}>Aprobar</button>
         <button class="btn-secondary ${!isActionable ? "btn-disabled" : ""}"
-          data-action="editar" data-ficha-id="${inc.ficha_id || ""}" ${!isActionable ? "disabled" : ""}>
-          ✏️ Editar mensaje
-        </button>
+          data-action="editar" data-ficha-id="${inc.ficha_id || ""}" ${!isActionable ? "disabled" : ""}>Editar mensaje</button>
         <button class="btn-danger ${!isActionable ? "btn-disabled" : ""}"
-          data-action="rechazar" data-ficha-id="${inc.ficha_id || ""}" ${!isActionable ? "disabled" : ""}>
-          ❌ Replanear
-        </button>
-
-        ${!hasFicha ? `<span style="font-size: 0.75rem; color: var(--text-muted); margin-left: auto;">(Sin ficha de coordinación generada)</span>` : ""}
+          data-action="rechazar" data-ficha-id="${inc.ficha_id || ""}" ${!isActionable ? "disabled" : ""}>Replanear</button>
+        ${!hasFicha ? `<span class="no-ficha">Sin ficha de coordinación</span>` : ""}
       </div>
 
       <!-- Desplegable 'Por qué está aquí' -->
       <details class="details-toggle" data-details-id="${escapeHtml(inc.incident_id)}" ${isOpen ? "open" : ""}>
-        <summary>🔎 Por qué está aquí / evidencia / agentes ▼</summary>
+        <summary>Por qué está aquí: evidencia y agentes</summary>
         <div class="details-content" id="details-${escapeHtml(inc.incident_id)}">
           ${detailInnerHtml}
         </div>
@@ -528,7 +523,7 @@ function attachCardEvents() {
           detail = res.data;
           state.detailCache.set(incidentId, detail);
         } else {
-          container.innerHTML = `<span style="color: var(--color-critica);">Error cargando detalle: ${res.data?.error || "Error"}</span>`;
+          container.innerHTML = `<span class="detail-error">Error cargando detalle: ${escapeHtml(res.data?.error || "Error")}</span>`;
           return;
         }
       }
@@ -545,7 +540,7 @@ function attachCardEvents() {
 
 export function buildIncidentDetailInnerHtml(detail) {
   if (!detail) {
-    return `<div style="color: var(--text-muted);">Cargando trazabilidad...</div>`;
+    return `<div class="muted">Cargando trazabilidad...</div>`;
   }
   const probEntries = Object.entries(detail.probabilities || {});
   const rules = detail.rules || [];
@@ -560,14 +555,14 @@ export function buildIncidentDetailInnerHtml(detail) {
       <div class="detail-block">
         <h4>Reglas de urgencia aplicadas</h4>
         <ul class="detail-list">
-          ${rules.map((r) => `<li>🔹 ${escapeHtml(r)}</li>`).join("")}
+          ${rules.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}
         </ul>
       </div>` : ""}
 
     ${probEntries.length > 0 ? `
       <div class="detail-block">
         <h4>Probabilidades del clasificador</h4>
-        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; font-size: 0.8125rem;">
+        <div class="prob-row">
           ${probEntries.map(([k, v]) => `<span><strong>${escapeHtml(k)}:</strong> ${Math.round(v * 100)}%</span>`).join("")}
         </div>
       </div>` : ""}
@@ -576,23 +571,23 @@ export function buildIncidentDetailInnerHtml(detail) {
       <div class="detail-block">
         <h4>Fuentes de los reportes</h4>
         <ul class="detail-list">
-          ${sources.map((s) => `<li>📡 ${escapeHtml(s)}</li>`).join("")}
+          ${sources.map((s) => `<li>${escapeHtml(s)}</li>`).join("")}
         </ul>
       </div>` : ""}
 
     <div class="detail-block">
       <h4>Contradicciones</h4>
       ${contradictions.length > 0 ? `
-        <ul class="detail-list" style="color: var(--color-critica);">
-          ${contradictions.map((c) => `<li>⚠️ ${escapeHtml(c)}</li>`).join("")}
-        </ul>` : `<span style="color: var(--text-muted); font-size: 0.8125rem;">Sin contradicciones reportadas.</span>`}
+        <ul class="detail-list contradictions">
+          ${contradictions.map((c) => `<li>${escapeHtml(c)}</li>`).join("")}
+        </ul>` : `<span class="panel-empty">Sin contradicciones reportadas.</span>`}
     </div>
 
     ${citations.length > 0 ? `
       <div class="detail-block">
         <h4>Citas normativas (EMRE)</h4>
         <ul class="detail-list">
-          ${citations.map((c) => `<li>📖 <strong>${escapeHtml(c.document)}</strong> - ${escapeHtml(c.section)} ${c.is_example ? "(ejemplo)" : ""}</li>`).join("")}
+          ${citations.map((c) => `<li><strong>${escapeHtml(c.document)}</strong> - ${escapeHtml(c.section)} ${c.is_example ? "(ejemplo)" : ""}</li>`).join("")}
         </ul>
       </div>` : ""}
 
@@ -600,13 +595,13 @@ export function buildIncidentDetailInnerHtml(detail) {
       <div class="detail-block">
         <h4>Trazabilidad de agentes</h4>
         <ul class="detail-list">
-          ${steps.map((st) => `<li>🤖 <strong>${escapeHtml(st.agent)}:</strong> ${escapeHtml(st.detail)}</li>`).join("")}
+          ${steps.map((st) => `<li><strong>${escapeHtml(st.agent)}:</strong> ${escapeHtml(st.detail)}</li>`).join("")}
         </ul>
       </div>` : ""}
 
     <div class="detail-block">
       <h4>Reportes agrupados (${reports.length})</h4>
-      <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">
+      <div class="report-ids">
         ${reports.map((r) => escapeHtml(r)).join(", ")}
       </div>
     </div>
@@ -811,7 +806,7 @@ function renderSafePeople() {
   if (!listEl) return;
 
   if (state.safePeople.length === 0) {
-    listEl.innerHTML = `<p style="font-size: 0.8125rem; color: var(--text-muted);">No hay reportes de personas a salvo aún.</p>`;
+    listEl.innerHTML = `<p class="panel-empty">No hay reportes de personas a salvo aún.</p>`;
     return;
   }
 
@@ -821,7 +816,7 @@ function renderSafePeople() {
         ? `<span class="safe-person-name">${escapeHtml(p.name)}</span>`
         : `<span class="safe-person-anon">(Sin nombre)</span>`;
       const barrioHtml = p.barrio_label
-        ? `<span>📍 ${escapeHtml(p.barrio_label)}</span>`
+        ? `<span>${escapeHtml(p.barrio_label)}</span>`
         : "";
       const timeHtml = p.received_at
         ? `<span>${formatTimeAgo(p.received_at)}</span>`
@@ -977,7 +972,7 @@ function updateLastSyncTime() {
   const syncEl = document.getElementById("last-update");
   if (syncEl) {
     const d = new Date();
-    syncEl.textContent = `Actualizado: ${d.toLocaleTimeString("es-CO")}`;
+    syncEl.textContent = `Actualizado ${d.toLocaleTimeString("es-CO")}`;
   }
 }
 
@@ -1011,7 +1006,7 @@ export async function updateHashesUi() {
     if (badge) {
       if (convergence.converged) {
         badge.classList.remove("diverged");
-        badge.textContent = convergence.message || "3/3 Nodos Convergidos";
+        badge.textContent = convergence.message || "3/3 nodos convergidos";
       } else {
         badge.classList.add("diverged");
         badge.textContent = convergence.message || "Divergencia (sincronizando)";
@@ -1070,7 +1065,7 @@ function simError(what, res) {
 }
 
 function paintKillButton(killBtn, killed) {
-  killBtn.textContent = killed ? "❤️ Revivir nodo A" : "💀 Apagar nodo A";
+  killBtn.textContent = killed ? "Revivir nodo A" : "Apagar nodo A";
   killBtn.classList.toggle("active-killed", killed);
 }
 
