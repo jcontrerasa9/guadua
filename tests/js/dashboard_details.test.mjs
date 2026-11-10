@@ -166,3 +166,9 @@ test("la tarjeta no usa emojis: urgencia, acciones y riesgo van en texto e ícon
   assert.ok(html.includes('<svg class="risk-icon"'));
   assert.doesNotMatch(html, /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
 });
+
+test("la línea de metadatos dice el tipo de incidente, porque el título sale del texto", () => {
+  const html = renderIncidentCardHtml({ ...SAMPLE_INCIDENT, incident: 0, title: "Gato atrapado en un arbol" });
+  assert.ok(html.includes('<div class="card-meta">Atrapados<span class="sep">·</span>'));
+  assert.ok(html.includes(">Gato atrapado en un arbol</h3>"));
+});

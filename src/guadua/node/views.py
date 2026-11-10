@@ -29,6 +29,7 @@ node/api.py. Reglas:
 
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -199,7 +200,45 @@ def _report_level(urgencies: list[Event]) -> Urgency:
     return max([floor, *(u.level for u in _current(urgencies))])
 
 
+# Título desde el texto del reporte ("Hay un gato atrapado en un árbol y no puede bajar" →
+# "Gato atrapado en un árbol"): sin las muletillas del inicio y hasta la primera cláusula.
+# Determinista y sin LLM; sin texto que sirva, queda el título por tipo de incidente.
+TITLE_MAX = 60
+_LEADING = re.compile(
+    r"^(?:(?:hola|ayuda|auxilio|socorro|urgente|por favor|buenas|oiga|"
+    r"hay|vi|veo|vimos|tenemos|estamos con|creo que|parece que|dicen que|"
+    r"me (?:dijeron|contaron) que|al parecer|"
+    r"un|una|unos|unas|el|la|los|las)\b[\s,.:;!¡]*)+",
+    re.IGNORECASE,
+)
+_CLAUSE_END = re.compile(r"[.!?;\n]|,\s|\s(?:y|o|pero|porque|entonces)\s", re.IGNORECASE)
+MIN_TITLE_WORDS = 2
+
+
+def text_title(text: str | None) -> str | None:
+    """Título corto sacado del texto, o None si el texto no da para uno."""
+    clean = " ".join((text or "").split())
+    if not clean:
+        return None
+    if clean.isupper():  # "SE CAYÓ LA CASA" → "se cayó la casa"
+        clean = clean.lower()
+    clean = _LEADING.sub("", clean).strip(" ,.;:¡!¿?")
+    # Corta en la primera cláusula, pero solo si deja al menos 3 palabras ("gas y cables").
+    for match in _CLAUSE_END.finditer(clean):
+        if len(clean[: match.start()].split()) >= 3:
+            clean = clean[: match.start()]
+            break
+    clean = clean.strip(" ,.;:¡!¿?")
+    if len(clean.split()) < MIN_TITLE_WORDS:
+        return None
+    if len(clean) > TITLE_MAX:
+        clean = clean[: TITLE_MAX + 1].rsplit(" ", 1)[0].rstrip(" ,.;:") + "…"
+    return clean[0].upper() + clean[1:]
+
+
 def _title(data: ReporteNormalizado) -> str:
+    if from_text := text_title(data.text):
+        return from_text
     title = INCIDENT_TITLES[data.incident]
     people = PEOPLE_LABELS.get(data.people)
     if people and "atrapados" in data.vital_signs and data.incident != Incident.ATRAPADOS:
@@ -283,7 +322,8 @@ def _build(iid: str, incident_event: Event | None, members: list[_Report], log: 
         if u.risk_signals:  # D3a: se advierte al explicar, sin tocar el nivel
             detail += f"; {risk_note(u.risk_signals)}"
         steps.append(AgentStep(agent="triaje", detail=detail))
-        steps.extend(AgentStep(agent="triaje", detail=f"agente · {s}") for s in u.steps)
+        prefix = "agente · " if u.source == "agente" else ""  # N7 solo anota las reglas
+        steps.extend(AgentStep(agent="triaje", detail=f"{prefix}{s}") for s in u.steps)
     if group:
         detail = f"vínculo {group.link}, confianza {group.confidence:.2f}"
         steps.append(AgentStep(agent="correlacion", detail=detail))

@@ -407,6 +407,18 @@ function renderFeed() {
 // Ícono de advertencia en línea (SVG): sin emojis ni dependencias.
 const WARNING_ICON = `<svg class="risk-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 15 14H1L8 1.5Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 6v3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="11.75" r=".9" fill="currentColor"/></svg>`;
 
+// Tipo de incidente de la cabecera (protocol/header.py, Incident): el título sale del texto
+// del reporte, así que el tipo va en la línea de metadatos.
+const INCIDENT_LABELS = {
+  0: "Atrapados",
+  1: "Derrumbe",
+  2: "Incendio",
+  3: "Fuga de gas",
+  4: "Herido",
+  5: "Vía bloqueada",
+  6: "Otro",
+};
+
 const STATUS_LABELS = {
   pendiente: "Pendiente",
   aprobada: "Aprobada",
@@ -469,7 +481,7 @@ export function renderIncidentCardHtml(inc) {
       </div>
 
       <h3 class="card-title">${escapeHtml(inc.title)}</h3>
-      <div class="card-meta">${escapeHtml(locationText)}<span class="sep">·</span>${escapeHtml(confidenceText)}</div>
+      <div class="card-meta">${INCIDENT_LABELS[inc.incident] ? `${INCIDENT_LABELS[inc.incident]}<span class="sep">·</span>` : ""}${escapeHtml(locationText)}<span class="sep">·</span>${escapeHtml(confidenceText)}</div>
 
       ${risk.show ? `
         <div class="risk-box" role="alert">

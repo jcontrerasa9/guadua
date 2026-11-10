@@ -124,9 +124,9 @@ def test_clip_con_dos_incidentes_da_dos_reportes_ligados_al_mismo_audio() -> Non
 
     # Cada uno sigue la cadena de siempre y es su propio incidente en el tablero.
     assert len(of_type(n, "reporte_normalizado")) == len(of_type(n, "urgencia_estimada")) == 2
-    cards = {c["title"]: c for c in client.get("/api/incidents").json()["incidents"]}
-    assert set(cards) == {"Incendio", "Personas atrapadas"}
-    detail = client.get(f"/api/incidents/{cards['Personas atrapadas']['incident_id']}").json()
+    cards = {c["incident"]: c for c in client.get("/api/incidents").json()["incidents"]}
+    assert set(cards) == {Incident.INCENDIO, Incident.ATRAPADOS}
+    detail = client.get(f"/api/incidents/{cards[Incident.ATRAPADOS]['incident_id']}").json()
     assert detail["sources"] == ["radio de segunda mano"]
     assert any(f"clip {ack['audio_id']} · parte 2" in s["detail"] for s in detail["steps"])
     clips = client.get("/api/radio").json()["clips"]

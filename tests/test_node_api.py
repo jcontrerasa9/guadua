@@ -147,7 +147,7 @@ def test_report_becomes_card_with_pending_ficha(api: TestClient) -> None:
     assert card["incident_id"] == "a1b2c3d4-7"
     assert card["level"] == 4  # por la regla de atrapados (N7), ya no provisional
     assert card["status"] == "pendiente" and card["ficha_id"] == "A:5"
-    assert card["title"] == "Colapso con 2 a 5 atrapados"
+    assert card["title"] == "Colapso casa 3 atrapados huele a gas"  # sale del texto
     assert "Fuga de gas" in card["risk_warning"]  # el texto precisa la bandera (D3a)
     types = [e.type for e in api.app.state.node.store.since({})]
     assert types == [
@@ -308,3 +308,33 @@ def test_restart_keeps_events_and_continues_seq(tmp_path: Path) -> None:
     second.post("/api/messages", content=encode(other))
     seqs = [e.seq for e in second.app.state.node.store.since({}) if e.origin_node == "A"]
     assert seqs == list(range(1, len(seqs) + 1))  # sin huecos ni repetidos tras reiniciar
+
+
+@pytest.mark.parametrize(
+    ("text", "title"),
+    [
+        ("Hay un gato atrapado en un arbol y no puede bajar", "Gato atrapado en un arbol"),
+        (
+            "Creo que mi vecino tiene una fuga de gas o tal vez es la basura",
+            "Mi vecino tiene una fuga de gas",
+        ),
+        (
+            "SE CAYO LA CASA EN BOSQUES DEL NORTE Y NO ENCONTRAMOS A NADIE",
+            "Se cayo la casa en bosques del norte",
+        ),
+        ("gas y cables", "Gas y cables"),  # no corta si quedan menos de 3 palabras
+        ("Ayuda!! hay fuego", None),  # solo muletillas: queda el título por tipo
+        ("", None),
+    ],
+)
+def test_title_from_text(text: str, title: str | None) -> None:
+    from guadua.node.views import text_title
+
+    assert text_title(text) == title
+
+
+def test_long_title_is_cut_at_a_word() -> None:
+    from guadua.node.views import TITLE_MAX, text_title
+
+    title = text_title("incendio " + "muy " * 30 + "grande")
+    assert len(title) <= TITLE_MAX + 1 and title.endswith("…") and " muy…" in title
