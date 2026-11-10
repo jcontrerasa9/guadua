@@ -387,9 +387,10 @@ Factor de independencia `ind`: 0 si viene del mismo dispositivo; 0,05 si el text
 El Agente 6 arma una ficha para que decida una persona:
 
 1. **A quién llamar (determinista):** la matriz de responsabilidades de la **EMRE de Manizales**, por tipo de incidente. Nunca la genera el LLM. Las entidades salen de los documentos oficiales; si una no aparece ahí, se marca como ejemplo. Si no hay responsable: "sin responsable identificado, escalar al coordinador".  
-2. **Con qué recursos:** la tabla editable de unidades por entidad (disponible, en misión, fuera de servicio). Si la entidad responsable no tiene unidades libres, la ficha lo advierte y sugiere escalar.  
+2. **Con qué recursos:** la tabla editable de unidades por entidad (disponible, en misión, fuera de servicio), menos las comprometidas en despachos ya aprobados. Si la entidad responsable no tiene unidades libres, la ficha lo advierte y sugiere escalar.  
 3. **Cómo actuar y riesgos:** el RAG recupera la sección aplicable del protocolo y la **cita** (documento, sección y versión). Si hay señales de riesgo en la escena, la ficha destaca la advertencia para los rescatistas.  
-4. **Qué decir:** el LLM redacta el mensaje con incidente, ubicación y su incertidumbre, personas, riesgos y confianza. Sin LLM, se usa una plantilla por tipo de incidente.  
+   El corpus (`data/emre_passages.json`) sale de los 9 PDF de `data/fuentes` con `python -m guadua.knowledge.ingest`: el texto tal como está en el documento, citado por **página** y con la entidad o tarea de la EMRE como contexto. Los resúmenes operativos que escribió el equipo (lo táctico que la EMRE no trae) van marcados como ejemplo y el tablero los muestra así. La ficha cita el mejor pasaje oficial y el mejor resumen.  
+4. **Qué decir:** el LLM redacta el mensaje con incidente, ubicación y su incertidumbre, personas, lo que escribieron los ciudadanos, riesgos, confianza y una o dos acciones del protocolo recuperado. Corre en otro hilo para no frenar la recepción. El código garantiza lo que no se puede omitir (lugar, falta de unidades, unidad especializada, "verificar al llegar" con rumor o confianza baja) y quita citas del texto. Sin LLM, se usa una plantilla por tipo de incidente.  
 5. **Aprobación obligatoria:** la ficha queda pendiente hasta que la persona elija **Aprobar**, **Editar** o **Rechazar y replanear**.
 
 **RAG detrás de una interfaz (`Retriever`):**

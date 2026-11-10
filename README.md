@@ -21,6 +21,8 @@ node --test "tests/js/*.test.mjs"
 python -m guadua.classifier.evaluate    # sensibilidad en críticos, matriz y tiempos del triaje
 python -m guadua.agents.triaje_eval     # cuánto llega al agente de triaje; con LLM, cómo resuelve
 python -m guadua.bench                  # banco de fallos: tabla de métricas de §15 (semilla fija, ~15 s)
+python -m guadua.knowledge.eval_rag     # RAG: páginas oficiales de la EMRE y resúmenes del equipo
+python -m guadua.knowledge.ingest       # rehace data/emre_passages.json desde los PDF (necesita pdftotext)
 ```
 
 ## Ejecutar
