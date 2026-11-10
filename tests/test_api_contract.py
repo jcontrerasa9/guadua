@@ -25,6 +25,8 @@ def test_every_response_schema_has_an_example() -> None:
     covered = {case["schema"] for case in EXAMPLES["valid"]}
     for route in ROUTES:
         for name in route.response.split(" | "):
+            if name.startswith("bytes"):  # el audio de un clip: no es un JSON
+                continue
             assert name in covered, f"falta ejemplo de {name} ({route.method} {route.path})"
 
 

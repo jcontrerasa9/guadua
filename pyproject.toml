@@ -43,7 +43,17 @@ agents = [
     "langchain-core==1.7.6",
     "langsmith==0.14.17",
 ]
-# Los demás extras pesados (radio) se agregan, fijados, con la tarea que los necesite.
+# Radio VHF (D7): faster-whisper en CPU. Sin este extra (o sin el modelo descargado) los
+# clips quedan pendientes y el operador escribe el texto. El modelo se baja una vez:
+# python -m guadua.radio descargar-modelo small. av 19 no sirve con faster-whisper 1.2.1.
+radio = [
+    "faster-whisper==1.2.1",
+    "ctranslate2==4.8.5",
+    "onnxruntime==1.31.1",
+    "av==16.1.0",
+    "tokenizers==0.23.3",
+    "huggingface_hub==2.4.0",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/guadua"]

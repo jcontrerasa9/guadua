@@ -38,6 +38,7 @@ def reporte(
     msg_type: MessageType = MessageType.REPORTE,
     channel: str = "wifi",
 ) -> Reporte:
+    radio = channel == "vhf"  # D7: un reporte de radio no tiene bytes y sí clip y texto
     return Reporte(
         report_id=RID,
         msg_type=msg_type,
@@ -46,9 +47,11 @@ def reporte(
         flags=int(flags),
         barrio=3,
         device_time=0,
-        text=text,
+        text=text or ("estamos en el sitio" if radio else None),
         channel=channel,
-        raw_hex="00",
+        raw_hex="" if radio else "00",
+        audio_id="7c120c39db3eba4d" if radio else None,
+        split_by="reglas" if radio else None,
     )
 
 

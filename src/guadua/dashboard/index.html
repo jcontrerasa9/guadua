@@ -134,6 +134,23 @@
         </div>
       </div>
 
+      <!-- Radio VHF (D7): clips, transcripción y respaldo manual -->
+      <div class="radio-panel" id="radio-panel">
+        <div class="radio-panel-header">
+          <h3>📻 Radio VHF (<span id="radio-count">0</span>)</h3>
+          <div class="radio-panel-actions">
+            <label class="btn-secondary-sm radio-upload" title="Subir un clip de audio">
+              Subir clip <input type="file" id="radio-upload-input" accept="audio/*,.ogg,.opus,.oga,.m4a,.mp4,.webm,.3gp,.amr" hidden>
+            </label>
+            <button id="btn-radio-demo" class="btn-secondary-sm" title="Clip grabado por el equipo con dos incidentes">Clip de prueba</button>
+          </div>
+        </div>
+        <p id="radio-status" class="radio-muted"></p>
+        <div id="radio-list" class="radio-list">
+          <p class="radio-muted">No hay clips de radio todavía.</p>
+        </div>
+      </div>
+
       <!-- Panel de Personas a salvo y cruce de buscados (D2b) -->
       <div class="safe-people-panel" id="safe-people-panel">
         <div class="safe-people-header">

@@ -175,11 +175,52 @@
       "category": "hecho",
       "type": "transcripcion_radio",
       "payload": {
-        "audio_id": "clip-03",
-        "text": "estamos en el sitio, dos atrapados",
-        "direct": true
+        "audio_id": "7c120c39db3eba4d",
+        "text": "Central, estamos en el sitio, incendio en la 23 del Centro. Nos comentan que hay gente atrapada en El Cable. Cambio.",
+        "direct": true,
+        "source": "whisper",
+        "model": "faster-whisper/small-int8",
+        "duration_s": 8.4,
+        "confidence": 0.79
       },
       "refs": [],
+      "received_at": 1794573600.0
+    },
+    {
+      "origin_node": "C",
+      "seq": 8,
+      "category": "hecho",
+      "type": "transcripcion_radio",
+      "payload": {
+        "audio_id": "7c120c39db3eba4d",
+        "text": "Central, estamos en el sitio, incendio en la 23 del Centro. Nos comentan que hay gente atrapada en Chipre. Cambio.",
+        "direct": true,
+        "source": "operador",
+        "operator": "comandante-1"
+      },
+      "refs": [["C", 6]],
+      "received_at": 1794573660.0
+    },
+    {
+      "origin_node": "C",
+      "seq": 7,
+      "category": "hecho",
+      "type": "reporte",
+      "payload": {
+        "report_id": "678ea16b-2",
+        "msg_type": 0,
+        "incident": 0,
+        "people": 4,
+        "flags": 1,
+        "barrio": 1,
+        "device_time": 1794573600,
+        "text": "Nos comentan que hay gente atrapada en El Cable. Cambio",
+        "channel": "vhf",
+        "raw_hex": "",
+        "audio_id": "7c120c39db3eba4d",
+        "split_by": "reglas"
+      },
+      "refs": [["C", 6]],
       "received_at": 1794573600.0
     },
     {
@@ -638,6 +679,90 @@
           ]
         ],
         "received_at": 1794573660.0
+      }
+    },
+    {
+      "name": "radio_sin_transcripcion_en_refs",
+      "event": {
+        "origin_node": "C",
+        "seq": 9,
+        "category": "hecho",
+        "type": "reporte",
+        "payload": {"report_id": "678ea16b-1", "msg_type": 0, "incident": 2, "people": 4, "flags": 36, "barrio": 4, "device_time": 1794573600, "text": "incendio en la 23 del Centro", "channel": "vhf", "raw_hex": "", "audio_id": "7c120c39db3eba4d", "split_by": "reglas"},
+        "refs": [],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "radio_sin_audio_id",
+      "event": {
+        "origin_node": "C",
+        "seq": 9,
+        "category": "hecho",
+        "type": "reporte",
+        "payload": {"report_id": "678ea16b-1", "msg_type": 0, "incident": 2, "people": 4, "flags": 36, "barrio": 4, "device_time": 1794573600, "text": "incendio en la 23 del Centro", "channel": "vhf", "raw_hex": "", "split_by": "reglas"},
+        "refs": [["C", 6]],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "radio_con_bytes_originales",
+      "event": {
+        "origin_node": "C",
+        "seq": 9,
+        "category": "hecho",
+        "type": "reporte",
+        "payload": {"report_id": "678ea16b-1", "msg_type": 0, "incident": 2, "people": 4, "flags": 36, "barrio": 4, "device_time": 1794573600, "text": "incendio en la 23 del Centro", "channel": "vhf", "raw_hex": "10a1", "audio_id": "7c120c39db3eba4d", "split_by": "reglas"},
+        "refs": [["C", 6]],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "celular_con_audio_id",
+      "event": {
+        "origin_node": "C",
+        "seq": 9,
+        "category": "hecho",
+        "type": "reporte",
+        "payload": {"report_id": "678ea16b-1", "msg_type": 0, "incident": 2, "people": 4, "flags": 36, "barrio": 4, "device_time": 1794573600, "text": "incendio en la 23 del Centro", "channel": "wifi", "raw_hex": "", "audio_id": "7c120c39db3eba4d", "split_by": "reglas"},
+        "refs": [],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "transcripcion_vacia",
+      "event": {
+        "origin_node": "C",
+        "seq": 9,
+        "category": "hecho",
+        "type": "transcripcion_radio",
+        "payload": {"audio_id": "7c120c39db3eba4d", "text": "", "direct": false},
+        "refs": [],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "audio_id_mal_formado",
+      "event": {
+        "origin_node": "C",
+        "seq": 9,
+        "category": "hecho",
+        "type": "transcripcion_radio",
+        "payload": {"audio_id": "clip-03", "text": "estamos en el sitio", "direct": true},
+        "refs": [],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "operador_sin_nombre",
+      "event": {
+        "origin_node": "C",
+        "seq": 9,
+        "category": "hecho",
+        "type": "transcripcion_radio",
+        "payload": {"audio_id": "7c120c39db3eba4d", "text": "incendio en Chipre", "direct": false, "source": "operador"},
+        "refs": [["C", 6]],
+        "received_at": 1794573600.0
       }
     }
   ]

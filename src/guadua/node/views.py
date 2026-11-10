@@ -19,6 +19,9 @@ node/api.py. Reglas:
   recepción, por qué, quién la decidió y la respuesta (o "esperando respuesta"). Si una
   partición dejó dos preguntas para un reporte, vale la más antigua y cuenta la primera
   respuesta a cualquiera de ellas.
+- **Radio VHF** (D7): la fuente dice "radio directo" o "radio de segunda mano", y los pasos
+  de qué clip y parte salió cada reporte. Si el operador corrigió una transcripción, los
+  reportes de la versión anterior se ocultan (siguen en el registro).
 - **Tras una partición** (N12) dos nodos pueden haber agrupado o fichado el mismo caso. Un
   reporte va solo en el primer incidente que lo agrupó, y una ficha anterior sin decisión
   (paralela, no replaneada) se muestra en los pasos; vale la más reciente.
@@ -31,10 +34,12 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 from guadua.agents.recepcion import answer_summary
+from guadua.agents.recepcion_radio import current_transcriptions
 from guadua.classifier.urgency import Urgency
-from guadua.node.api import AgentStep, IncidentCard, IncidentDetail, Question
+from guadua.node.api import AgentStep, IncidentCard, IncidentDetail, Question, RadioClip
 from guadua.node.pipeline import normalize
 from guadua.protocol.header import Incident, People
+from guadua.radio.clips import Clip
 from guadua.store.event_types import (
     Decision,
     Ficha,
@@ -43,6 +48,7 @@ from guadua.store.event_types import (
     Reporte,
     ReporteNormalizado,
     RespuestaSeguimiento,
+    TranscripcionRadio,
     UrgenciaEstimada,
     event_id_str,
 )
@@ -114,6 +120,7 @@ class _Log:
     decisions: dict[EventId, list[Event]] = field(default_factory=lambda: defaultdict(list))
     questions: dict[str, list[Event]] = field(default_factory=lambda: defaultdict(list))
     answers: dict[str, list[Event]] = field(default_factory=lambda: defaultdict(list))
+    transcriptions: dict[EventId, Event] = field(default_factory=dict)
 
     @classmethod
     def read(cls, events: Iterable[Event]) -> _Log:
@@ -121,6 +128,8 @@ class _Log:
         derived: list[Event] = []
         for event in events:
             match event.type:
+                case "transcripcion_radio":
+                    log.transcriptions[event.id] = event
                 case "reporte":
                     rid = event.payload["report_id"]
                     known = log.reports.get(rid)
@@ -148,6 +157,12 @@ class _Log:
                 report.urgencies.append(event)
             elif report.normalized is None or _key(event) > _key(report.normalized):
                 report.normalized = event
+        # Radio (D7): los reportes de una transcripción que el operador corrigió se ocultan;
+        # los reemplazan los de la corrección. Los eventos siguen en el registro.
+        corrected = {t.refs[0] for t in log.transcriptions.values() if t.refs}
+        for rid, report in list(log.reports.items()):
+            if report.reporte.refs[:1] and report.reporte.refs[0] in corrected:
+                del log.reports[rid]
         return log
 
     def groups(self) -> dict[str, tuple[Event | None, list[_Report]]]:
@@ -278,6 +293,7 @@ def _build(iid: str, incident_event: Event | None, members: list[_Report], log: 
             detail = f"ficha paralela {event_id_str(old)} sin decisión: vale la más reciente"
             steps.append(AgentStep(agent="coordinacion", detail=detail))
     for r in members:
+        steps.extend(_radio_steps(r, log))
         steps.extend(_question_steps(r.data.report_id, log))
     if ficha:
         origin = "plantilla" if ficha.from_template else "redactada con LLM"
@@ -306,14 +322,100 @@ def _build(iid: str, incident_event: Event | None, members: list[_Report], log: 
         "report_ids": tuple(r.data.report_id for r in members),
         "rules": tuple(dict.fromkeys(rule for u in parsed for rule in u.rules)),
         "probabilities": dict(top.probabilities) if top else {},
-        "sources": tuple(
-            "ciudadano directo" if r.data.direct_observation else "ciudadano de segunda mano"
-            for r in members
-        ),
+        "sources": tuple(_source(r) for r in members),
         "contradictions": group.contradictions if group else (),
         "citations": ficha.citations if ficha else (),
         "steps": tuple(steps),
     }
+
+
+def _source(report: _Report) -> str:
+    """Quién lo cuenta y si lo vio: "ciudadano directo", "radio de segunda mano"…"""
+    who = "radio" if report.reporte.payload.get("channel") == "vhf" else "ciudadano"
+    return f"{who} directo" if report.data.direct_observation else f"{who} de segunda mano"
+
+
+def _radio_steps(report: _Report, log: _Log) -> list[AgentStep]:
+    """De qué clip salió un reporte de radio, quién lo transcribió y quién lo separó."""
+    payload = report.reporte.payload
+    if payload.get("channel") != "vhf":
+        return []
+    source = log.transcriptions.get(report.reporte.refs[0]) if report.reporte.refs else None
+    part = payload["report_id"].rsplit("-", 1)[1]
+    detail = (
+        f"radio · clip {payload['audio_id']} · parte {part}; separado por {payload['split_by']}"
+    )
+    if source is not None:
+        t = TranscripcionRadio.model_validate(source.payload)
+        who = f"operador {t.operator}" if t.source == "operador" else (t.model or "Whisper")
+        detail += f"; transcrito por {who}"
+    unknown = set(report.data.unknown_fields)
+    if "direct_observation" in unknown:
+        detail += "; no dice si lo vio: cuenta como segunda mano"
+    if "location" in unknown:
+        detail += "; no dice el lugar"
+    return [AgentStep(agent="recepcion", detail=detail)]
+
+
+def radio_clips(
+    events: Iterable[Event], local: Iterable[Clip], notes: dict[str, str] | None = None
+) -> list[RadioClip]:
+    """Los clips de radio (D7): los que este nodo guarda (con o sin transcripción) y los que
+    conoce por gossip. El más reciente primero."""
+    events = list(events)
+    notes = notes or {}
+    current = current_transcriptions(events)
+    first_seen: dict[str, float] = {}
+    corrections: dict[str, int] = defaultdict(int)
+    for e in events:
+        if e.type == "transcripcion_radio":
+            audio_id = e.payload["audio_id"]
+            first_seen[audio_id] = min(first_seen.get(audio_id, e.received_at), e.received_at)
+            corrections[audio_id] += e.payload.get("source") == "operador"
+    stored = {c.audio_id: c for c in local}
+    reports: dict[EventId, list[Reporte]] = defaultdict(list)
+    for e in events:
+        if e.type == "reporte" and e.refs and e.payload.get("channel") == "vhf":
+            reports[e.refs[0]].append(Reporte.model_validate(e.payload))
+    out = []
+    for audio_id in stored.keys() | current.keys():
+        clip = stored.get(audio_id)
+        received = clip.received_at if clip else first_seen[audio_id]
+        event = current.get(audio_id)
+        if event is None:
+            out.append(
+                RadioClip(
+                    audio_id=audio_id,
+                    status="pendiente",
+                    received_at=received,
+                    has_audio=True,
+                    name=clip.name if clip else None,
+                    note=notes.get(audio_id, "sin transcripción: escriba el texto"),
+                )
+            )
+            continue
+        t = TranscripcionRadio.model_validate(event.payload)
+        parts = sorted(reports.get(event.id, ()), key=lambda r: r.report_id)
+        out.append(
+            RadioClip(
+                audio_id=audio_id,
+                status="transcrito",
+                received_at=received,
+                has_audio=clip is not None,
+                name=clip.name if clip else None,
+                transcription_id=event_id_str(event),
+                text=t.text,
+                source=t.source,
+                model=t.model,
+                operator=t.operator,
+                confidence=t.confidence,
+                duration_s=t.duration_s,
+                corrections=corrections[audio_id],
+                report_ids=tuple(r.report_id for r in parts),
+                split_by=parts[0].split_by if parts else None,
+            )
+        )
+    return sorted(out, key=lambda c: (-c.received_at, c.audio_id))
 
 
 def _question_and_answer(report_id: str, log: _Log) -> tuple[Event, Event | None] | None:

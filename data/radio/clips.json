@@ -1,0 +1,93 @@
+{
+  "description": "Clips de radio VHF del prototipo (D7). Cada clip lo graba el equipo leyendo el guion (ver data/radio/README.md) y se guarda como data/radio/<id>.ogg. 'partes' es lo que se espera de la separación: tipo, barrio (o null si no se dice) y directo (true lo vieron, false se lo contaron, null no lo dicen).",
+  "clips": [
+    {
+      "id": "clip_colapso_dos_incidentes",
+      "guion": "Central, aquí Máquina 3. Estamos en el sitio: colapso de una vivienda en Palermo, hay dos personas atrapadas. Además nos comentan que hay un incendio en Chipre. Cambio.",
+      "partes": [
+        {"tipo": "colapso", "barrio": "Palermo", "directo": true},
+        {"tipo": "incendio", "barrio": "Chipre", "directo": false}
+      ]
+    },
+    {
+      "id": "clip_incendio_centro_atrapados_cable",
+      "guion": "Central, estamos en el sitio, incendio en la 23 del Centro. Nos comentan que hay gente atrapada en El Cable. Cambio.",
+      "partes": [
+        {"tipo": "incendio", "barrio": "Centro", "directo": true},
+        {"tipo": "atrapados", "barrio": "El Cable", "directo": false}
+      ]
+    },
+    {
+      "id": "clip_directo_herido_milan",
+      "guion": "Central, llegamos al sitio en Milán. Tenemos un herido con fractura en la pierna, ya lo estamos atendiendo. Cambio.",
+      "partes": [
+        {"tipo": "herido", "barrio": "Milán", "directo": true}
+      ]
+    },
+    {
+      "id": "clip_directo_gas_centro",
+      "guion": "Central, Unidad 5 en el Centro. Confirmamos fuga de gas en un restaurante, estamos evacuando el edificio. Cambio.",
+      "partes": [
+        {"tipo": "fuga_gas", "barrio": "Centro", "directo": true}
+      ]
+    },
+    {
+      "id": "clip_rumor_santander",
+      "guion": "Central, nos informan que al parecer se cayó una casa en la Avenida Santander, sin confirmar. Cambio.",
+      "partes": [
+        {"tipo": "colapso", "barrio": "Av. Santander", "directo": false}
+      ]
+    },
+    {
+      "id": "clip_rumor_sin_lugar",
+      "guion": "Central, la comunidad dice que hay un deslizamiento que tapó la vía, no sabemos dónde exactamente. Cambio.",
+      "partes": [
+        {"tipo": "colapso", "barrio": null, "directo": false}
+      ]
+    },
+    {
+      "id": "clip_gas_y_herido",
+      "guion": "Central, estamos en Chipre atendiendo una fuga de gas. Por otro lado, nos reportan un herido en Milán. Cambio.",
+      "partes": [
+        {"tipo": "fuga_gas", "barrio": "Chipre", "directo": true},
+        {"tipo": "herido", "barrio": "Milán", "directo": false}
+      ]
+    },
+    {
+      "id": "clip_incendio_y_via",
+      "guion": "Central, vemos humo saliendo de una bodega en Palermo. También nos comentan que la vía hacia El Cable está bloqueada por un árbol caído. Cambio.",
+      "partes": [
+        {"tipo": "incendio", "barrio": "Palermo", "directo": true},
+        {"tipo": "via_bloqueada", "barrio": "El Cable", "directo": false}
+      ]
+    },
+    {
+      "id": "clip_jerga_qth",
+      "guion": "Central, QAP. QTH Chipre, positivo, incendio estructural con tres personas en el segundo piso. Cambio.",
+      "partes": [
+        {"tipo": "incendio", "barrio": "Chipre", "directo": null}
+      ]
+    },
+    {
+      "id": "clip_ruido_colapso",
+      "guion": "Central... estamos en Milán... colapso parcial... hay una persona atrapada... necesitamos apoyo. Cambio.",
+      "partes": [
+        {"tipo": "colapso", "barrio": "Milán", "directo": true}
+      ]
+    },
+    {
+      "id": "clip_tres_incidentes",
+      "guion": "Central, tres novedades. Estamos en el Centro con un herido por caída. Además nos reportan un incendio en Palermo. Y por otro lado, la comunidad dice que hay olor a gas en Chipre. Cambio.",
+      "partes": [
+        {"tipo": "herido", "barrio": "Centro", "directo": true},
+        {"tipo": "incendio", "barrio": "Palermo", "directo": false},
+        {"tipo": "fuga_gas", "barrio": "Chipre", "directo": false}
+      ]
+    },
+    {
+      "id": "clip_ininteligible",
+      "guion": "(Ruido fuerte casi todo el clip; solo se entiende: 'Central... atrapados... cambio'.) Sirve para probar el respaldo manual: el operador escribe el texto.",
+      "partes": []
+    }
+  ]
+}

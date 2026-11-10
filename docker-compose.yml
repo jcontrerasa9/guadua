@@ -20,7 +20,14 @@
 # quedan "ambiguo, revisar". Ejemplo con Ollama corriendo en el equipo:
 #   LLM_PROVIDER=ollama OLLAMA_MODEL=qwen2.5:3b OLLAMA_HOST=http://host.docker.internal:11434 \
 #     docker compose up
+#
+# Radio VHF (D7): la imagen trae faster-whisper y el modelo small (se bajan al construir).
+# Para construir sin el modelo (más liviana; el operador escribe el texto de los clips):
+#   docker compose build --build-arg WHISPER_MODEL=none
+#   python -m guadua.radio enviar data/radio/clip_colapso_dos_incidentes.ogg --nodo http://localhost:8000
 x-llm: &llm
+  SARD_TRANSCRIBER: ${SARD_TRANSCRIBER:-auto}
+  WHISPER_THREADS: ${WHISPER_THREADS:-2}
   LLM_PROVIDER: ${LLM_PROVIDER:-auto}
   GEMINI_API_KEY: ${GEMINI_API_KEY:-}
   GEMINI_MODEL: ${GEMINI_MODEL:-}

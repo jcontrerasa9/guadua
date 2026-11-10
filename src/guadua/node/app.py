@@ -1,6 +1,6 @@
-"""App FastAPI del nodo: las rutas de nivel 1 de docs/contratos.md y las pantallas.
+"""App FastAPI del nodo: las rutas de docs/contratos.md y las pantallas.
 
-    /api/...        la API (formatos en node/api.py)
+    /api/...        la API (formatos en node/api.py); /api/radio... es la radio VHF (D7)
     /tablero/       tablero del comandante (src/guadua/dashboard)
     /ciudadano/     PWA ciudadana (citizen/)
     /data/...       barrios.json y el diccionario, que usan las pantallas
@@ -14,13 +14,14 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import re
 from collections.abc import AsyncIterator
 from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from guadua.node.api import (
@@ -32,10 +33,15 @@ from guadua.node.api import (
     MessageAck,
     PeopleList,
     QuestionList,
+    RadioAck,
+    RadioList,
+    TranscriptionRequest,
 )
 from guadua.node.intake import IntakeError
 from guadua.node.service import Conflict, Node, NotFound
-from guadua.node.views import incident_cards, incident_detail, pending_questions
+from guadua.node.views import incident_cards, incident_detail, pending_questions, radio_clips
+from guadua.radio.clips import EXTENSIONS, ClipError
+from guadua.store.event_types import AUDIO_ID_PATTERN
 
 logger = logging.getLogger("guadua.node")
 
@@ -44,10 +50,24 @@ DASHBOARD_DIR = Path(__file__).resolve().parents[1] / "dashboard"
 CITIZEN_DIR = ROOT / "citizen"
 DATA_FILES = {"barrios.json", "diccionario_manizales.txt"}
 VIEW_PREFIXES = ("/tablero", "/ciudadano", "/data/")
+RADIO_DIR = ROOT / "data" / "radio"
+DEMO_ID = re.compile(r"^[a-z0-9_]{1,64}$")
+AUDIO_ID = re.compile(AUDIO_ID_PATTERN)
 
 
 def _error(message: str, status: int) -> JSONResponse:
     return JSONResponse({"error": message}, status_code=status)
+
+
+def demo_clip(clip_id: str) -> tuple[Path, str] | None:
+    """Un clip grabado por el equipo en data/radio/ (para la barra de simulación, D9)."""
+    if not DEMO_ID.match(clip_id):
+        return None
+    for extension, content_type in EXTENSIONS.items():
+        path = RADIO_DIR / f"{clip_id}{extension}"
+        if path.is_file():
+            return path, content_type
+    return None
 
 
 def create_app(node: Node, *, gossip_interval: float | None = 2.0) -> FastAPI:
@@ -141,6 +161,52 @@ def create_app(node: Node, *, gossip_interval: float | None = 2.0) -> FastAPI:
     @app.get("/api/people", response_model=PeopleList)
     async def people() -> PeopleList:
         return PeopleList(people=())
+
+    # Radio VHF (D7): el audio entra, se transcribe en otro hilo y se separa en reportes.
+
+    @app.post("/api/radio", response_model=RadioAck)
+    async def radio(request: Request) -> RadioAck | JSONResponse:
+        try:
+            return await node.receive_audio(
+                await request.body(), request.headers.get("content-type")
+            )
+        except ClipError as exc:
+            return _error(str(exc), 400)
+
+    @app.post("/api/radio/demo/{clip_id}", response_model=RadioAck)
+    async def radio_demo(clip_id: str) -> RadioAck | JSONResponse:
+        found = demo_clip(clip_id)
+        if found is None:
+            return _error(f"no existe el clip de demostración {clip_id} en data/radio/", 404)
+        path, content_type = found
+        try:
+            return await node.receive_audio(path.read_bytes(), content_type, name=clip_id)
+        except ClipError as exc:
+            return _error(str(exc), 400)
+
+    @app.get("/api/radio", response_model=RadioList)
+    async def radio_list() -> RadioList:
+        clips = radio_clips(node.store.since({}), node.clips.clips(), node.radio_notes)
+        return RadioList(node=node.node_id, clips=tuple(clips))
+
+    @app.get("/api/radio/{audio_id}/audio", response_model=None)
+    async def radio_audio(audio_id: str) -> Response:
+        found = node.clips.get(audio_id) if AUDIO_ID.match(audio_id) else None
+        if found is None:
+            return _error(f"este nodo no tiene el audio {audio_id}", 404)
+        clip, data = found
+        return Response(content=data, media_type=clip.content_type)
+
+    @app.post("/api/radio/{audio_id}/transcription", response_model=RadioAck, status_code=201)
+    async def radio_transcription(
+        audio_id: str, request: TranscriptionRequest
+    ) -> RadioAck | JSONResponse:
+        if not AUDIO_ID.match(audio_id):
+            return _error(f"id de clip inválido: {audio_id}", 404)
+        try:
+            return node.correct_transcription(audio_id, request)
+        except NotFound as exc:
+            return _error(str(exc), 404)
 
     # --- Pantallas -------------------------------------------------------------------------
 

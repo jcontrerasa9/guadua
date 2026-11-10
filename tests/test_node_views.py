@@ -11,7 +11,9 @@ EXAMPLES = json.loads(
     (Path(__file__).parent / "fixtures" / "event_examples.json").read_text(encoding="utf-8")
 )
 EVENTS = [Event.model_validate(e) for e in EXAMPLES["valid"]]
-BY_TYPE = {e.type: e for e in EVENTS}
+BY_TYPE: dict[str, Event] = {}
+for _event in EVENTS:  # el primer ejemplo de cada tipo (el de `reporte` es del celular)
+    BY_TYPE.setdefault(_event.type, _event)
 
 
 def derived(base: Event, seq: int, **payload) -> Event:

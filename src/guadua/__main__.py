@@ -10,6 +10,8 @@ from guadua.node.config import NodeConfig
 from guadua.node.service import Node
 from guadua.node.udp import UdpTransport
 from guadua.providers.fallback import llm_from_env
+from guadua.providers.transcriber import transcriber_from_env
+from guadua.radio.clips import clip_store_for
 from guadua.store.sqlite import SQLiteEventStore
 
 
@@ -31,6 +33,11 @@ def build_node(config: NodeConfig) -> Node:
         "LLM de los agentes de triaje y recepción: %s",
         llm.name if llm else "ninguno (triaje: ambiguo → revisar; recepción: reglas)",
     )
+    transcriber = transcriber_from_env()  # SARD_TRANSCRIBER, WHISPER_*; nunca descarga nada
+    logging.getLogger("guadua").info(
+        "Transcriptor de radio: %s",
+        transcriber.name if transcriber.name != "ninguno" else "ninguno (el operador escribe)",
+    )
     return Node(
         config.node_id,
         store,
@@ -40,6 +47,8 @@ def build_node(config: NodeConfig) -> Node:
         peer_timeout=config.peer_timeout,
         recepcion_llm=llm,
         question_kinds=frozenset(config.question_kinds),
+        transcriber=transcriber,
+        clips=clip_store_for(config.db_path),
     )
 
 

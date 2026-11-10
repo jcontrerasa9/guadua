@@ -3,7 +3,8 @@
 Toma una `urgencia_estimada` de N7 marcada `ambiguous` (y que no sea suya) y la investiga
 con un LLM en un ciclo de LangGraph:
 
-    START → llm ─┬→ herramienta → llm …       (incidentes_cercanos, marcar_verificar_ya)
+    START → llm ─┬→ herramienta → llm …       (incidentes_cercanos, radio_en_zona,
+                 │                             marcar_verificar_ya)
                  ├→ decidir → END              (fijar_urgencia o respuesta final)
                  └→ END                        (sin LLM, respuesta inválida, herramienta no
                                                 permitida, 6 pasos o tiempo agotados)
@@ -22,8 +23,9 @@ lo que proponga el LLM:
 Cada paso queda en `steps` del evento (registro inmutable, se ve en "por qué está aquí") y
 en el logger `guadua.triaje`. La decisión final siempre es de una persona.
 
-Herramientas del diseño que todavía no existen (ver docs/plan.md, "Pendiente de N8"):
-`radio_en_zona` (D7), `respuesta_seguimiento` (D5a) y `solicitar_verificacion_campo`
+`radio_en_zona` (D7) lee los reportes de la radio VHF del mismo lugar: evidencia, no
+cambia el nivel por sí sola. Herramientas del diseño que todavía no existen (ver
+docs/plan.md, "Pendiente de N8"): `respuesta_seguimiento` y `solicitar_verificacion_campo`
 (necesita un tipo de evento nuevo). Mientras tanto, para pedir verificación está
 `marcar_verificar_ya`.
 """
@@ -60,6 +62,15 @@ TOOLS: tuple[ToolSpec, ...] = (
     ToolSpec(
         "incidentes_cercanos",
         "Incidentes del mismo barrio o zona en los últimos minutos, con su nivel y reportes.",
+        {
+            "type": "object",
+            "properties": {"minutos": {"type": "integer", "minimum": 10, "maximum": 180}},
+        },
+    ),
+    ToolSpec(
+        "radio_en_zona",
+        "Lo que dijo la radio de Bomberos (VHF) en el mismo barrio o zona en los últimos "
+        "minutos: texto, si lo vieron en el sitio y hace cuánto.",
         {
             "type": "object",
             "properties": {"minutos": {"type": "integer", "minimum": 10, "maximum": 180}},
@@ -199,6 +210,50 @@ def incidentes_cercanos(case: TriageCase, minutos: int = NEARBY_DEFAULT_MIN) -> 
             "hace_min": max(0, round((case.now - d.received_at) / 60)),
         }
         for d in nearby[:NEARBY_LIMIT]
+    ]
+
+
+def radio_en_zona(case: TriageCase, minutos: int = NEARBY_DEFAULT_MIN) -> list[dict]:
+    """Reportes de radio (D7) del mismo lugar en la ventana, del más reciente al más antiguo.
+
+    Solo los que dijeron un lugar: uno sin lugar (toda la ciudad) no dice nada de esta zona.
+    Los de una transcripción que el operador corrigió no cuentan; cuentan los de la corrección.
+    """
+    if isinstance(minutos, bool) or not isinstance(minutos, int) or not 10 <= minutos <= 180:
+        raise ToolError(f"minutos debe ser un entero entre 10 y 180, llegó {minutos!r}")
+    if "location" in case.report.unknown_fields:
+        return []
+    since = case.now - minutos * 60
+    corrected = {e.refs[0] for e in case.events if e.type == "transcripcion_radio" and e.refs}
+    normalized = {
+        e.payload["report_id"]: ReporteNormalizado.model_validate(e.payload)
+        for e in case.events
+        if e.type == "reporte_normalizado"
+    }
+    found = []
+    for e in case.events:
+        if e.type != "reporte" or e.payload.get("channel") != "vhf" or e.received_at < since:
+            continue
+        rid = e.payload["report_id"]
+        n = normalized.get(rid)
+        if (
+            n is None
+            or rid == case.report.report_id
+            or (e.refs and e.refs[0] in corrected)
+            or "location" in n.unknown_fields
+            or not _same_place(n.location, case.report.location)
+        ):
+            continue
+        found.append((e.received_at, n))
+    found.sort(key=lambda item: -item[0])
+    return [
+        {
+            "texto": n.text,
+            "tipo": n.incident.name.lower(),
+            "lo_vieron_en_el_sitio": n.direct_observation,
+            "hace_min": max(0, round((case.now - at) / 60)),
+        }
+        for at, n in found[:NEARBY_LIMIT]
     ]
 
 
@@ -413,6 +468,17 @@ class AgenteTriaje:
                 result = json.dumps(found, ensure_ascii=False)
                 summary = f"{len(found)} incidente(s) cercano(s)" + "".join(
                     f"; {f['titulo']} ({f['nivel']}, {f['reportes']} rep.)" for f in found[:3]
+                )
+            elif reply.tool_name == "radio_en_zona":
+                minutos = reply.tool_args.get("minutos", NEARBY_DEFAULT_MIN)
+                if set(reply.tool_args) - {"minutos"}:
+                    raise ToolError(f"argumentos desconocidos: {sorted(reply.tool_args)}")
+                heard = radio_en_zona(case, minutos)
+                result = json.dumps(heard, ensure_ascii=False)
+                summary = f"{len(heard)} reporte(s) de radio en la zona" + "".join(
+                    f"; «{h['texto'][:60]}» "
+                    f"({'directo' if h['lo_vieron_en_el_sitio'] else 'segunda mano'})"
+                    for h in heard[:2]
                 )
             else:  # marcar_verificar_ya
                 motivo = reply.tool_args.get("motivo")
