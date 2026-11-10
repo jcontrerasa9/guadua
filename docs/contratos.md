@@ -11,7 +11,7 @@ Un contrato es un acuerdo entre partes que se construyen por separado. Cada cont
 | Evento (forma general) | `src/guadua/store/events.py` | — | Todos los nodos |
 | Catálogo de tipos de evento | `src/guadua/store/event_types.py` | `event_examples.json` | Agentes, nodo, tablero |
 | API HTTP del nodo | `src/guadua/node/api.py` | `api_examples.json` | PWA, tablero ↔ nodo |
-| Interfaces | `providers/llm.py`, `providers/transport.py`, `knowledge/retriever.py` | — | Agentes, canal, RAG |
+| Interfaces | `providers/llm.py`, `providers/transport.py`, `providers/transcriber.py`, `knowledge/retriever.py`, `radio/clips.py` (`ClipStore`) | — | Agentes, canal, radio, RAG |
 | Piso de urgencia | `src/guadua/classifier/urgency.py` | — | Triaje y cualquier agente |
 
 El formato byte por byte de la cabecera está en `docs/diseno.md` §5.2.
@@ -84,9 +84,15 @@ Todas las rutas cuelgan de `/api`. Los errores 4xx devuelven `ApiError` (`{"erro
 | `POST /api/decisions` | `DecisionRequest` | 201 `DecisionAck` · 404 · 409 | tablero | 1 |
 | `GET /api/questions/{device_id}` | — | `QuestionList` | PWA | 2 |
 | `GET /api/people` | — | `PeopleList` | tablero | 2 |
+| `POST /api/radio` | bytes: el audio, con su `Content-Type` (`audio/*`) | 200 `RadioAck` · 400 | script, tablero | 2 |
+| `POST /api/radio/demo/{clip_id}` | — (clip de `data/radio/`) | 200 `RadioAck` · 404 | barra de simulación | 2 |
+| `GET /api/radio` | — | `RadioList` | tablero | 2 |
+| `GET /api/radio/{audio_id}/audio` | — | 200 bytes `audio/*` · 404 | tablero | 2 |
+| `POST /api/radio/{audio_id}/transcription` | `TranscriptionRequest` | 201 `RadioAck` · 404 | tablero | 2 |
 
 - **`GET /api/questions/{device_id}`** (dispositivo en 8 dígitos hex) devuelve las preguntas sin responder de ese dispositivo, como máximo una por reporte, **la del reporte más reciente primero** y solo las de los últimos 5 minutos (desde que el nodo recibió el reporte). Una pregunta vencida no se borra: deja de ofrecerse, y si llega su respuesta igual se acepta. "No sé" siempre se ofrece, aunque no esté en `options`.
 - **`POST /api/messages`** recibe todos los mensajes binarios: reporte, SOS, "Estoy a salvo" y respuesta de seguimiento. El `200` es el ACK. Un mensaje repetido también recibe `200`, con `duplicate: true`, y no se guarda dos veces.
+- **Radio VHF (D7).** `POST /api/radio` guarda el audio (hasta 8 MB; wav, ogg, mp3, mp4, webm, flac), lo transcribe con faster-whisper en otro hilo y responde cuando termina: `transcrito` con el texto y el id de la `transcripcion_radio`, o `pendiente` con `note` (sin transcriptor o audio ininteligible). El `audio_id` son los primeros 16 hex del SHA-256 del audio: el mismo audio otra vez responde `duplicate: true` sin transcribir de nuevo (si quedó pendiente, se vuelve a intentar). El audio queda en el nodo que lo recibió (`has_audio` en `RadioList`); la transcripción viaja por gossip. `POST /api/radio/{audio_id}/transcription` publica una transcripción del operador; si ya había una, la corrige (la anterior en `refs[0]`).
 - **El tablero** consulta `GET /api/incidents` cada pocos segundos. Si el nodo no responde, pasa al siguiente de su lista usando `GET /api/health`.
 - **Mientras N6 no exista**, la PWA y el tablero usan `tests/fixtures/api_examples.json` como respuestas simuladas.
 
@@ -96,14 +102,14 @@ Cada nodo valida un evento con `validate_event` antes de guardarlo. El tipo fija
 
 | Tipo | Categoría | Lo produce | Contenido principal | Nivel |
 | :---- | :---- | :---- | :---- | :---- |
-| `reporte` | hecho | Nodo que recibe el mensaje | Campos de la cabecera, texto, canal, bytes originales | 1 |
+| `reporte` | hecho | Nodo que recibe el mensaje; por radio, el Agente 1 al separar la transcripción | Campos de la cabecera, texto, canal, bytes originales. Por radio (`vhf`): además `audio_id` y `split_by`; sin bytes. `refs[0]` = la transcripción | 1 |
 | `reporte_normalizado` | derivado | Agente 1 · recepción (o reglas simples mientras no exista) | Tipo, personas, ubicación con radio, señales vitales y de riesgo, campos desconocidos | 1 |
 | `urgencia_estimada` | derivado | Agente 2 · triaje | Nivel y piso (nivel ≥ piso), fuente, probabilidades, reglas, verificar ya, ambiguo, pasos | 1 |
 | `incidente_agrupado` | derivado | Agente 3 · correlación | Incidente, reportes, vínculo seguro / dudoso / nuevo, confianza, rumor, contradicciones | 1 |
 | `ficha` | derivado | Agente 6 · coordinación | Responsable, unidades, advertencia de riesgo, mensaje, citas, si usó plantilla | 1 |
 | `decision` | decisión | Tablero, a través del nodo | Aprobar / editar / rechazar, mensaje editado, operador. `refs[0]` = la ficha | 1 |
 | `a_salvo` | hecho | Nodo | Reporte, nombre, barrio | 2 |
-| `transcripcion_radio` | hecho | Nodo | Clip, texto, si es observación directa | 2 |
+| `transcripcion_radio` | hecho | Nodo que recibe el audio, o el operador desde el tablero | Clip (`audio_id`), texto, si algo se vio en persona, fuente (`whisper` / `operador`), modelo, duración, confianza, operador. Una corrección lleva la anterior en `refs[0]` | 2 |
 | `pregunta_seguimiento` | derivado | Agente 1 · recepción | Reporte, clave del catálogo o `libre`, tipo (Sí / No, opciones, texto), texto, opciones, motivo, fuente (reglas / agente) y modelo. `refs[0]` = el `reporte_normalizado` | 2 |
 | `respuesta_seguimiento` | hecho | Nodo | Pregunta (`question_id` = id de la pregunta), respuesta: sí / no / no sé / opción / texto. `refs[0]` = la pregunta | 2 |
 | `confirmacion_campo` | hecho | Nodo | Incidente, confirmado, nota | 2 |
@@ -114,5 +120,12 @@ Cada nodo valida un evento con `validate_event` antes de guardarlo. El tipo fija
 **Dueño del trabajo:** lo que dispara un evento lo hace su `origin_node`, salvo que una `reasignacion` lo cubra (mismo origen que `from_node` y `seq ≤ up_to_seq`). En ese caso lo hace quien la publicó, y si hay varias, el de id más bajo. Una reasignación nunca la publica el propio `from_node`. Detalle en `docs/fichas/resiliencia.md`.
 
 **Preguntas de seguimiento (D5a).** Como máximo **una por reporte**: el agente de recepción no publica una `pregunta_seguimiento` si ya hay una con el mismo `report_id`. Si una partición deja dos, vale la más antigua (hora de recepción y luego id) y cualquiera de las dos respuestas cuenta. Vale la primera respuesta de cada pregunta. Una respuesta nunca baja la urgencia (regla 1): es evidencia para el triaje y el operador.
+
+**Radio VHF (D7).** El Agente 1 separa cada `transcripcion_radio` vigente (la que ninguna corrección reemplaza) en 1 a 4 `reporte` con `channel="vhf"`, uno por suceso:
+
+- `report_id` = CRC32 del id de la transcripción ("A:12") en 8 hex + `-` + número de parte (1, 2…). Las partes de un clip comparten "dispositivo", y una corrección produce ids nuevos.
+- `audio_id` liga los reportes al mismo clip; `refs[0]` es la transcripción; `split_by` dice quién separó (`reglas` o el modelo, p. ej. `gemini/…`).
+- `msg_type` = 0 (reporte), `raw_hex` vacío, `flags` solo con lo dicho (observación directa si alguien dijo que estaba en el sitio; atrapados, no respira o sangrado, incendio si el texto lo dice), `people` solo con un número dicho (si no, "no sé"), `barrio` solo si se nombró (si no, `geohash` y `barrio` van en None y la normalización usa toda la ciudad con radio de 5 km, con `location` en `unknown_fields`).
+- Por radio no hay preguntas de seguimiento. Si el operador corrige la transcripción, los reportes de la anterior siguen en el registro y el tablero los oculta.
 
 **Pendiente de definir** (se agrega al catálogo cuando llegue su tarea): las solicitudes entre agentes del vigía (D6).
