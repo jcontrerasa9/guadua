@@ -699,3 +699,145 @@ body {
   cursor: pointer;
   padding: 0 0.5rem;
 }
+
+/* Panel de Personas a salvo y cruce de buscados (D2b) */
+.safe-people-panel {
+  background-color: var(--surface-color);
+  border-top: 2px solid var(--border-color);
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.safe-people-header h3 {
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-main);
+  margin: 0;
+}
+
+.sought-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.sought-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.sought-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.8125rem;
+  font-family: inherit;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background-color: #ffffff;
+  color: var(--text-main);
+  resize: vertical;
+  min-height: 60px;
+}
+
+.sought-textarea:focus {
+  outline: none;
+  border-color: var(--accent-blue, #2563eb);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.sought-matches-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+}
+
+.sought-match {
+  font-size: 0.8125rem;
+  padding: 0.4rem 0.65rem;
+  border-radius: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  line-height: 1.3;
+}
+
+.sought-match.found {
+  background-color: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+}
+
+.sought-match.found .sought-status {
+  font-weight: 700;
+  color: #047857;
+}
+
+.sought-match.not-found {
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+}
+
+.sought-match.not-found .sought-status {
+  font-style: italic;
+  color: #94a3b8;
+}
+
+.safe-people-details {
+  border-top: 1px solid var(--border-color);
+  padding-top: 0.5rem;
+}
+
+.safe-people-summary {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 0.5rem;
+}
+
+.safe-people-list {
+  max-height: 180px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.safe-person-item {
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 4px;
+  background-color: #f8fafc;
+  border: 1px solid #f1f5f9;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.safe-person-name {
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.safe-person-anon {
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.safe-person-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+

@@ -316,3 +316,113 @@ export function computeRiskWarning(input) {
     text,
   };
 }
+
+/**
+ * Normaliza un nombre para comparación:
+ * - Sin tildes / diacríticos
+ * - En minúsculas
+ * - Sin espacios iniciales, finales ni redundantes
+ *
+ * @param {string | null | undefined} name
+ * @returns {string}
+ */
+export function normalizeName(name) {
+  if (typeof name !== "string") return "";
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+/**
+ * Cruza la lista de buscados (ingresada por el operador) con la lista de personas a salvo.
+ *
+ * Compara nombres normalizados (sin tildes, sin mayúsculas, espacios colapsados).
+ * Cuando coincide, marca "Encontrada a salvo en <barrio>".
+ *
+ * @param {string | string[]} soughtInput - Texto con nombres (separados por línea) o array de nombres
+ * @param {Array<{ report_id: string, name?: string | null, barrio_label?: string | null, received_at?: number }>} safePeople - Lista de personas a salvo
+ * @returns {Array<{ query: string, normalizedQuery: string, found: boolean, person: Object | null, statusText: string }>}
+ */
+export function matchSoughtPeople(soughtInput, safePeople = []) {
+  let lines = [];
+  if (Array.isArray(soughtInput)) {
+    lines = soughtInput;
+  } else if (typeof soughtInput === "string") {
+    lines = soughtInput.split(/\r?\n/);
+  }
+
+  const peopleList = Array.isArray(safePeople) ? safePeople : [];
+  const results = [];
+
+  for (const line of lines) {
+    if (typeof line !== "string") continue;
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    const normQuery = normalizeName(trimmed);
+    if (!normQuery) continue;
+
+    const matchedPerson = peopleList.find((p) => {
+      if (!p || typeof p.name !== "string" || !p.name.trim()) return false;
+      return normalizeName(p.name) === normQuery;
+    });
+
+    if (matchedPerson) {
+      const barrio = matchedPerson.barrio_label || "barrio no especificado";
+      results.push({
+        query: trimmed,
+        normalizedQuery: normQuery,
+        found: true,
+        person: matchedPerson,
+        statusText: `Encontrada a salvo en ${barrio}`,
+      });
+    } else {
+      results.push({
+        query: trimmed,
+        normalizedQuery: normQuery,
+        found: false,
+        person: null,
+        statusText: "Sin reporte a salvo",
+      });
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Datos simulados propios del mock del dashboard para GET /api/people con ?mock=1.
+ * Contrato: no modifica el fixture api_examples.json.
+ */
+export const DASHBOARD_MOCK_PEOPLE = {
+  people: [
+    {
+      report_id: "00000063-3",
+      name: "Ana",
+      barrio_label: "Palermo",
+      received_at: 1794574000.0,
+    },
+    {
+      report_id: "00000064-1",
+      name: "Carlos Gómez",
+      barrio_label: "Chipre",
+      received_at: 1794574100.0,
+    },
+    {
+      report_id: "00000065-2",
+      name: "María José Pérez",
+      barrio_label: "El Cable",
+      received_at: 1794574200.0,
+    },
+    {
+      report_id: "00000066-1",
+      name: null,
+      barrio_label: "Centro",
+      received_at: 1794574300.0,
+    },
+  ],
+};
+

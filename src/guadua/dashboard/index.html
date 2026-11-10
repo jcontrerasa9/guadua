@@ -78,6 +78,35 @@
           <p style="font-size: 0.8125rem; color: var(--text-muted);">No hay reportes aproximados por barrio pendientes.</p>
         </div>
       </div>
+
+      <!-- Panel de Personas a salvo y cruce de buscados (D2b) -->
+      <div class="safe-people-panel" id="safe-people-panel">
+        <div class="safe-people-header">
+          <h3>👥 Personas a salvo (<span id="safe-people-count">0</span>)</h3>
+        </div>
+
+        <!-- Buscador / lista de buscados -->
+        <div class="sought-container">
+          <label for="sought-names-input" class="sought-label">
+            Buscar personas (un nombre por línea):
+          </label>
+          <textarea
+            id="sought-names-input"
+            class="sought-textarea"
+            rows="3"
+            placeholder="Escriba nombres a buscar...&#10;Ej: Carlos Gómez&#10;Ana"
+          ></textarea>
+          <div id="sought-matches-list" class="sought-matches-list"></div>
+        </div>
+
+        <!-- Lista de personas a salvo -->
+        <details class="safe-people-details" open>
+          <summary class="safe-people-summary">Registro de personas reportadas</summary>
+          <div id="safe-people-list" class="safe-people-list">
+            <p style="font-size: 0.8125rem; color: var(--text-muted);">No hay reportes de personas a salvo aún.</p>
+          </div>
+        </details>
+      </div>
     </section>
   </main>
 
