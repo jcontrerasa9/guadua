@@ -24,6 +24,7 @@ import {
   truncateUtf8,
 } from "./report.js";
 import { buildSafeBinary, MAX_NAME_BYTES } from "./safe.js";
+import { createQuestionManager } from "./questions.js";
 
 // Estado de la interfaz
 const uiState = {
@@ -42,6 +43,7 @@ const uiState = {
   beacon: null,
   wakeLock: null,
   tapDetector: null,
+  questionManager: null,
 };
 
 // --- Registro de Service Worker para funcionamiento 100% offline -------------
@@ -669,6 +671,79 @@ function setupConnectivityAndBattery() {
   }
 }
 
+// --- Preguntas de seguimiento (D5b) -------------------------------------------
+
+function setupQuestionsCard() {
+  const cardEl = document.getElementById("question-card");
+  const textEl = document.getElementById("question-text");
+  const btnNo = document.getElementById("btn-question-no");
+  const btnYes = document.getElementById("btn-question-yes");
+
+  if (!cardEl || !uiState.queue) return;
+
+  uiState.questionManager = createQuestionManager({
+    store: uiState.queue.store,
+    queue: uiState.queue,
+    getDeviceIdFn: () => uiState.queue.store.getDeviceId(),
+    onQuestionChange: (q) => {
+      if (q && q.text) {
+        if (textEl) textEl.textContent = q.text;
+        cardEl.classList.remove("hidden");
+      } else {
+        cardEl.classList.add("hidden");
+      }
+    },
+  });
+
+  if (btnNo) {
+    btnNo.onclick = async () => {
+      try {
+        const res = await uiState.questionManager.answerCurrentQuestion(false);
+        if (res?.enqueuedItem) {
+          uiState.lastReportId = res.enqueuedItem.id;
+          updatePipelineUi(ReportStatus.GUARDADO);
+          showToast("Respuesta 'No' guardada y enviando...");
+        }
+      } catch (err) {
+        console.error("Error al responder pregunta:", err);
+      }
+    };
+  }
+
+  if (btnYes) {
+    btnYes.onclick = async () => {
+      try {
+        const res = await uiState.questionManager.answerCurrentQuestion(true);
+        if (res?.enqueuedItem) {
+          uiState.lastReportId = res.enqueuedItem.id;
+          updatePipelineUi(ReportStatus.GUARDADO);
+          showToast("Respuesta 'Sí' guardada y enviando...");
+        }
+      } catch (err) {
+        console.error("Error al responder pregunta:", err);
+      }
+    };
+  }
+
+  // Consultar preguntas si hay red
+  if (navigator.onLine) {
+    uiState.questionManager.pollQuestions().catch(() => {});
+  }
+
+  window.addEventListener("online", () => {
+    if (uiState.questionManager) {
+      uiState.questionManager.pollQuestions().catch(() => {});
+    }
+  });
+
+  // Sondeo periódico cada 15s si hay red
+  setInterval(() => {
+    if (navigator.onLine && uiState.questionManager) {
+      uiState.questionManager.pollQuestions().catch(() => {});
+    }
+  }, 15000);
+}
+
 // --- Inicialización Principal -------------------------------------------------
 
 async function init() {
@@ -691,6 +766,7 @@ async function init() {
     },
   });
 
+  setupQuestionsCard();
   setupBloque3();
   uiState.queue.start();
 }
