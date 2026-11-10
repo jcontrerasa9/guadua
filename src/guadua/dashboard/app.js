@@ -1040,8 +1040,42 @@ export async function updateHashesUi() {
   }
 }
 
+/**
+ * Cliente de la barra: con ?mock=1, el simulado en memoria; si no, el real (proxy de fallos
+ * en :8080 o ?proxy=url, y los nodos A, B y C en :8000, :8001 y :8002 del mismo equipo).
+ */
+export function defaultSimulationClient(location = typeof window !== "undefined" ? window.location : null) {
+  const params = new URLSearchParams(location?.search || "");
+  if (params.get("mock") === "1" || !location?.hostname) {
+    return new MockSimulationClient();
+  }
+  const base = `${location.protocol}//${location.hostname}`;
+  // ?nodes=urlA,urlB,urlC (como el resto del tablero) cambia dónde están A, B y C.
+  const custom = (params.get("nodes") || "").split(",").map((n) => n.trim()).filter(Boolean);
+  const [a, b, c] = custom.length === 3 ? custom : [`${base}:8000`, `${base}:8001`, `${base}:8002`];
+  return new HttpSimulationClient({
+    proxyUrl: params.get("proxy") || `${base}:8080`,
+    nodeUrls: { A: a, B: b, C: c },
+  });
+}
+
+function simStatus(text) {
+  const statusEl = document.getElementById("sim-status-msg");
+  if (statusEl) statusEl.textContent = text;
+}
+
+function simError(what, res) {
+  const why = res?.data?.error || (res?.status ? `HTTP ${res.status}` : "sin respuesta");
+  simStatus(`No se pudo ${what}: ${why}`);
+}
+
+function paintKillButton(killBtn, killed) {
+  killBtn.textContent = killed ? "❤️ Revivir nodo A" : "💀 Apagar nodo A";
+  killBtn.classList.toggle("active-killed", killed);
+}
+
 export function setupSimulationBar(client = null) {
-  state.simClient = client || new MockSimulationClient();
+  state.simClient = client || defaultSimulationClient();
 
   // 1. Botones de perfil de canal
   const profileBtns = [
@@ -1054,15 +1088,16 @@ export function setupSimulationBar(client = null) {
     const btn = document.getElementById(id);
     if (btn) {
       btn.addEventListener("click", async () => {
-        await state.simClient.setProfile(profile);
+        const res = await state.simClient.setProfile(profile);
+        if (res && res.ok === false) {
+          simError("cambiar el perfil del canal (¿está el proxy en :8080?)", res);
+          return;
+        }
         for (const p of profileBtns) {
           const b = document.getElementById(p.id);
           if (b) b.classList.toggle("active", p.profile === profile);
         }
-        const statusEl = document.getElementById("sim-status-msg");
-        if (statusEl) {
-          statusEl.textContent = `Perfil de canal cambiado a: ${profile.toUpperCase()}`;
-        }
+        simStatus(`Perfil de canal cambiado a: ${profile.toUpperCase()}`);
       });
     }
   }
@@ -1071,11 +1106,17 @@ export function setupSimulationBar(client = null) {
   const burstBtn = document.getElementById("btn-sim-burst");
   if (burstBtn) {
     burstBtn.addEventListener("click", async () => {
-      await state.simClient.burst(10);
-      const statusEl = document.getElementById("sim-status-msg");
-      if (statusEl) {
-        statusEl.textContent = "Ráfaga de 10 reportes sintéticos inyectada.";
+      const res = await state.simClient.burst(10);
+      if (res && res.ok === false) {
+        simError("lanzar la ráfaga (¿está el proxy en :8080?)", res);
+        return;
       }
+      const d = res?.data;
+      simStatus(
+        d && typeof d.delivered === "number"
+          ? `Ráfaga de ${d.sent} reportes sintéticos: ${d.delivered} entregados, ${d.lost} perdidos en el canal (${d.profile}).`
+          : "Ráfaga de 10 reportes sintéticos inyectada.",
+      );
       await updateHashesUi();
     });
   }
@@ -1084,11 +1125,17 @@ export function setupSimulationBar(client = null) {
   const radioBtn = document.getElementById("btn-sim-radio");
   if (radioBtn) {
     radioBtn.addEventListener("click", async () => {
-      await state.simClient.injectRadio("clip_colapso_dos_incidentes");
-      const statusEl = document.getElementById("sim-status-msg");
-      if (statusEl) {
-        statusEl.textContent = "Clip de radio VHF inyectado (2 incidentes transcritos).";
+      simStatus("Clip de radio enviado; transcribiendo…");
+      const res = await state.simClient.injectRadio("clip_colapso_dos_incidentes");
+      if (res && res.ok === false) {
+        simError("inyectar el clip de radio", res);
+        return;
       }
+      simStatus(
+        res?.data?.status === "pendiente"
+          ? "Clip de radio recibido sin transcribir: escribe el texto en el panel de radio."
+          : "Clip de radio VHF inyectado (2 incidentes transcritos).",
+      );
       await updateHashesUi();
     });
   }
@@ -1096,22 +1143,21 @@ export function setupSimulationBar(client = null) {
   // 4. Botón apagar nodo A
   const killBtn = document.getElementById("btn-sim-kill-a");
   if (killBtn) {
+    if (typeof state.simClient.syncPower === "function") {
+      state.simClient.syncPower().then((killed) => paintKillButton(killBtn, killed.has("A")));
+    }
     killBtn.addEventListener("click", async () => {
       const res = await state.simClient.killNode("A");
-      const statusEl = document.getElementById("sim-status-msg");
-      if (res.killed) {
-        killBtn.textContent = "❤️ Revivir nodo A";
-        killBtn.classList.add("active-killed");
-        if (statusEl) {
-          statusEl.textContent = "Nodo A apagado (simulando caída de red o equipo).";
-        }
-      } else {
-        killBtn.textContent = "💀 Apagar nodo A";
-        killBtn.classList.remove("active-killed");
-        if (statusEl) {
-          statusEl.textContent = "Nodo A recuperado y sincronizado.";
-        }
+      if (res && res.ok === false) {
+        simError("cambiar el nodo A", res);
+        return;
       }
+      paintKillButton(killBtn, Boolean(res.killed));
+      simStatus(
+        res.killed
+          ? "Nodo A apagado (simulando caída de red o equipo). B toma su trabajo en ~10 s."
+          : "Nodo A recuperado y sincronizado.",
+      );
       await updateHashesUi();
     });
   }
@@ -1121,10 +1167,7 @@ export function setupSimulationBar(client = null) {
   if (refreshBtn) {
     refreshBtn.addEventListener("click", async () => {
       await updateHashesUi();
-      const statusEl = document.getElementById("sim-status-msg");
-      if (statusEl) {
-        statusEl.textContent = "Hashes actualizados.";
-      }
+      simStatus("Hashes actualizados.");
     });
   }
 }
@@ -1159,6 +1202,7 @@ async function init() {
 
   // Ciclo periódico de consulta
   setInterval(checkNodeHealthAndPoll, POLL_INTERVAL_MS);
+  setInterval(updateHashesUi, POLL_INTERVAL_MS); // D9: se ve cómo convergen
 }
 
 // Iniciar aplicación al cargar el DOM

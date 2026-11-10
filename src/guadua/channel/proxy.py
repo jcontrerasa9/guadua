@@ -11,6 +11,10 @@ Rutas propias para la demo (no son de la API del nodo):
     GET /_channel/log       últimos eventos (?limit=50)
     GET /_channel/profile   perfil activo
     PUT /_channel/profile   cambia parámetros: {"loss": 0.6} o {"profile": "sms", ...}
+    POST /_sim/burst        ráfaga de reportes sintéticos al nodo por este canal (D9):
+                            {"count": 10} → cuántos entregó y cuántos perdió el canal
+
+Las rutas de control tienen CORS abierto: la barra del tablero (servido por un nodo) las usa.
 
 Uso: python -m guadua.channel.proxy --upstream http://localhost:8000 --profile wifi --seed 1
 """
@@ -20,6 +24,8 @@ from __future__ import annotations
 import argparse
 import asyncio
 import random
+import time
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import httpx
@@ -28,11 +34,18 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
+from guadua.channel.burst import MAX_BURST, burst_messages
 from guadua.channel.faults import FaultModel
 from guadua.channel.log import ChannelLog
 from guadua.channel.profiles import WIFI, ChannelError, ChannelProfile, profile_by_name
 
 CONTROL_PREFIX = "/_channel"
+SIM_PREFIX = "/_sim"
+_CORS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, PUT, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+}
 _HOP_HEADERS = {"host", "content-length", "connection", "transfer-encoding", "keep-alive"}
 
 
@@ -54,11 +67,20 @@ class FaultProxy:
         self.inbound = FaultModel(profile, random.Random(f"{seed}:proxy vuelta"))
         self._client = client or httpx.AsyncClient(timeout=30)
         self.seed = seed
+        # Ráfagas (D9): un "dispositivo" por arranque, para no chocar con las de antes.
+        self._burst_rng = random.Random(f"{seed}:rafaga")
+        self._burst_device = 0xB5000000 | (int(time.time()) & 0xFFFFFF)
+        self._burst_seq = 0
         self.app = Starlette(
             routes=[
-                Route(f"{CONTROL_PREFIX}/stats", self._stats, methods=["GET"]),
-                Route(f"{CONTROL_PREFIX}/log", self._log, methods=["GET"]),
-                Route(f"{CONTROL_PREFIX}/profile", self._profile, methods=["GET", "PUT"]),
+                Route(f"{CONTROL_PREFIX}/stats", _cors(self._stats), methods=["GET", "OPTIONS"]),
+                Route(f"{CONTROL_PREFIX}/log", _cors(self._log), methods=["GET", "OPTIONS"]),
+                Route(
+                    f"{CONTROL_PREFIX}/profile",
+                    _cors(self._profile),
+                    methods=["GET", "PUT", "OPTIONS"],
+                ),
+                Route(f"{SIM_PREFIX}/burst", _cors(self._burst), methods=["POST", "OPTIONS"]),
                 Route("/{path:path}", self._forward, methods=_METHODS),
             ]
         )
@@ -127,6 +149,54 @@ class FaultProxy:
                 return _error(str(exc))
         return JSONResponse(self.profile.as_dict())
 
+    async def _burst(self, request: Request) -> Response:
+        try:
+            body = await request.json() if await request.body() else {}
+        except ValueError:
+            return _error("el cuerpo debe ser JSON")
+        count = body.get("count", 10) if isinstance(body, dict) else None
+        if isinstance(count, bool) or not isinstance(count, int) or not 1 <= count <= MAX_BURST:
+            return _error(f"count debe ser un entero de 1 a {MAX_BURST}")
+        return JSONResponse(await self.burst(count))
+
+    async def burst(self, count: int) -> dict[str, Any]:
+        """Envía `count` reportes sintéticos al nodo, cada uno con los fallos del canal (sin
+        reintentos: lo que el canal pierde se pierde). Van en paralelo, como varios celulares."""
+        messages = burst_messages(
+            count, self._burst_rng, self._burst_device, first_seq=self._burst_seq + 1
+        )
+        self._burst_seq += count
+        results = await asyncio.gather(*(self._send_report(m) for m in messages))
+        delivered = sum(r == "entregada" for r in results)
+        return {
+            "sent": count,
+            "delivered": delivered,
+            "lost": count - delivered,
+            "profile": self.profile.name,
+        }
+
+    async def _send_report(self, data: bytes) -> str:
+        name, label = self.profile.name, "POST /api/messages (ráfaga)"
+        out = self.outbound.decide()
+        self._record_cuts(out, "proxy ida")
+        if out.lost:
+            self.log.record("proxy ida", name, "perdida", description=label, delay=None)
+            return "perdida"
+        await self._sleep(out.delays[0])
+        url = self.upstream + "/api/messages"
+        headers = {"Content-Type": "application/octet-stream"}
+        try:
+            response = await self._client.post(url, content=data, headers=headers)
+            for _ in out.delays[1:]:
+                self.log.record("proxy ida", name, "duplicada", description=label)
+                await self._client.post(url, content=data, headers=headers)
+        except httpx.HTTPError:
+            return "sin_nodo"
+        if response.status_code != 200:
+            return "rechazada"
+        self.log.record("proxy ida", name, "entregada", description=label, delay=out.delays[0])
+        return "entregada"
+
     # --- Reenvío con fallos ----------------------------------------------------------------
 
     async def _forward(self, request: Request) -> Response:
@@ -182,6 +252,21 @@ _METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
 
 def _error(message: str, status: int = 400) -> JSONResponse:
     return JSONResponse({"error": message}, status_code=status)
+
+
+def _cors(
+    handler: Callable[[Request], Awaitable[Response]],
+) -> Callable[[Request], Awaitable[Response]]:
+    """CORS solo en las rutas de control: lo reenviado ya trae el CORS del nodo."""
+
+    async def wrapped(request: Request) -> Response:
+        if request.method == "OPTIONS":
+            return Response(status_code=204, headers=_CORS)
+        response = await handler(request)
+        response.headers.update(_CORS)
+        return response
+
+    return wrapped
 
 
 def main(argv: list[str] | None = None) -> None:
