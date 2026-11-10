@@ -77,7 +77,7 @@ Lo que N8 dejó fuera a propósito y en qué tarea va. Ficha completa: `docs/fic
 | D5b | Preguntas de seguimiento: tarjeta Sí / No en la PWA | Oscar | Se responde con un toque al volver la señal | ✅ |
 | D6 | Agente vigía | Oscar | Casos olvidados generan solicitudes; nunca cambia prioridades | ✅ |
 | D7 | Radio VHF con `faster-whisper` | Oscar | Clip con dos incidentes → dos reportes ligados al mismo audio | ☐ |
-| D8 | RAG híbrido (FTS5 + embeddings) y tabla de recursos | **SIN ASIGNAR** | Implementa `Retriever`; ~20 preguntas, sección esperada en el top 3 | ☐ |
+| D8 | RAG híbrido (FTS5 + embeddings) y tabla de recursos | Oscar | Implementa `Retriever`; ~20 preguntas, sección esperada en el top 3 | ✅ |
 | D9 | Barra de simulación para el jurado | Oscar | Cambia perfil, lanza ráfaga, inyecta radio, apaga A y muestra hashes | ✅ |
 | D10 | HTTPS en el celular (`adb reverse`, luego `mkcert`) | Oscar | GPS y modo offline funcionan en un teléfono real | ☐ |
 
