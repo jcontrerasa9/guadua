@@ -11,12 +11,16 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from guadua.knowledge.recursos import InfoRecurso, TablaRecursos
 from guadua.protocol.header import Incident
 from guadua.store.event_types import Citation
 
 _DEFAULT_DATA_DIR = Path(__file__).resolve().parents[3] / "data"
 _MATRIZ_CSV = _DEFAULT_DATA_DIR / "matriz_emre.csv"
 _RECURSOS_CSV = _DEFAULT_DATA_DIR / "recursos_ejemplo.csv"
+
+# Alias para compatibilidad hacia atrás
+EntradaRecurso = InfoRecurso
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,14 +31,6 @@ class EntradaMatriz:
     rol: str  # "L" o "R"
     documento: str
     seccion: str
-    es_ejemplo: bool
-
-
-@dataclass(frozen=True, slots=True)
-class EntradaRecurso:
-    entidad: str
-    unidades_total: int
-    unidades_disponibles: int
     es_ejemplo: bool
 
 
@@ -63,25 +59,8 @@ def _cargar_matriz(ruta_csv: Path | str | None = None) -> list[EntradaMatriz]:
     return entradas
 
 
-def _cargar_recursos(ruta_csv: Path | str | None = None) -> dict[str, EntradaRecurso]:
-    path = Path(ruta_csv) if ruta_csv else _RECURSOS_CSV
-    if not path.is_file():
-        path = Path("data/recursos_ejemplo.csv")
-    if not path.is_file():
-        return {}
-
-    recursos: dict[str, EntradaRecurso] = {}
-    with path.open(encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            entidad = row["entidad"].strip()
-            recursos[entidad] = EntradaRecurso(
-                entidad=entidad,
-                unidades_total=int(row["unidades_total"]),
-                unidades_disponibles=int(row["unidades_disponibles"]),
-                es_ejemplo=row["es_ejemplo"].strip().lower() in ("true", "1", "yes"),
-            )
-    return recursos
+def _cargar_recursos(ruta_csv: Path | str | None = None) -> dict[str, InfoRecurso]:
+    return TablaRecursos.desde_csv(ruta_csv).todas()
 
 
 def responsable_por_tipo(
