@@ -43,6 +43,7 @@ export const state = {
   safePeople: [],
   soughtText: "",
   detailCache: new Map(), // incident_id -> IncidentDetail
+  openDetails: new Set(), // incident_id con desplegable 'Por qué está aquí' abierto
   mapInstance: null,
   mapMarkersLayer: null,
   pendingEdit: null, // { incident, fichaId }
@@ -286,6 +287,15 @@ function renderFeed() {
 
   if (!shortContainer || !otherContainer) return;
 
+  // Sincronizar desplegables abiertos en el DOM antes de actualizar
+  if (typeof document !== "undefined") {
+    document.querySelectorAll(".details-toggle[open]").forEach((el) => {
+      if (el.dataset.detailsId) {
+        state.openDetails.add(el.dataset.detailsId);
+      }
+    });
+  }
+
   const { shortList, otherList } = partitionAndSortIncidents(state.incidents);
 
   // Render lista corta (Nivel 4 y 3)
@@ -367,7 +377,7 @@ function getPriorityLabel(level) {
   }
 }
 
-function renderIncidentCardHtml(inc) {
+export function renderIncidentCardHtml(inc) {
   const conf = computeConfidence(inc.confidence, inc.verify_now, inc.rumor);
   const risk = computeRiskWarning(inc);
   const timeAgo = formatTimeAgo(inc.received_at);
@@ -384,6 +394,12 @@ function renderIncidentCardHtml(inc) {
     const bName = state.barriosMap.get(inc.location.barrio)?.name || `Barrio #${inc.location.barrio}`;
     locationText = `📍 ${bName}`;
   }
+
+  const isOpen = state.openDetails.has(inc.incident_id);
+  const cachedDetail = state.detailCache.get(inc.incident_id);
+  const detailInnerHtml = isOpen && cachedDetail
+    ? buildIncidentDetailInnerHtml(cachedDetail)
+    : `<div style="color: var(--text-muted);">Cargando trazabilidad...</div>`;
 
   return `
     <article class="incident-card level-${inc.level}" data-incident-id="${escapeHtml(inc.incident_id)}">
@@ -440,17 +456,17 @@ function renderIncidentCardHtml(inc) {
       </div>
 
       <!-- Desplegable 'Por qué está aquí' -->
-      <details class="details-toggle" data-details-id="${escapeHtml(inc.incident_id)}">
+      <details class="details-toggle" data-details-id="${escapeHtml(inc.incident_id)}" ${isOpen ? "open" : ""}>
         <summary>🔎 Por qué está aquí / evidencia / agentes ▼</summary>
         <div class="details-content" id="details-${escapeHtml(inc.incident_id)}">
-          <div style="color: var(--text-muted);">Cargando trazabilidad...</div>
+          ${detailInnerHtml}
         </div>
       </details>
     </article>
   `;
 }
 
-function escapeHtml(str) {
+export function escapeHtml(str) {
   if (str === null || str === undefined) return "";
   return String(str)
     .replace(/&/g, "&amp;")
@@ -492,9 +508,16 @@ function attachCardEvents() {
 
   // Manejador de desplegable de detalle
   document.querySelectorAll(".details-toggle").forEach((details) => {
+    const incidentId = details.dataset.detailsId;
+    if (!incidentId) return;
+
     details.ontoggle = async () => {
-      if (!details.open) return;
-      const incidentId = details.dataset.detailsId;
+      if (!details.open) {
+        state.openDetails.delete(incidentId);
+        return;
+      }
+
+      state.openDetails.add(incidentId);
       const container = document.getElementById(`details-${incidentId}`);
       if (!container) return;
 
@@ -512,10 +535,18 @@ function attachCardEvents() {
 
       renderIncidentDetailHtml(container, detail);
     };
+
+    // Si ya está abierto pero aún no tiene su detalle cargado en caché
+    if (details.open && !state.detailCache.has(incidentId)) {
+      details.ontoggle();
+    }
   });
 }
 
-function renderIncidentDetailHtml(container, detail) {
+export function buildIncidentDetailInnerHtml(detail) {
+  if (!detail) {
+    return `<div style="color: var(--text-muted);">Cargando trazabilidad...</div>`;
+  }
   const probEntries = Object.entries(detail.probabilities || {});
   const rules = detail.rules || [];
   const sources = detail.sources || [];
@@ -524,7 +555,7 @@ function renderIncidentDetailHtml(container, detail) {
   const steps = detail.steps || [];
   const reports = detail.report_ids || [];
 
-  container.innerHTML = `
+  return `
     ${rules.length > 0 ? `
       <div class="detail-block">
         <h4>Reglas de urgencia aplicadas</h4>
@@ -580,6 +611,12 @@ function renderIncidentDetailHtml(container, detail) {
       </div>
     </div>
   `;
+}
+
+export function renderIncidentDetailHtml(container, detail) {
+  if (container) {
+    container.innerHTML = buildIncidentDetailInnerHtml(detail);
+  }
 }
 
 // --- Envío de Decisiones al Nodo ----------------------------------------------
