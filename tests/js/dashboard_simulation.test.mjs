@@ -332,8 +332,8 @@ test("HttpSimulationClient despacha las llamadas HTTP con los formatos previstos
   assert.deepEqual(JSON.parse(requests.at(-1).options.body), { count: 15 });
 
   await client.injectRadio("clip_1");
-  assert.equal(requests.at(-1).url, "http://proxy.local/_sim/radio");
-  assert.deepEqual(JSON.parse(requests.at(-1).options.body), { clip_id: "clip_1" });
+  assert.equal(requests.at(-1).url, "http://proxy.local/api/radio/demo/clip_1"); // D7
+  assert.equal(requests.at(-1).options.method, "POST");
 
   await client.killNode("A");
   assert.equal(requests.at(-1).url, "http://proxy.local/_sim/kill");
