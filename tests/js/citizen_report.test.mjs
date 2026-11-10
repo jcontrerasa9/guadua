@@ -63,8 +63,6 @@ test("el mensaje armado decodifica con decodeHeader() de header.js y devuelve lo
     deviceTime: 3600,
     incidentKey: "colapso", // Incident.COLAPSO (1)
     isDirectObservation: true,
-    smellsGasOrWires: false,
-    notBreathing: false,
     geohash: "d2fkcdc",
   });
 
@@ -98,8 +96,6 @@ test("el mensaje armado decodifica con decodeHeader() de header.js y devuelve lo
     deviceTime: 120,
     incidentKey: "fuga_gas", // Incident.FUGA_GAS (3)
     isDirectObservation: false, // Me contaron
-    smellsGasOrWires: true, // Riesgo escena
-    notBreathing: true,
     barrioCode: 17,
   });
 
@@ -119,8 +115,9 @@ test("el mensaje armado decodifica con decodeHeader() de header.js y devuelve lo
   assert.equal(decoded.geohash, null);
   assert.equal(decoded.flags & Flag.GPS, 0);
   assert.equal(decoded.flags & Flag.OBSERVACION_DIRECTA, 0);
-  assert.ok(decoded.flags & Flag.RIESGO_ESCENA);
-  assert.ok(decoded.flags & Flag.NO_RESPIRA_O_SANGRADO);
+  assert.ok(decoded.flags & Flag.RIESGO_ESCENA); // por ser fuga de gas
+  // La PWA ya no marca señales vitales: las saca el nodo del texto y las preguntas.
+  assert.equal(decoded.flags & Flag.NO_RESPIRA_O_SANGRADO, 0);
 });
 
 // --- Nota codificada con protocol/text.js (prefijo + comprimido, máx. 100 B) -----
@@ -224,4 +221,17 @@ test("con batería crítica no se envía texto según el diseño", () => {
 
   assert.equal(text, "");
   assert.equal(fullBytes.length, 21); // Solo la cabecera
+});
+
+test("sin checks: la PWA no marca riesgo de escena ni señales vitales en un herido", () => {
+  const fields = buildReportHeaderFields({
+    deviceId: 7,
+    seq: 3,
+    deviceTime: 60,
+    incidentKey: "herido",
+    barrioCode: 5,
+  });
+  assert.equal(fields.flags & Flag.RIESGO_ESCENA, 0);
+  assert.equal(fields.flags & Flag.NO_RESPIRA_O_SANGRADO, 0);
+  assert.ok(fields.flags & Flag.OBSERVACION_DIRECTA);
 });

@@ -31,8 +31,6 @@ import { setupBatteryMonitor } from "./battery.js";
 const uiState = {
   selectedIncident: null,
   isDirectObservation: true,
-  smellsGasOrWires: false,
-  notBreathing: false,
   gpsActive: false,
   geohash: null,
   selectedBarrioCode: null,
@@ -127,13 +125,11 @@ function setupIncidentButtons() {
   });
 }
 
-// --- Observación y Banderas (Paso 2) ------------------------------------------
+// --- Observación (Paso 2) -----------------------------------------------------
 
-function setupObservationAndFlags() {
+function setupObservation() {
   const radioDirecta = document.querySelector('input[name="observation"][value="directa"]');
   const radioContaron = document.querySelector('input[name="observation"][value="segunda_mano"]');
-  const checkGas = document.getElementById("check-gas-cables");
-  const checkNoRespira = document.getElementById("check-no-respira");
 
   if (radioDirecta) {
     radioDirecta.onchange = () => {
@@ -143,16 +139,6 @@ function setupObservationAndFlags() {
   if (radioContaron) {
     radioContaron.onchange = () => {
       uiState.isDirectObservation = false;
-    };
-  }
-  if (checkGas) {
-    checkGas.onchange = () => {
-      uiState.smellsGasOrWires = checkGas.checked;
-    };
-  }
-  if (checkNoRespira) {
-    checkNoRespira.onchange = () => {
-      uiState.notBreathing = checkNoRespira.checked;
     };
   }
 }
@@ -593,8 +579,6 @@ function setupBloque3() {
         seq,
         incidentKey: uiState.selectedIncident,
         isDirectObservation: uiState.isDirectObservation,
-        smellsGasOrWires: uiState.smellsGasOrWires,
-        notBreathing: uiState.notBreathing,
         geohash: uiState.geohash,
         barrioCode: uiState.selectedBarrioCode,
         criticalBattery: uiState.isCriticalBattery,
@@ -777,7 +761,7 @@ async function init() {
   setupDebrisExitButton();
   setupRapidTapDetector();
   setupIncidentButtons();
-  setupObservationAndFlags();
+  setupObservation();
   setupLocationAndNote();
   await Promise.all([loadBarrios(), loadDictionary()]);
 

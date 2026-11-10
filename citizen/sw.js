@@ -4,7 +4,7 @@
 // v3: red primero. Con "caché primero", un cambio en app.js o index.html no llegaba al
 // navegador mientras este archivo no cambiara (así se quedó sin la tarjeta de preguntas,
 // D5b/D5a). Ahora, con red, se usa siempre lo último; sin red, la copia guardada.
-const CACHE_NAME = "guadua-citizen-v4";
+const CACHE_NAME = "guadua-citizen-v5";
 const NETWORK_TIMEOUT_MS = 3000; // red lenta: pasado esto, la copia guardada
 const ASSETS_TO_CACHE = [
   "./",

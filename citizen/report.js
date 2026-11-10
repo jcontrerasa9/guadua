@@ -75,8 +75,6 @@ export function getDeviceTime(nowUnixSeconds = Date.now() / 1000) {
  * @param {number} [params.deviceTime] - Segundos desde EPOCH_UNIX (calculado si no se pasa)
  * @param {string | number} params.incidentKey - Clave de INCIDENT_BUTTONS o valor de Incident
  * @param {boolean} [params.isDirectObservation=true] - Si "Sí, lo veo" está activo
- * @param {boolean} [params.smellsGasOrWires=false] - Checkbox gas o cables
- * @param {boolean} [params.notBreathing=false] - Checkbox alguien no respira
  * @param {number} [params.people=People.NO_SE] - Rango de personas (enum People)
  * @param {string | null} [params.geohash=null] - Geohash de 7 chars si hay GPS
  * @param {number | null} [params.barrioCode=null] - Código de barrio si no hay GPS
@@ -89,8 +87,6 @@ export function buildReportHeaderFields({
   deviceTime,
   incidentKey,
   isDirectObservation = true,
-  smellsGasOrWires = false,
-  notBreathing = false,
   people = People.NO_SE,
   geohash = null,
   barrioCode = null,
@@ -107,8 +103,9 @@ export function buildReportHeaderFields({
 
   let flags = 0;
   if (isDirectObservation) flags |= Flag.OBSERVACION_DIRECTA;
-  if (smellsGasOrWires || incident === Incident.FUGA_GAS) flags |= Flag.RIESGO_ESCENA;
-  if (notBreathing) flags |= Flag.NO_RESPIRA_O_SANGRADO;
+  // El riesgo para rescatistas y las señales vitales las calcula el nodo (reglas, risk.py
+  // y preguntas de seguimiento): la PWA solo marca lo que se sabe por el tipo de incidente.
+  if (incident === Incident.FUGA_GAS) flags |= Flag.RIESGO_ESCENA;
   if (incident === Incident.ATRAPADOS) flags |= Flag.ATRAPADOS;
   if (incident === Incident.INCENDIO) flags |= Flag.INCENDIO;
   if (criticalBattery) flags |= Flag.BATERIA_CRITICA;

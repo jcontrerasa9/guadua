@@ -247,31 +247,6 @@ body {
   height: 18px;
 }
 
-.checkbox-flags {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  font-size: 0.875rem;
-  cursor: pointer;
-  user-select: none;
-  background-color: #171717;
-  padding: 0.6rem 0.75rem;
-  border-radius: 6px;
-  border: 1px solid #262626;
-}
-
-.checkbox-label input[type="checkbox"] {
-  accent-color: var(--accent-amber);
-  width: 20px;
-  height: 20px;
-}
-
 /* Paso 3: Ubicación y nota */
 .location-inputs {
   display: flex;
@@ -805,5 +780,3 @@ textarea.note-input:focus {
 .btn-question-yes:active {
   filter: brightness(1.1);
 }
-
-

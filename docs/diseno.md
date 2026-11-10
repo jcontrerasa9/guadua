@@ -85,7 +85,6 @@ El ciudadano nunca ve términos técnicos (geohash, gossip, nodo, bytes). Fondo 
 │  [🏚️ Derrumbe] [🔥 Incendio] [⚠️ Fuga de gas]            │
 │  [🩸 Herido ] [🚧 Vía cerrada] [🆘 Atrapados]             │
 │  Paso 2: (●) Sí, lo veo ( ) Me contaron                  │
-│          [✓] Huele a gas / cables  [✓] Alguien no respira│
 │          [📷 Foto opcional]                              │
 │  Paso 3: [ Barrio: El Cable ▼ ] [ Nota opcional... ]     │
 ├──────────────────────────────────────────────────────────┤
@@ -95,7 +94,8 @@ El ciudadano nunca ve términos técnicos (geohash, gossip, nodo, bytes). Fondo 
 ```
 
 * **Modo escombros:** desaparece el formulario y queda la pantalla negra con un círculo rojo que indica que la alerta salió y que el sonido está activo. Incluye un consejo breve, por ejemplo: "No enciendas fuego. Golpea un tubo o pared para que te escuchen". El texto final se validará con las recomendaciones oficiales de autoprotección.  
-* **Pregunta de seguimiento del Agente 1:** aparece como una tarjeta arriba con dos botones grandes (`Sí` / `No`).
+* **Pregunta de seguimiento del Agente 1:** aparece como una tarjeta arriba con dos botones grandes (`Sí` / `No`).  
+* **Sin casillas de riesgo ni de señales vitales:** el ciudadano no marca "huele a gas" ni "alguien no respira". El nodo saca la urgencia (reglas de piso) y el riesgo para rescatistas (`classifier/risk.py`) del tipo de incidente y de la nota, y si falta el dato lo pregunta en la tarjeta de seguimiento. Los bits 1 y 3 de la cabecera siguen en el contrato; la PWA solo marca el 3 cuando el incidente es fuga de gas.
 
 ### **3.2. Comandante: tarjetas sin saturación**
 
