@@ -270,6 +270,17 @@ def _norm(text: str) -> str:
     return " ".join(re.sub(r"[^\w\s]", " ", R.fold(text)).split())
 
 
+def _position(part: str, transcript: str) -> int:
+    """Dónde empieza la parte en la transmisión, en posiciones del texto original (las que
+    usa `direct_cue`). Tolera mayúsculas, tildes y espacios distintos."""
+    words = T.fold_keep(part).split()
+    if not words:
+        return 0
+    pattern = r"\s+".join(re.escape(w) for w in words)
+    found = re.search(pattern, T.fold_keep(transcript))
+    return found.start() if found else 0
+
+
 def validate_split(data: dict, transcript: str) -> tuple[Part, ...]:
     parts_data = data.get("partes")
     if not isinstance(parts_data, list) or not 1 <= len(parts_data) <= MAX_PARTS:
@@ -300,8 +311,24 @@ def validate_split(data: dict, transcript: str) -> tuple[Part, ...]:
             raise InvalidSplit(f"directo inválido: {direct!r}")
         if direct and not said_direct:
             raise InvalidSplit("marcó directo, pero nadie dijo que estaba en el sitio")
+        # Lo literal manda; el LLM completa lo que las reglas no leen. Los modelos pequeños
+        # a veces no cortan: repiten toda la transmisión en cada parte y solo cambian la
+        # etiqueta. Entonces la etiqueta vale y el texto de la parte no dice nada propio.
+        llm_type = TYPES[kind]
+        read = [i for _, i in T.incidents(text)]
+        cut = len(parts_data) == 1 or _norm(text) != whole
+        incident = llm_type
+        if cut and read and (_compatible(read[0], llm_type) or llm_type not in read):
+            incident = read[0]  # "colapso … hay dos atrapados" es colapso
+        # Directo: la pista de la transmisión antes del suceso de esta parte ("estamos en el
+        # sitio", "nos comentan que"); la del LLM solo si no hay ninguna.
+        start = _position(text, transcript)
+        mentions = [pos for pos, i in T.incidents(transcript) if i == incident and pos >= start]
+        cue = T.direct_cue(transcript, anchor=mentions[0] if mentions else start)
+        if cue is not None:
+            direct = cue
         parts.append(
-            Part.of(text, incident=TYPES[kind], barrio=barrio, direct=direct, decide_direct=False)
+            Part.of(text, incident=incident, barrio=barrio, direct=direct, decide_direct=False)
         )
     kept = set().union(*(T.signals(p.text) for p in parts)) | {
         f"barrio {p.barrio.name}" for p in parts if p.barrio

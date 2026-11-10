@@ -504,3 +504,51 @@ def test_tipos_que_dan_los_navegadores(sent: str, stored: str) -> None:
     assert res.status_code == 200
     (clip,) = n.clips.clips()
     assert clip.content_type == stored
+
+
+# --- Lo literal manda; el LLM completa ---------------------------------------------------
+
+DOS_SUCESOS = (
+    "Central, estamos en el sitio, incendio en la 23 del Centro. "
+    "Nos comentan que hay gente atrapada en El Cable. Cambio."
+)
+
+
+def _parte(texto, tipo, barrio, directo):
+    return {"texto": texto, "tipo": tipo, "barrio": barrio, "directo": directo}
+
+
+def test_llm_que_repite_toda_la_transmision_vale_por_su_etiqueta() -> None:
+    """qwen2.5:7b no corta: repite el texto en cada parte y solo cambia tipo y barrio."""
+    data = {
+        "partes": [
+            _parte(DOS_SUCESOS, "incendio", "Centro", None),
+            _parte(DOS_SUCESOS, "atrapados", "El Cable", None),
+        ]
+    }
+    partes = validate_split(data, DOS_SUCESOS)
+    assert [(p.incident, p.direct) for p in partes] == [
+        (Incident.INCENDIO, True),  # "estamos en el sitio" antes del incendio
+        (Incident.ATRAPADOS, False),  # "nos comentan" antes de los atrapados
+    ]
+
+
+def test_la_pista_del_texto_manda_sobre_el_directo_del_llm() -> None:
+    data = {
+        "partes": [
+            _parte(
+                "estamos en el sitio, incendio en la 23 del Centro", "incendio", "Centro", False
+            ),
+            _parte(
+                "Nos comentan que hay gente atrapada en El Cable", "atrapados", "El Cable", True
+            ),
+        ]
+    }
+    assert [p.direct for p in validate_split(data, DOS_SUCESOS)] == [True, False]
+
+
+def test_el_tipo_que_nombra_la_parte_manda_si_es_compatible() -> None:
+    texto = "Estamos en el sitio: colapso de una vivienda en Palermo, hay dos personas atrapadas."
+    data = {"partes": [_parte(texto, "atrapados", "Palermo", None)]}
+    (parte,) = validate_split(data, texto)
+    assert parte.incident == Incident.COLAPSO and parte.direct is True

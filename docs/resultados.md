@@ -18,7 +18,7 @@ Entregable 6. Métricas, escenarios ejecutados, errores observados, limitaciones
 | Caída y recuperación de un nodo | con LoRa y 30 % de pérdida: B toma el trabajo de A en 26 s; A vuelve al día en **14 s** | — |
 | Búsqueda del RAG | Hit@3 **81 %** (13/16) sobre páginas verificadas de los PDF de la EMRE; 100 % (22/22) sobre los resúmenes del equipo | sección esperada en el top 3 |
 | Preguntas de seguimiento (recepción) | pertinentes **20/20** con reglas y 20/20 con LLM local (15 redactadas por el agente) | — |
-| Separación de transmisiones de radio | exacta **22/23** con reglas; **17/23** con LLM local (número de partes correcto en 22/23 en los dos) | — |
+| Separación de transmisiones de radio | exacta **22/23** con reglas y **22/23** con LLM local (antes de la corrección, 17/23 con LLM) | — |
 | Pruebas automáticas | **876** pruebas de Python y **208** de JavaScript, todas en verde; `ruff` sin errores | — |
 
 ## 2. Cómo reproducir
@@ -95,7 +95,9 @@ Medido con Ollama y `qwen2.5:7b` en una GPU de 8 GB (10 de noviembre). Gemini no
 | :-- | :-- | :-- |
 | Triaje | 40 casos del conjunto `ambiguo` que caen en la zona gris | 40 resueltos, ninguno a revisión por falla; ninguna herramienta ni respuesta inválida. Nivel igual al esperado en 12 (N7 tenía 7): 6 subidas y 11 bajadas. 1 paso y 1,7 s por caso |
 | Recepción | 20 reportes como los de la PWA | 20/20 preguntas pertinentes; 15 las redactó el agente y 1 salió de reglas (el resto no necesitaba pregunta) |
-| Separación de radio | 23 transcripciones (11 guiones y 12 difíciles) | 17/23 exactas frente a 22/23 con reglas. El número de partes es correcto en 22/23; en 3 casos el modelo deja sin decidir si el emisor lo vio o se lo contaron, en 2 dice "atrapados" donde el guion dice "colapso" y en 1 junta dos sucesos en uno |
+| Separación de radio | 23 transcripciones (11 guiones y 12 difíciles) | 22/23 exactas, igual que con reglas. Antes de corregirlo eran 17/23: el modelo no corta la transmisión (repite el texto completo en cada parte), dejaba sin decidir si el emisor lo vio y a veces lo decidía al revés de lo que decía el texto. Ahora lo literal manda y el LLM completa (ver abajo) |
+
+**Corrección de la radio.** Cuando el texto dice algo explícito, manda sobre la etiqueta del LLM: el tipo que nombra la parte (si de verdad es un pedazo de la transmisión) y la pista de "estamos en el sitio" o "nos comentan" antes del suceso. El LLM aporta el corte en partes y lo que las reglas no pueden leer. La única falla restante (`mismo_barrio_dos_casos`) pasa con el LLM cuando se corre sola; en la corrida completa a veces el modelo responde algo inválido y se usan las reglas, que no separan ese caso.
 
 El agente de triaje mejora lo que reciben las reglas y el clasificador (de 7 a 12 aciertos en casos difíciles) sin violar los límites de la regla 1. Que acierte solo 12 de 40 muestra cuán difícil es el conjunto `ambiguo` y por qué la decisión final es de una persona.
 
@@ -137,7 +139,7 @@ Durante la revisión de las funcionalidades con el sistema corriendo (9 y 10 de 
 - **Datos sintéticos y canal simulado.** Los reportes de prueba son generados y los perfiles de canal son simulaciones; no son mediciones con radios o teléfonos reales.
 - **El clasificador no entiende significado.** En el conjunto `ambiguo` (318 casos difíciles), 113 salen con un nivel equivocado sin quedar marcados para revisión: combinaciones nuevas de palabras conocidas no llegan al agente. Las reglas vitales siguen fijando el piso.
 - **El LLM local acierta poco en los casos más difíciles.** En la zona gris del conjunto `ambiguo`, el agente de triaje deja el nivel esperado en 12 de 40 casos (7 sin él). Es una mejora, no una solución: por eso baja como máximo un nivel y la decisión final es humana. Gemini no se midió. Con Ollama, el agente tardó 1,7 s por caso en la evaluación y de 2 a 23 s en el nodo con varios agentes a la vez.
-- **Radio con LLM.** La separación con `qwen2.5:7b` es peor que con reglas (17/23 frente a 22/23): el modelo omite si el emisor lo vio. Conviene que, cuando el LLM no decide ese dato, se use el de las reglas.
+- **Radio con LLM.** `qwen2.5:7b` no corta la transmisión en pedazos: repite el texto y etiqueta. Con la corrección queda igual que las reglas (22/23); el LLM no empeora la separación, pero en este conjunto tampoco la mejora.
 - **Un nivel por vez.** Por la regla 1, el agente baja solo un nivel: el gato en el árbol queda en alta y lo termina de ajustar el comandante.
 - **Correlación conservadora.** En el mismo barrio no fusiona sin evidencia; el comandante ve posibles duplicados y decide.
 - **RAG institucional.** Los PDF de la EMRE dicen quién responde, no cómo actuar en la escena; lo táctico sale de resúmenes del equipo marcados como ejemplo. Hit@3 81 % en páginas oficiales.
