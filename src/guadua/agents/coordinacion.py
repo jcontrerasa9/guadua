@@ -11,6 +11,7 @@ from __future__ import annotations
 import csv
 import json
 import logging
+import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -74,11 +75,23 @@ def _construir_recomendacion_riesgo(
     if not unidades_riesgo:
         return ""
     unidades_str = " y ".join(unidades_riesgo)
+    # Si la unidad especializada es de la misma entidad que responde (la máquina extintora
+    # y HazMat son de Bomberos), no "asegura la escena antes": va en el mismo despacho.
+    if responsable and all(_DUENO_UNIDAD.get(u) == responsable for u in unidades_riesgo):
+        return f"Despachar con {unidades_str} por el riesgo en la escena."
     if tipo == Incident.HERIDO or responsable == "Secretaría de Salud":
         return f"{unidades_str} asegura la escena antes de enviar ambulancia estándar."
     destino = responsable if responsable else "unidades de respuesta"
     return f"{unidades_str} asegura la escena antes de enviar {destino}."
 
+
+# De qué entidad es cada unidad de data/riesgos_unidad.csv.
+_DUENO_UNIDAD: dict[str, str] = {
+    "HazMat": "Cuerpo Oficial de Bomberos",
+    "Máquina extintora": "Cuerpo Oficial de Bomberos",
+    "USAR": "Cuerpo Oficial de Bomberos",
+    "Maquinaria amarilla": "Secretaría de Infraestructura",
+}
 
 _NOMBRES_INCIDENTE: dict[Incident, str] = {
     Incident.ATRAPADOS: "Personas atrapadas",
@@ -208,10 +221,14 @@ Reglas:
 - Español, frases cortas e imperativas, máximo 4 frases y 450 caracteres.
 - Usa SOLO los datos del caso y los textos de los ciudadanos. No inventes direcciones, \
 cantidades, víctimas ni recursos.
-- Incluye: qué pasa y dónde (con la incertidumbre de la ubicación), cuántas personas si se \
-sabe, la advertencia de riesgo para la unidad si la hay y una o dos acciones del protocolo \
-aplicable que de verdad correspondan al caso.
-- Si la confianza es baja o es rumor, dilo ("verificar al llegar").
+- Empieza por qué pasa y dónde. Incluye los datos clave que dieron los ciudadanos: quiénes \
+y cuántos están afectados, señales de vida (gritos, golpes), piso o referencias del lugar.
+- Si hay riesgo para la unidad, dilo. Agrega una o dos acciones del "protocolo_aplicable" \
+que de verdad correspondan al caso.
+- NO escribas nombres de documentos, páginas ni números de tarea: las citas van aparte.
+- No escribas "verificar al llegar": el sistema lo agrega cuando corresponde.
+- Si "tipo_de_aviso" es "SOS de escombros", una persona atrapada pidió auxilio desde su \
+celular sin poder escribir: dilo así y no inventes más detalles.
 - No cambies la entidad asignada ni prometas unidades que no estén.
 Responde SOLO con {"final": {"message": "<texto>"}}."""
 
@@ -529,6 +546,11 @@ def _prompt_redaccion(caso: CasoCoordinacion) -> str:
         "personas": _TEXTO_PERSONAS.get(primero.people, "desconocido"),
         "senales_vitales": sorted({s for r in caso.miembros for s in r.vital_signs}),
         "reportes": len(caso.miembros),
+        "tipo_de_aviso": (
+            "SOS de escombros"  # solo cabecera: la persona no pudo escribir
+            if caso.tipo == Incident.ATRAPADOS and not any(r.text for r in caso.miembros)
+            else "reporte ciudadano"
+        ),
         "textos_de_los_ciudadanos": [
             (r.text or "")[:MAX_TEXTO_CIUDADANO] for r in caso.miembros[:3] if r.text
         ],
@@ -547,9 +569,28 @@ def _prompt_redaccion(caso: CasoCoordinacion) -> str:
     return "Caso:\n" + json.dumps(datos, ensure_ascii=False)
 
 
+CONFIANZA_VERIFICAR = 0.5  # por debajo, "verificar al llegar" (lo agrega el código)
+_VERIFICAR = re.compile(r"[,.;]?\s*verificar (?:al llegar|en (?:el )?sitio)\.?", re.IGNORECASE)
+
+# Referencias a documentos que el LLM a veces copia en el mensaje ("EMRE Manizales 2024 -
+# Anexo 1 p. 6:", "Tarea 1.2:"): en la radio no sirven; las citas van en la ficha.
+_SIN_CITAS = re.compile(
+    r"(?:EMRE Manizales(?: 2024)?(?: - (?:Anexo \d|Documento Principal|"
+    r"Responsabilidades Institucionales|Suplementos para Consulta))?"
+    r"(?:,? (?:p\. ?|página )\d+(?:-\d+)?)?|Resumen operativo del equipo(?: \(no oficial\))?"
+    r"(?: §\d+\.\d+)?|TAREA \d\.\d+(?: aplicable)?)\s*:?\s*",
+    re.IGNORECASE,
+)
+
+
 def _con_guardias(mensaje: str, caso: CasoCoordinacion) -> str:
     """Lo que el LLM no puede omitir: el lugar, la falta de unidades y la unidad
     especializada ante riesgos. Se agrega al final si no lo dijo."""
+    mensaje = _VERIFICAR.sub("", _SIN_CITAS.sub("", mensaje))
+    mensaje = re.sub(r"(?:\s*[,.]){2,}", ".", mensaje)  # restos: ", , ." / ". ."
+    mensaje = re.sub(r"\s{2,}", " ", mensaje).strip(" :;,-")
+    if not mensaje.endswith((".", "!", "?")):
+        mensaje += "."
     lugar = caso.miembros[0].location.label
     if lugar and lugar.lower() not in mensaje.lower():
         mensaje = f"{lugar}: {mensaje}"
@@ -566,6 +607,8 @@ def _con_guardias(mensaje: str, caso: CasoCoordinacion) -> str:
         and not any(u.lower() in mensaje.lower() for u in caso.unidades_riesgo)
     ):
         mensaje += f" {caso.recomendacion_riesgo.strip()}"
+    if caso.rumor or caso.confianza < CONFIANZA_VERIFICAR:
+        mensaje += " Verificar al llegar."
     if caso.es_replanificacion and "replan" not in mensaje.lower():
         mensaje += " (Replanificación por rechazo previo.)"
     if len(mensaje) > MAX_MENSAJE:
