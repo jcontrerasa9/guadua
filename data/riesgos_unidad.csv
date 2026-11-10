@@ -1,0 +1,8 @@
+senal_riesgo,advertencia,unidad_recomendada,es_ejemplo
+gas,Fuga de gas reportada: riesgo de explosión o intoxicación,HazMat,true
+cables_caidos,Cables caídos en la escena: riesgo de electrocución,Cuadrilla eléctrica,true
+gas_o_cables,Riesgo por fuga de gas o cables caídos en la escena,HazMat,true
+colapso_secundario,Estructura inestable: riesgo de colapso secundario,USAR,true
+cilindros_expuestos,Presencia de cilindros de gas o recipientes a presión expuestos,HazMat,true
+incendio,Fuego activo o riesgo de ignición en la escena,Máquina extintora,true
+via_bloqueada,Vía bloqueada: acceso restringido para vehículos de emergencia,Maquinaria amarilla,true

@@ -1,0 +1,430 @@
+{
+  "description": "Ejemplos de la API HTTP del nodo (docs/contratos.md). Sirven de simulación para la PWA y el tablero mientras N6 no exista. CONTRATO.",
+  "valid": [
+    {
+      "schema": "Health",
+      "route": "GET /api/health",
+      "body": {
+        "node": "A",
+        "version": "0.1.0",
+        "peers_alive": [
+          "B"
+        ]
+      }
+    },
+    {
+      "schema": "MessageAck",
+      "route": "POST /api/messages → 200",
+      "body": {
+        "report_id": "a1b2c3d4-7",
+        "status": "recibido",
+        "duplicate": false
+      }
+    },
+    {
+      "schema": "ApiError",
+      "route": "POST /api/messages → 400",
+      "body": {
+        "error": "se esperaban al menos 21 bytes, llegaron 20"
+      }
+    },
+    {
+      "schema": "IncidentList",
+      "route": "GET /api/incidents",
+      "body": {
+        "node": "A",
+        "incidents": [
+          {
+            "incident_id": "a1b2c3d4-7",
+            "level": 4,
+            "incident": 1,
+            "title": "Colapso con 3 atrapados",
+            "location": {
+              "geohash": "d2fkcdc",
+              "radius_m": 150,
+              "label": "El Cable"
+            },
+            "confidence": 0.94,
+            "rumor": false,
+            "verify_now": false,
+            "risk_warning": "Fuga de gas y cables caídos reportados. No ingresar ambulancia estándar sin que HazMat asegure la escena.",
+            "suggestion": "Bomberos Manizales (2 unidades libres)",
+            "message": "Colapso en El Cable, 3 atrapados en primer piso, precaución por fuga de gas.",
+            "status": "pendiente",
+            "ficha_id": "B:31",
+            "report_count": 4,
+            "received_at": 1794573600.0,
+            "updated_at": 1794573840.0
+          },
+          {
+            "incident_id": "0000002a-2",
+            "level": 3,
+            "incident": 3,
+            "title": "Posible fuga de gas",
+            "location": {
+              "barrio": 17,
+              "radius_m": 600,
+              "label": "Chipre"
+            },
+            "confidence": 0.12,
+            "rumor": true,
+            "verify_now": true,
+            "risk_warning": "Posible gas en la zona.",
+            "suggestion": null,
+            "message": null,
+            "status": "sin_ficha",
+            "ficha_id": null,
+            "report_count": 40,
+            "received_at": 1794573000.0,
+            "updated_at": 1794573900.0
+          }
+        ]
+      }
+    },
+    {
+      "schema": "IncidentDetail",
+      "route": "GET /api/incidents/a1b2c3d4-7",
+      "body": {
+        "incident_id": "a1b2c3d4-7",
+        "level": 4,
+        "incident": 1,
+        "title": "Colapso con 3 atrapados",
+        "location": {
+          "geohash": "d2fkcdc",
+          "radius_m": 150,
+          "label": "El Cable"
+        },
+        "confidence": 0.94,
+        "rumor": false,
+        "verify_now": false,
+        "risk_warning": "Fuga de gas y cables caídos reportados. No ingresar ambulancia estándar sin que HazMat asegure la escena.",
+        "suggestion": "Bomberos Manizales (2 unidades libres)",
+        "message": "Colapso en El Cable, 3 atrapados en primer piso, precaución por fuga de gas.",
+        "status": "pendiente",
+        "ficha_id": "B:31",
+        "report_count": 4,
+        "received_at": 1794573600.0,
+        "updated_at": 1794573840.0,
+        "report_ids": [
+          "a1b2c3d4-7",
+          "0000beef-3",
+          "0000cafe-1",
+          "00000001-9"
+        ],
+        "rules": [
+          "atrapados → crítica"
+        ],
+        "probabilities": {
+          "critica": 0.81,
+          "alta": 0.15,
+          "media": 0.03,
+          "baja": 0.01
+        },
+        "sources": [
+          "ciudadano directo",
+          "ciudadano directo",
+          "ciudadano directo",
+          "radio directo"
+        ],
+        "contradictions": [],
+        "citations": [
+          {
+            "document": "EMRE Manizales",
+            "section": "4.2 Colapso estructural",
+            "version": "ejemplo",
+            "is_example": true
+          }
+        ],
+        "steps": [
+          {
+            "agent": "triaje",
+            "detail": "reglas: piso crítica por atrapados"
+          },
+          {
+            "agent": "coordinacion",
+            "detail": "matriz EMRE: Bomberos; riesgo de gas en escena"
+          }
+        ]
+      }
+    },
+    {
+      "schema": "DecisionRequest",
+      "route": "POST /api/decisions",
+      "body": {
+        "ficha_id": "B:31",
+        "action": "aprobar",
+        "operator": "comandante-1"
+      }
+    },
+    {
+      "schema": "DecisionRequest",
+      "route": "POST /api/decisions",
+      "body": {
+        "ficha_id": "B:31",
+        "action": "editar",
+        "edited_message": "Colapso en El Cable, 3 atrapados. Esperar a HazMat.",
+        "operator": "comandante-1"
+      }
+    },
+    {
+      "schema": "DecisionAck",
+      "route": "POST /api/decisions → 201",
+      "body": {
+        "event_id": "A:58"
+      }
+    },
+    {
+      "schema": "QuestionList",
+      "route": "GET /api/questions/a1b2c3d4",
+      "body": {
+        "questions": [
+          {
+            "question_id": "A:9",
+            "report_id": "a1b2c3d4-7",
+            "text": "¿Huele a gas o hay cables caídos?",
+            "kind": "si_no",
+            "options": []
+          },
+          {
+            "question_id": "B:14",
+            "report_id": "a1b2c3d4-8",
+            "text": "¿Cuántas personas hay?",
+            "kind": "opciones",
+            "options": [
+              "1",
+              "2 a 5",
+              "6 a 20",
+              "Más de 20"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "schema": "PeopleList",
+      "route": "GET /api/people",
+      "body": {
+        "people": [
+          {
+            "report_id": "00000063-3",
+            "name": "Ana",
+            "barrio_label": "Palermo",
+            "received_at": 1794574000.0
+          }
+        ]
+      }
+    },
+    {
+      "schema": "RadioAck",
+      "route": "POST /api/radio → 200",
+      "body": {
+        "audio_id": "7c120c39db3eba4d",
+        "status": "transcrito",
+        "transcription_id": "A:12",
+        "text": "Central, estamos en el sitio, incendio en la 23 del Centro. Nos comentan que hay gente atrapada en El Cable. Cambio.",
+        "duplicate": false
+      }
+    },
+    {
+      "schema": "RadioAck",
+      "route": "POST /api/radio → 200 (pendiente)",
+      "body": {
+        "audio_id": "0b5d7e9a11c2f3a4",
+        "status": "pendiente",
+        "note": "no hay transcriptor: el operador escribe el texto"
+      }
+    },
+    {
+      "schema": "TranscriptionRequest",
+      "route": "POST /api/radio/0b5d7e9a11c2f3a4/transcription",
+      "body": {
+        "text": "Central, estamos en Milán, colapso con una persona atrapada. Cambio.",
+        "operator": "comandante-1"
+      }
+    },
+    {
+      "schema": "RadioList",
+      "route": "GET /api/radio",
+      "body": {
+        "node": "A",
+        "clips": [
+          {
+            "audio_id": "7c120c39db3eba4d",
+            "status": "transcrito",
+            "received_at": 1794573600.0,
+            "has_audio": true,
+            "name": "clip_incendio_centro_atrapados_cable",
+            "transcription_id": "A:12",
+            "text": "Central, estamos en el sitio, incendio en la 23 del Centro. Nos comentan que hay gente atrapada en El Cable. Cambio.",
+            "source": "whisper",
+            "model": "faster-whisper/small-int8",
+            "confidence": 0.79,
+            "duration_s": 8.4,
+            "corrections": 0,
+            "report_ids": [
+              "6a1f04c2-1",
+              "6a1f04c2-2"
+            ],
+            "split_by": "reglas"
+          },
+          {
+            "audio_id": "0b5d7e9a11c2f3a4",
+            "status": "pendiente",
+            "received_at": 1794573500.0,
+            "has_audio": true,
+            "note": "Whisper no reconoció palabras"
+          }
+        ]
+      }
+    },
+    {
+      "schema": "Digest",
+      "route": "GET /api/digest",
+      "body": {
+        "node": "B",
+        "digest": "9f2c4e1a7b3d5f6089a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f607",
+        "events": 42
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "editar_sin_mensaje",
+      "schema": "DecisionRequest",
+      "body": {
+        "ficha_id": "B:31",
+        "action": "editar",
+        "operator": "comandante-1"
+      }
+    },
+    {
+      "name": "accion_desconocida",
+      "schema": "DecisionRequest",
+      "body": {
+        "ficha_id": "B:31",
+        "action": "borrar",
+        "operator": "comandante-1"
+      }
+    },
+    {
+      "name": "ficha_id_mal_formado",
+      "schema": "DecisionRequest",
+      "body": {
+        "ficha_id": "31",
+        "action": "aprobar",
+        "operator": "comandante-1"
+      }
+    },
+    {
+      "name": "ubicacion_con_geohash_y_barrio",
+      "schema": "IncidentList",
+      "body": {
+        "node": "A",
+        "incidents": [
+          {
+            "incident_id": "a1b2c3d4-7",
+            "level": 4,
+            "incident": 1,
+            "title": "Colapso con 3 atrapados",
+            "location": {
+              "geohash": "d2fkcdc",
+              "barrio": 3,
+              "radius_m": 150
+            },
+            "confidence": 0.94,
+            "rumor": false,
+            "verify_now": false,
+            "risk_warning": "Fuga de gas y cables caídos reportados. No ingresar ambulancia estándar sin que HazMat asegure la escena.",
+            "suggestion": "Bomberos Manizales (2 unidades libres)",
+            "message": "Colapso en El Cable, 3 atrapados en primer piso, precaución por fuga de gas.",
+            "status": "pendiente",
+            "ficha_id": "B:31",
+            "report_count": 4,
+            "received_at": 1794573600.0,
+            "updated_at": 1794573840.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "urgencia_fuera_de_rango",
+      "schema": "IncidentList",
+      "body": {
+        "node": "A",
+        "incidents": [
+          {
+            "incident_id": "a1b2c3d4-7",
+            "level": 5,
+            "incident": 1,
+            "title": "Colapso con 3 atrapados",
+            "location": {
+              "geohash": "d2fkcdc",
+              "radius_m": 150,
+              "label": "El Cable"
+            },
+            "confidence": 0.94,
+            "rumor": false,
+            "verify_now": false,
+            "risk_warning": "Fuga de gas y cables caídos reportados. No ingresar ambulancia estándar sin que HazMat asegure la escena.",
+            "suggestion": "Bomberos Manizales (2 unidades libres)",
+            "message": "Colapso en El Cable, 3 atrapados en primer piso, precaución por fuga de gas.",
+            "status": "pendiente",
+            "ficha_id": "B:31",
+            "report_count": 4,
+            "received_at": 1794573600.0,
+            "updated_at": 1794573840.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "campo_desconocido",
+      "schema": "Health",
+      "body": {
+        "node": "A",
+        "version": "0.1.0",
+        "extra": 1
+      }
+    },
+    {
+      "name": "radio_audio_id_mal_formado",
+      "schema": "RadioAck",
+      "body": {
+        "audio_id": "clip-03",
+        "status": "transcrito"
+      }
+    },
+    {
+      "name": "radio_estado_desconocido",
+      "schema": "RadioAck",
+      "body": {
+        "audio_id": "7c120c39db3eba4d",
+        "status": "listo"
+      }
+    },
+    {
+      "name": "transcripcion_sin_texto",
+      "schema": "TranscriptionRequest",
+      "body": {
+        "text": "",
+        "operator": "comandante-1"
+      }
+    },
+    {
+      "name": "transcripcion_sin_operador",
+      "schema": "TranscriptionRequest",
+      "body": {
+        "text": "incendio en Chipre"
+      }
+    },
+    {
+      "name": "digest_que_no_es_sha256",
+      "schema": "Digest",
+      "body": {
+        "node": "A",
+        "digest": "e3b0c442",
+        "events": 0
+      }
+    }
+  ]
+}

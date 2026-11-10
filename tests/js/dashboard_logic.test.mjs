@@ -1,0 +1,629 @@
+// Pruebas unitarias para la lógica pura del tablero del comandante (N14).
+// Se ejecutan con: node --test "tests/js/*.test.mjs"
+
+import assert from "node:assert/strict";
+import { test } from "node:test";
+
+import { decodeGeohash } from "../../src/guadua/dashboard/geohash.js";
+import {
+  computeConfidence,
+  computeRiskWarning,
+  createInitialNodeState,
+  DASHBOARD_MOCK_PEOPLE,
+  DEFAULT_DECISION_FILTER,
+  filterByDecision,
+  forgottenMinutes,
+  formatDecisionRequest,
+  formatTimeAgo,
+  matchSoughtPeople,
+  nameMatchScore,
+  nodesStartingWith,
+  normalizeName,
+  partitionAndSortIncidents,
+  possibleDuplicates,
+  updateNodeHealth,
+} from "../../src/guadua/dashboard/logic.js";
+
+// --- Pruebas de geohash a lat/lon con "d2fkcdc" -------------------------------
+
+test("geohash a lat/lon con 'd2fkcdc' del fixture", () => {
+  const result = decodeGeohash("d2fkcdc");
+  assert.ok(result);
+  assert.equal(typeof result.lat, "number");
+  assert.equal(typeof result.lon, "number");
+
+  // Coordenadas aproximadas de Manizales (El Cable)
+  // Latitud ~ 5.0695, Longitud ~ -75.5180
+  assert.ok(Math.abs(result.lat - 5.0695) < 0.005, `latitud inesperada: ${result.lat}`);
+  assert.ok(Math.abs(result.lon - (-75.518)) < 0.005, `longitud inesperada: ${result.lon}`);
+});
+
+test("geohash rechaza cadenas inválidas o caracteres fuera de base32", () => {
+  assert.throws(() => decodeGeohash(""), /geohash inválido/);
+  assert.throws(() => decodeGeohash("d2fk!dc"), /carácter de geohash inválido/);
+});
+
+// --- Pruebas de ordenar y partir en lista corta / resto -----------------------
+
+test("ordenar y partir en lista corta (4 y 3) / resto (2 y 1)", () => {
+  const incidents = [
+    { incident_id: "inc-1", level: 2, received_at: 100 },
+    { incident_id: "inc-2", level: 4, received_at: 300 },
+    { incident_id: "inc-3", level: 4, received_at: 200 }, // más antiguo que inc-2
+    { incident_id: "inc-4", level: 3, received_at: 150 },
+    { incident_id: "inc-5", level: 1, received_at: 50 },
+    { incident_id: "inc-6", level: 3, received_at: 400 },
+  ];
+
+  const { shortList, otherList, allSorted } = partitionAndSortIncidents(incidents);
+
+  // shortList solo debe tener niveles 4 y 3
+  assert.equal(shortList.length, 4);
+  assert.deepEqual(
+    shortList.map((i) => i.incident_id),
+    ["inc-3", "inc-2", "inc-4", "inc-6"], // 4 (viejo a nuevo), luego 3 (viejo a nuevo)
+  );
+
+  // otherList solo debe tener niveles 2 y 1
+  assert.equal(otherList.length, 2);
+  assert.deepEqual(
+    otherList.map((i) => i.incident_id),
+    ["inc-1", "inc-5"], // nivel 2, luego nivel 1
+  );
+
+  // allSorted contiene todos los 6 elementos ordenados
+  assert.equal(allSorted.length, 6);
+  assert.deepEqual(
+    allSorted.map((i) => i.incident_id),
+    ["inc-3", "inc-2", "inc-4", "inc-6", "inc-1", "inc-5"],
+  );
+});
+
+// --- Pruebas de confianza y etiquetas -----------------------------------------
+
+test("confianza y etiquetas (VERIFICAR YA, rumor)", () => {
+  // Caso alta confianza sin etiquetas
+  const c1 = computeConfidence(0.94, false, false);
+  assert.equal(c1.level, "alta");
+  assert.equal(c1.label, "Alta");
+  assert.deepEqual(c1.tags, []);
+
+  // Caso baja confianza con VERIFICAR YA y Posible rumor
+  const c2 = computeConfidence(0.12, true, true);
+  assert.equal(c2.level, "baja");
+  assert.equal(c2.label, "Baja");
+  assert.deepEqual(c2.tags, ["VERIFICAR YA", "Posible rumor"]);
+
+  // Caso media confianza solo con rumor
+  const c3 = computeConfidence(0.5, false, true);
+  assert.equal(c3.level, "media");
+  assert.deepEqual(c3.tags, ["Posible rumor"]);
+
+  // Caso sin correlación (null)
+  const c4 = computeConfidence(null, true, false);
+  assert.equal(c4.level, "sin_dato");
+  assert.equal(c4.label, "Sin correlación");
+  assert.deepEqual(c4.tags, ["VERIFICAR YA"]);
+});
+
+test("formatTimeAgo calcula minutos transcurridos correctamente", () => {
+  const now = 1000;
+  assert.equal(formatTimeAgo(1000, now), "hace 0 min");
+  assert.equal(formatTimeAgo(760, now), "hace 4 min"); // 240s = 4 min
+  assert.equal(formatTimeAgo(now + 10, now), "hace 0 min");
+});
+
+// --- Pruebas de DecisionRequest -----------------------------------------------
+
+test("armar el DecisionRequest (editar exige mensaje, aprobar no lo lleva)", () => {
+  // Aprobar
+  const reqAprobar = formatDecisionRequest({
+    fichaId: "B:31",
+    action: "aprobar",
+    operator: "comandante-1",
+  });
+  assert.deepEqual(reqAprobar, {
+    ficha_id: "B:31",
+    action: "aprobar",
+    operator: "comandante-1",
+  });
+
+  // Aprobar con edited_message debe fallar
+  assert.throws(
+    () =>
+      formatDecisionRequest({
+        fichaId: "B:31",
+        action: "aprobar",
+        operator: "comandante-1",
+        editedMessage: "mensaje indebido",
+      }),
+    /no debe incluirse/,
+  );
+
+  // Editar con mensaje
+  const reqEditar = formatDecisionRequest({
+    fichaId: "B:31",
+    action: "editar",
+    operator: "comandante-1",
+    editedMessage: "Colapso en El Cable, 3 atrapados. Esperar a HazMat.",
+  });
+  assert.deepEqual(reqEditar, {
+    ficha_id: "B:31",
+    action: "editar",
+    edited_message: "Colapso en El Cable, 3 atrapados. Esperar a HazMat.",
+    operator: "comandante-1",
+  });
+
+  // Editar sin mensaje debe fallar
+  assert.throws(
+    () =>
+      formatDecisionRequest({
+        fichaId: "B:31",
+        action: "editar",
+        operator: "comandante-1",
+      }),
+    /requiere un mensaje editado/,
+  );
+
+  // Replanear (rechazar)
+  const reqRechazar = formatDecisionRequest({
+    fichaId: "B:31",
+    action: "rechazar",
+    operator: "comandante-1",
+  });
+  assert.deepEqual(reqRechazar, {
+    ficha_id: "B:31",
+    action: "rechazar",
+    operator: "comandante-1",
+  });
+
+  // Validación de operador y ficha vacíos
+  assert.throws(
+    () =>
+      formatDecisionRequest({
+        fichaId: "",
+        action: "aprobar",
+        operator: "comandante-1",
+      }),
+    /ficha_id es obligatorio/,
+  );
+  assert.throws(
+    () =>
+      formatDecisionRequest({
+        fichaId: "B:31",
+        action: "aprobar",
+        operator: "   ",
+      }),
+    /operator es obligatorio/,
+  );
+});
+
+// --- Pruebas de conmutación automática de nodo --------------------------------
+
+test("elegir nodo: sigue en el actual si responde", () => {
+  const initial = createInitialNodeState(["A", "B", "C"]);
+  const s1 = updateNodeHealth(initial, { ok: true, node: "A" });
+
+  assert.equal(s1.connectedNode, "A");
+  assert.equal(s1.nodeName, "A");
+  assert.equal(s1.statusText, "Conectado al nodo A");
+  assert.equal(s1.consecutiveFailures, 0);
+
+  // Segunda respuesta exitosa
+  const s2 = updateNodeHealth(s1, { ok: true, node: "A" });
+  assert.equal(s2.connectedNode, "A");
+  assert.equal(s2.statusText, "Conectado al nodo A");
+});
+
+test("elegir nodo: pasa al siguiente tras 2 fallos y lo indica", () => {
+  const initial = createInitialNodeState(["A", "B", "C"]);
+  const stateA = updateNodeHealth(initial, { ok: true, node: "A" });
+
+  // 1er fallo: todavía se queda en A
+  const sFail1 = updateNodeHealth(stateA, { ok: false });
+  assert.equal(sFail1.currentIndex, 0);
+  assert.equal(sFail1.consecutiveFailures, 1);
+  assert.equal(sFail1.connectedNode, "A");
+
+  // 2do fallo consecutivo: conmuta a B y lo indica
+  const sFail2 = updateNodeHealth(sFail1, { ok: false });
+  assert.equal(sFail2.currentIndex, 1);
+  assert.equal(sFail2.connectedNode, "B");
+  assert.equal(sFail2.statusText, "Conectado al nodo B");
+  assert.equal(sFail2.consecutiveFailures, 0);
+});
+
+test("elegir nodo: ninguno vivo si todos los nodos fallan consecutivamente", () => {
+  const initial = createInitialNodeState(["A", "B"]);
+
+  // Fallos para nodo A (2 veces)
+  let state = updateNodeHealth(initial, { ok: false });
+  state = updateNodeHealth(state, { ok: false });
+  assert.equal(state.connectedNode, "B");
+  assert.equal(state.statusText, "Conectado al nodo B");
+
+  // Fallos para nodo B (2 veces)
+  state = updateNodeHealth(state, { ok: false });
+  state = updateNodeHealth(state, { ok: false });
+
+  // Ahora ambos nodos han fallado 2 veces consecutivas
+  assert.equal(state.connectedNode, null);
+  assert.equal(state.statusText, "Ningún nodo disponible");
+});
+
+// --- Criterio exacto de docs/plan.md (N14) -------------------------------------
+
+test("criterio de plan.md: al apagar el nodo conectado, cambia solo al siguiente y lo indica", () => {
+  const nodes = ["A", "B", "C"];
+  let state = createInitialNodeState(nodes);
+
+  // Inicialmente conectado y respondiendo en el nodo A
+  state = updateNodeHealth(state, { ok: true, node: "A" });
+  assert.equal(state.connectedNode, "A");
+  assert.equal(state.statusText, "Conectado al nodo A");
+
+  // Se apaga el nodo A: primera consulta falla
+  state = updateNodeHealth(state, { ok: false, error: "Connection refused" });
+  assert.equal(state.connectedNode, "A", "Aún no debe cambiar con 1 solo fallo");
+
+  // Segunda consulta falla: debe cambiar automáticamente al siguiente nodo (B)
+  state = updateNodeHealth(state, { ok: false, error: "Connection refused" });
+  assert.equal(state.connectedNode, "B", "Debe cambiar automáticamente al siguiente nodo");
+  assert.equal(state.statusText, "Conectado al nodo B", "El texto debe indicar la conexión al nodo B");
+
+  // Al conectarse B responde
+  state = updateNodeHealth(state, { ok: true, node: "B" });
+  assert.equal(state.connectedNode, "B");
+  assert.equal(state.statusText, "Conectado al nodo B");
+  assert.equal(state.consecutiveFailures, 0);
+});
+
+// --- Cada tablero empieza por el nodo que lo sirvió --------------------------
+
+const NODES = ["http://localhost:8000", "http://localhost:8001", "http://localhost:8002"];
+
+test("el tablero servido por C (8002) lee primero de C y deja A y B de respaldo", () => {
+  assert.deepEqual(nodesStartingWith("http://localhost:8002", NODES), [
+    "http://localhost:8002",
+    "http://localhost:8000",
+    "http://localhost:8001",
+  ]);
+  const state = createInitialNodeState(nodesStartingWith("http://localhost:8002", NODES));
+  assert.equal(state.connectedNode, "http://localhost:8002");
+});
+
+test("el tablero de A sigue empezando por A, sin repetir nodos", () => {
+  assert.deepEqual(nodesStartingWith("http://localhost:8000/", NODES), NODES);
+});
+
+test("un origen que no está en la lista (p. ej. el proxy) va primero", () => {
+  const list = nodesStartingWith("http://localhost:8080", NODES);
+  assert.equal(list[0], "http://localhost:8080");
+  assert.equal(list.length, 4);
+});
+
+test("sin origen http (file://) la lista no cambia", () => {
+  assert.deepEqual(nodesStartingWith("file://", NODES), NODES);
+  assert.deepEqual(nodesStartingWith(undefined, NODES), NODES);
+});
+
+test("si cae el nodo propio, el tablero pasa al siguiente y lo dice", () => {
+  let state = createInitialNodeState(nodesStartingWith("http://localhost:8002", NODES));
+  state = updateNodeHealth(state, { ok: false });
+  state = updateNodeHealth(state, { ok: false });
+  assert.equal(state.connectedNode, "http://localhost:8000");
+  state = updateNodeHealth(state, { ok: true, node: "A" });
+  assert.equal(state.statusText, "Conectado al nodo A");
+});
+
+// --- Pruebas de la franja de advertencia de riesgo (D3c) -----------------------
+
+test("computeRiskWarning: advertencia presente devuelve show=true, icono, titulo y texto recortado", () => {
+  const warningText = "Fuga de gas y cables caídos reportados. No ingresar sin HazMat.";
+  const res1 = computeRiskWarning(warningText);
+
+  assert.equal(res1.show, true);
+  assert.equal(res1.icon, "⚠️");
+  assert.equal(res1.title, "RIESGO PARA RESCATISTAS:");
+  assert.equal(res1.text, warningText);
+
+  // Funciona pasando directamente el objeto incidente con espacios recortados
+  const res2 = computeRiskWarning({
+    incident_id: "inc-1",
+    risk_warning: "   Posible gas en la zona.   ",
+  });
+
+  assert.equal(res2.show, true);
+  assert.equal(res2.icon, "⚠️");
+  assert.equal(res2.title, "RIESGO PARA RESCATISTAS:");
+  assert.equal(res2.text, "Posible gas en la zona.");
+});
+
+test("computeRiskWarning: cuando risk_warning es null, undefined, vacio o no-string devuelve show=false", () => {
+  // null y undefined
+  assert.deepEqual(computeRiskWarning(null), {
+    show: false,
+    icon: "",
+    title: "",
+    text: null,
+  });
+  assert.deepEqual(computeRiskWarning(undefined), {
+    show: false,
+    icon: "",
+    title: "",
+    text: null,
+  });
+
+  // Cadenas vacías o con solo espacios
+  assert.equal(computeRiskWarning("").show, false);
+  assert.equal(computeRiskWarning("   \n\t  ").show, false);
+  assert.equal(computeRiskWarning("").text, null);
+
+  // Objeto incidente sin riesgo o con risk_warning null
+  assert.equal(computeRiskWarning({ incident_id: "inc-2", risk_warning: null }).show, false);
+  assert.equal(computeRiskWarning({ incident_id: "inc-3" }).show, false);
+
+  // Tipos no string
+  assert.equal(computeRiskWarning(123).show, false);
+  assert.equal(computeRiskWarning(true).show, false);
+  assert.equal(computeRiskWarning(false).show, false);
+});
+
+test("invariante: el riesgo no cambia el orden de prioridad ni la urgencia en partitionAndSortIncidents", () => {
+  // Inc-1: nivel 2 con riesgo severo
+  // Inc-2: nivel 4 sin riesgo
+  // Inc-3: nivel 3 sin riesgo
+  // Inc-4: nivel 3 con riesgo (recibido más tarde que inc-3)
+  const incidents = [
+    {
+      incident_id: "inc-1",
+      level: 2,
+      received_at: 100,
+      risk_warning: "Peligro inminente: gas y cables de alta tensión",
+    },
+    {
+      incident_id: "inc-2",
+      level: 4,
+      received_at: 200,
+      risk_warning: null,
+    },
+    {
+      incident_id: "inc-3",
+      level: 3,
+      received_at: 150,
+      risk_warning: null,
+    },
+    {
+      incident_id: "inc-4",
+      level: 3,
+      received_at: 250,
+      risk_warning: "Fuga de gas menor",
+    },
+  ];
+
+  const { shortList, otherList, allSorted } = partitionAndSortIncidents(incidents);
+
+  // shortList solo tiene niveles 4 y 3
+  assert.equal(shortList.length, 3);
+  // El nivel 4 va primero, independientemente de que no tenga riesgo
+  assert.equal(shortList[0].incident_id, "inc-2");
+  // Los de nivel 3 se ordenan por received_at (más antiguo primero), sin importar risk_warning
+  assert.equal(shortList[1].incident_id, "inc-3");
+  assert.equal(shortList[2].incident_id, "inc-4");
+
+  // El incidente de nivel 2 queda estrictamente en otherList pese a tener riesgo
+  assert.equal(otherList.length, 1);
+  assert.equal(otherList[0].incident_id, "inc-1");
+
+  // allSorted respeta orden: nivel 4 -> nivel 3 -> nivel 2
+  assert.deepEqual(
+    allSorted.map((i) => i.incident_id),
+    ["inc-2", "inc-3", "inc-4", "inc-1"],
+  );
+});
+
+// --- Pruebas de normalización y cruce de personas a salvo (D2b) ---------------
+
+test("normalizeName elimina tildes, pasa a minúsculas y colapsa espacios", () => {
+  assert.equal(
+    normalizeName("   Carlos    Gómez   "),
+    "carlos gomez",
+  );
+  assert.equal(
+    normalizeName("MARÍA JOSÉ PÉREZ"),
+    "maria jose perez",
+  );
+  assert.equal(
+    normalizeName("Ángel Raúl Ñáñez"),
+    "angel raul nanez",
+  );
+  assert.equal(normalizeName(""), "");
+  assert.equal(normalizeName(null), "");
+  assert.equal(normalizeName(undefined), "");
+});
+
+test("matchSoughtPeople cruza con tildes y mayúsculas distintas", () => {
+  const safePeople = DASHBOARD_MOCK_PEOPLE.people;
+
+  // Carlos Gómez (en mock: 'Carlos Gómez' en Chipre)
+  // María José Pérez (en mock: 'María José Pérez' en El Cable)
+  // Ana (en mock: 'Ana' en Palermo)
+  const sought = [
+    "carlos gomez", // sin tildes ni mayúsculas
+    "MARIA JOSE PEREZ", // todo mayúsculas sin tildes
+    "  ana  ", // con espacios
+  ];
+
+  const results = matchSoughtPeople(sought, safePeople);
+  assert.equal(results.length, 3);
+
+  assert.equal(results[0].found, true);
+  assert.equal(results[0].person.name, "Carlos Gómez");
+  assert.equal(results[0].statusText, "Encontrada a salvo en Chipre");
+
+  assert.equal(results[1].found, true);
+  assert.equal(results[1].person.name, "María José Pérez");
+  assert.equal(results[1].statusText, "Encontrada a salvo en El Cable");
+
+  assert.equal(results[2].found, true);
+  assert.equal(results[2].person.name, "Ana");
+  assert.equal(results[2].statusText, "Encontrada a salvo en Palermo");
+});
+
+test("matchSoughtPeople maneja a_salvo con y sin nombre sin falsos positivos", () => {
+  const safePeople = [
+    { report_id: "00000001-1", name: null, barrio_label: "Centro", received_at: 100 },
+    { report_id: "00000002-1", name: "", barrio_label: "Milán", received_at: 105 },
+    { report_id: "00000003-1", name: "Gloria", barrio_label: "Palermo", received_at: 110 },
+  ];
+
+  // Ni buscar 'Centro', ni 'null', ni espacios debe coincidir con un reporte sin nombre
+  const results = matchSoughtPeople(["Centro", "Milán", "null", "Gloria"], safePeople);
+  assert.equal(results.length, 4);
+
+  assert.equal(results[0].found, false);
+  assert.equal(results[1].found, false);
+  assert.equal(results[2].found, false);
+
+  assert.equal(results[3].found, true);
+  assert.equal(results[3].person.name, "Gloria");
+  assert.equal(results[3].statusText, "Encontrada a salvo en Palermo");
+});
+
+test("matchSoughtPeople indica coincidencia ausente cuando la persona no está a salvo", () => {
+  const safePeople = DASHBOARD_MOCK_PEOPLE.people;
+  const results = matchSoughtPeople(["Pedro Picapiedra"], safePeople);
+
+  assert.equal(results.length, 1);
+  assert.equal(results[0].query, "Pedro Picapiedra");
+  assert.equal(results[0].found, false);
+  assert.equal(results[0].person, null);
+  assert.equal(results[0].statusText, "Sin reporte a salvo");
+});
+
+test("matchSoughtPeople procesa entrada multilínea con líneas vacías", () => {
+  const safePeople = DASHBOARD_MOCK_PEOPLE.people;
+  const multiText = `
+    Carlos Gómez
+
+
+    Persona Inexistente
+
+    ANA
+  `;
+
+  const results = matchSoughtPeople(multiText, safePeople);
+  assert.equal(results.length, 3);
+  assert.equal(results[0].query, "Carlos Gómez");
+  assert.equal(results[0].found, true);
+
+  assert.equal(results[1].query, "Persona Inexistente");
+  assert.equal(results[1].found, false);
+
+  assert.equal(results[2].query, "ANA");
+  assert.equal(results[2].found, true);
+});
+
+
+// --- Selector Por decidir / Despachados / Todos --------------------------------
+
+const BY_STATUS = [
+  { incident_id: "p", status: "pendiente" },
+  { incident_id: "c", status: "conflicto" },
+  { incident_id: "s", status: "sin_ficha" },
+  { incident_id: "a", status: "aprobada" },
+  { incident_id: "e", status: "editada" },
+  { incident_id: "r", status: "rechazada" },
+];
+const ids = (res) => res.incidents.map((i) => i.incident_id);
+
+test("filterByDecision: por decidir son pendiente, conflicto y sin ficha", () => {
+  assert.deepEqual(ids(filterByDecision(BY_STATUS, "por_decidir")), ["p", "c", "s"]);
+});
+
+test("filterByDecision: despachados son aprobada y editada", () => {
+  assert.deepEqual(ids(filterByDecision(BY_STATUS, "despachados")), ["a", "e"]);
+});
+
+test("filterByDecision: todos incluye los rechazados", () => {
+  assert.deepEqual(ids(filterByDecision(BY_STATUS, "todos")), ["p", "c", "s", "a", "e", "r"]);
+});
+
+test("filterByDecision: cuenta cada grupo sin importar el filtro activo", () => {
+  const res = filterByDecision(BY_STATUS, "despachados");
+  assert.deepEqual(res.counts, { por_decidir: 3, despachados: 2, todos: 6 });
+});
+
+test("filterByDecision: filtro desconocido o lista inválida no fallan", () => {
+  assert.equal(DEFAULT_DECISION_FILTER, "por_decidir");
+  const res = filterByDecision(BY_STATUS, "otro");
+  assert.equal(res.filter, "por_decidir");
+  assert.deepEqual(ids(res), ["p", "c", "s"]);
+  assert.deepEqual(filterByDecision(null, "todos"), {
+    filter: "todos",
+    incidents: [],
+    counts: { por_decidir: 0, despachados: 0, todos: 0 },
+  });
+});
+
+test("matchSoughtPeople encuentra por nombre parcial, en otro orden o con una letra mal", () => {
+  const safePeople = [
+    { report_id: "1-1", name: "Juan Pérez", barrio_label: "Chipre", received_at: 1 },
+    { report_id: "2-1", name: "María de los Ángeles Ríos", barrio_label: "Centro", received_at: 2 },
+  ];
+  const results = matchSoughtPeople(["juan", "Perez Juan", "Juan Peres", "Ángeles Ríos", "Pedro"], safePeople);
+  assert.deepEqual(
+    results.map((r) => [r.found, r.person?.name ?? null]),
+    [
+      [true, "Juan Pérez"],
+      [true, "Juan Pérez"],
+      [true, "Juan Pérez"],
+      [true, "María de los Ángeles Ríos"],
+      [false, null],
+    ],
+  );
+  assert.equal(results[0].statusText, "Encontrada a salvo en Chipre (como «Juan Pérez»)");
+});
+
+test("nameMatchScore exige cada palabra y no confunde nombres cortos", () => {
+  assert.equal(nameMatchScore("ana", "ana"), 3);
+  assert.equal(nameMatchScore("an", "ana"), 0); // prefijo de menos de 3 letras
+  assert.equal(nameMatchScore("juan gomez", "juan perez"), 0); // falta una palabra
+  assert.equal(nameMatchScore("de la", "maria de la cruz"), 0); // solo conectores
+});
+
+test("possibleDuplicates avisa mismo barrio, tipo compatible y menos de 30 min", () => {
+  const base = { location: { barrio: 3 }, received_at: 1000 };
+  const incidents = [
+    { ...base, incident_id: "a", incident: 1, title: "Se cayó la casa" }, // derrumbe
+    { ...base, incident_id: "b", incident: 0, title: "SOS", received_at: 1300 }, // atrapados
+    { ...base, incident_id: "c", incident: 5, title: "Vía cerrada" }, // otro tipo de hecho
+    { ...base, incident_id: "d", incident: 1, title: "Otro barrio", location: { barrio: 4 } },
+    { ...base, incident_id: "e", incident: 1, title: "Mucho después", received_at: 1000 + 3600 },
+  ];
+  const dup = possibleDuplicates(incidents);
+  assert.deepEqual(dup.get("a").map((x) => x.incident_id), ["b"]);
+  assert.deepEqual(dup.get("b").map((x) => x.incident_id), ["a"]);
+  assert.equal(dup.has("c") || dup.has("d"), false);
+  assert.equal(dup.get("e"), undefined);
+});
+
+test("possibleDuplicates con GPS usa la distancia (600 m)", () => {
+  const near = { lat: 5.0689, lon: -75.5174 };
+  const far = { lat: 5.0800, lon: -75.5174 }; // ~1,2 km
+  const decode = (g) => (g === "cerca" ? near : g === "lejos" ? far : near);
+  const mk = (id, g) => ({ incident_id: id, incident: 2, title: id, received_at: 0, location: { geohash: g } });
+  const dup = possibleDuplicates([mk("x", "base"), mk("y", "cerca"), mk("z", "lejos")], decode);
+  assert.deepEqual(dup.get("x").map((d) => d.incident_id), ["y"]);
+  assert.equal(dup.get("z"), undefined);
+});
+
+test("forgottenMinutes usa los umbrales del vigía y solo para casos sin despacho", () => {
+  const now = 10_000;
+  const at = (min) => now - min * 60;
+  assert.equal(forgottenMinutes({ level: 4, status: "pendiente", received_at: at(4) }, now), null);
+  assert.equal(forgottenMinutes({ level: 4, status: "pendiente", received_at: at(7) }, now), 7);
+  assert.equal(forgottenMinutes({ level: 2, status: "pendiente", received_at: at(7) }, now), null);
+  assert.equal(forgottenMinutes({ level: 2, status: "sin_ficha", received_at: at(16) }, now), 16);
+  assert.equal(forgottenMinutes({ level: 4, status: "aprobada", received_at: at(60) }, now), null);
+});

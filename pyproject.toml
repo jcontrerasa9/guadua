@@ -22,8 +22,38 @@ dev = [
     "ruff==0.17.4",
     "pytest==9.2.0",
     "pre-commit==4.7.0",
+    "guadua[ml]",
+    "guadua[agents]",
 ]
-# Los extras pesados (ml, agents, radio) se agregan, fijados, con la tarea que los necesite.
+# Clasificador de urgencia (N7). Sin este extra el nodo clasifica solo con reglas.
+ml = [
+    "scikit-learn==1.9.1",
+    "numpy==2.5.4",
+    "scipy==1.18.1",
+    "threadpoolctl==3.8.0",
+]
+# Agentes con LLM (N8): el ciclo de herramientas en LangGraph. Sin este extra no hay agente de
+# triaje y los casos dudosos quedan "ambiguo, revisar". Los clientes de Gemini y Ollama van
+# sobre httpx (ya es dependencia); el LLM se activa con LLM_PROVIDER (ver .env.example).
+agents = [
+    "langgraph==1.2.20",
+    "langgraph-checkpoint==4.3.1",
+    "langgraph-prebuilt==1.1.1",
+    "langgraph-sdk==0.4.14",
+    "langchain-core==1.7.6",
+    "langsmith==0.14.17",
+]
+# Radio VHF (D7): faster-whisper en CPU. Sin este extra (o sin el modelo descargado) los
+# clips quedan pendientes y el operador escribe el texto. El modelo se baja una vez:
+# python -m guadua.radio descargar-modelo small. av 19 no sirve con faster-whisper 1.2.1.
+radio = [
+    "faster-whisper==1.2.1",
+    "ctranslate2==4.8.5",
+    "onnxruntime==1.31.1",
+    "av==16.1.0",
+    "tokenizers==0.23.3",
+    "huggingface_hub==2.4.0",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/guadua"]
@@ -39,3 +69,5 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+# langsmith (dependencia de LangGraph) trae un plugin de pytest que avisa de APIs viejas.
+filterwarnings = ["ignore::DeprecationWarning:langsmith.*"]

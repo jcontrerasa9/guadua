@@ -1,0 +1,810 @@
+{
+  "description": "Un ejemplo válido por tipo de evento y casos que deben rechazarse (docs/contratos.md). CONTRATO.",
+  "valid": [
+    {
+      "origin_node": "A",
+      "seq": 1,
+      "category": "hecho",
+      "type": "reporte",
+      "payload": {
+        "report_id": "a1b2c3d4-7",
+        "msg_type": 0,
+        "incident": 1,
+        "people": 1,
+        "flags": 97,
+        "geohash": "d2fkcdc",
+        "device_time": 27345600,
+        "text": "colapso casa 3 atrapados huele a gas",
+        "channel": "wifi",
+        "raw_hex": "10a1b2c3d40000000701a142c0010161609d25b160"
+      },
+      "refs": [],
+      "received_at": 1794573600.0
+    },
+    {
+      "origin_node": "A",
+      "seq": 2,
+      "category": "derivado",
+      "type": "reporte_normalizado",
+      "payload": {
+        "report_id": "a1b2c3d4-7",
+        "incident": 1,
+        "people": 1,
+        "location": {
+          "geohash": "d2fkcdc",
+          "radius_m": 150,
+          "label": "El Cable"
+        },
+        "direct_observation": true,
+        "vital_signs": [
+          "atrapados"
+        ],
+        "risk_signals": [
+          "gas"
+        ],
+        "text": "colapso casa 3 atrapados huele a gas",
+        "unknown_fields": []
+      },
+      "refs": [
+        [
+          "A",
+          1
+        ]
+      ],
+      "received_at": 1794573600.0
+    },
+    {
+      "origin_node": "A",
+      "seq": 3,
+      "category": "derivado",
+      "type": "urgencia_estimada",
+      "payload": {
+        "report_id": "a1b2c3d4-7",
+        "level": 4,
+        "floor": 4,
+        "source": "reglas",
+        "probabilities": {
+          "critica": 0.81,
+          "alta": 0.15,
+          "media": 0.03,
+          "baja": 0.01
+        },
+        "rules": [
+          "atrapados → crítica"
+        ],
+        "risk_signals": [
+          "gas"
+        ],
+        "verify_now": false,
+        "ambiguous": false,
+        "steps": []
+      },
+      "refs": [
+        [
+          "A",
+          2
+        ]
+      ],
+      "received_at": 1794573600.0
+    },
+    {
+      "origin_node": "A",
+      "seq": 4,
+      "category": "derivado",
+      "type": "incidente_agrupado",
+      "payload": {
+        "incident_id": "a1b2c3d4-7",
+        "report_ids": [
+          "a1b2c3d4-7"
+        ],
+        "link": "nuevo",
+        "confidence": 0.6,
+        "rumor": false,
+        "contradictions": []
+      },
+      "refs": [
+        [
+          "A",
+          1
+        ]
+      ],
+      "received_at": 1794573600.0
+    },
+    {
+      "origin_node": "B",
+      "seq": 31,
+      "category": "derivado",
+      "type": "ficha",
+      "payload": {
+        "incident_id": "a1b2c3d4-7",
+        "responsible": "Bomberos Manizales",
+        "units_available": 2,
+        "risk_warning": "Fuga de gas reportada: HazMat antes que ambulancia estándar.",
+        "message": "Colapso en El Cable, 3 atrapados, precaución por fuga de gas.",
+        "citations": [
+          {
+            "document": "EMRE Manizales",
+            "section": "4.2",
+            "version": "ejemplo",
+            "is_example": true
+          }
+        ],
+        "from_template": true
+      },
+      "refs": [
+        [
+          "A",
+          4
+        ]
+      ],
+      "received_at": 1794573600.0
+    },
+    {
+      "origin_node": "A",
+      "seq": 58,
+      "category": "decision",
+      "type": "decision",
+      "payload": {
+        "action": "aprobar",
+        "operator": "comandante-1"
+      },
+      "refs": [
+        [
+          "B",
+          31
+        ]
+      ],
+      "received_at": 1794573600.0
+    },
+    {
+      "origin_node": "C",
+      "seq": 5,
+      "category": "hecho",
+      "type": "a_salvo",
+      "payload": {
+        "report_id": "00000063-3",
+        "name": "Ana",
+        "barrio": 12
+      },
+      "refs": [],
+      "received_at": 1794573600.0
+    },
+    {
+      "origin_node": "C",
+      "seq": 6,
+      "category": "hecho",
+      "type": "transcripcion_radio",
+      "payload": {
+        "audio_id": "7c120c39db3eba4d",
+        "text": "Central, estamos en el sitio, incendio en la 23 del Centro. Nos comentan que hay gente atrapada en El Cable. Cambio.",
+        "direct": true,
+        "source": "whisper",
+        "model": "faster-whisper/small-int8",
+        "duration_s": 8.4,
+        "confidence": 0.79
+      },
+      "refs": [],
+      "received_at": 1794573600.0
+    },
+    {
+      "origin_node": "C",
+      "seq": 8,
+      "category": "hecho",
+      "type": "transcripcion_radio",
+      "payload": {
+        "audio_id": "7c120c39db3eba4d",
+        "text": "Central, estamos en el sitio, incendio en la 23 del Centro. Nos comentan que hay gente atrapada en Chipre. Cambio.",
+        "direct": true,
+        "source": "operador",
+        "operator": "comandante-1"
+      },
+      "refs": [["C", 6]],
+      "received_at": 1794573660.0
+    },
+    {
+      "origin_node": "C",
+      "seq": 7,
+      "category": "hecho",
+      "type": "reporte",
+      "payload": {
+        "report_id": "678ea16b-2",
+        "msg_type": 0,
+        "incident": 0,
+        "people": 4,
+        "flags": 1,
+        "barrio": 1,
+        "device_time": 1794573600,
+        "text": "Nos comentan que hay gente atrapada en El Cable. Cambio",
+        "channel": "vhf",
+        "raw_hex": "",
+        "audio_id": "7c120c39db3eba4d",
+        "split_by": "reglas"
+      },
+      "refs": [["C", 6]],
+      "received_at": 1794573600.0
+    },
+    {
+      "origin_node": "A",
+      "seq": 5,
+      "category": "derivado",
+      "type": "pregunta_seguimiento",
+      "payload": {
+        "report_id": "a1b2c3d4-7",
+        "key": "personas",
+        "kind": "opciones",
+        "text": "¿Cuántas personas hay?",
+        "options": [
+          "1",
+          "2 a 5",
+          "6 a 20",
+          "Más de 20"
+        ],
+        "reason": "no se sabe cuántas personas hay",
+        "source": "reglas",
+        "llm": null
+      },
+      "refs": [
+        [
+          "A",
+          2
+        ]
+      ],
+      "received_at": 1794573600.0
+    },
+    {
+      "origin_node": "A",
+      "seq": 7,
+      "category": "hecho",
+      "type": "respuesta_seguimiento",
+      "payload": {
+        "question_id": "A:5",
+        "answer": "opcion",
+        "option": 1,
+        "text": null
+      },
+      "refs": [
+        [
+          "A",
+          5
+        ]
+      ],
+      "received_at": 1794573660.0
+    },
+    {
+      "origin_node": "B",
+      "seq": 9,
+      "category": "hecho",
+      "type": "confirmacion_campo",
+      "payload": {
+        "incident_id": "a1b2c3d4-7",
+        "confirmed": true,
+        "note": null
+      },
+      "refs": [],
+      "received_at": 1794573600.0
+    },
+    {
+      "origin_node": "B",
+      "seq": 12,
+      "category": "hecho",
+      "type": "reasignacion",
+      "payload": {
+        "from_node": "A",
+        "up_to_seq": 5,
+        "silent_s": 12.4
+      },
+      "refs": [
+        [
+          "A",
+          5
+        ]
+      ],
+      "received_at": 1794573600.0
+    },
+    {
+      "origin_node": "A",
+      "seq": 14,
+      "category": "derivado",
+      "type": "solicitud_vigia",
+      "payload": {
+        "incident_id": "a1b2c3d4-7",
+        "target": "tablero",
+        "action": "alerta_olvido",
+        "reason": "ALERTA DE OLVIDO: Incidente a1b2c3d4-7 de urgencia critica lleva 6 min sin despacho aprobado.",
+        "level": 4,
+        "age_s": 372.0,
+        "new_reports": 0
+      },
+      "refs": [["A", 4]],
+      "received_at": 1794573972.0
+    }
+  ],
+  "invalid": [
+    {
+      "name": "tipo_desconocido",
+      "event": {
+        "origin_node": "A",
+        "seq": 1,
+        "category": "hecho",
+        "type": "chisme",
+        "payload": {},
+        "refs": [],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "categoria_incorrecta",
+      "event": {
+        "origin_node": "A",
+        "seq": 1,
+        "category": "hecho",
+        "type": "urgencia_estimada",
+        "payload": {
+          "report_id": "a1b2c3d4-7",
+          "level": 4,
+          "floor": 4,
+          "source": "reglas"
+        },
+        "refs": [],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "urgencia_bajo_el_piso",
+      "event": {
+        "origin_node": "A",
+        "seq": 3,
+        "category": "derivado",
+        "type": "urgencia_estimada",
+        "payload": {
+          "report_id": "a1b2c3d4-7",
+          "level": 2,
+          "floor": 4,
+          "source": "agente"
+        },
+        "refs": [],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "decision_sin_ficha_en_refs",
+      "event": {
+        "origin_node": "A",
+        "seq": 58,
+        "category": "decision",
+        "type": "decision",
+        "payload": {
+          "action": "aprobar",
+          "operator": "comandante-1"
+        },
+        "refs": [],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "editar_sin_mensaje",
+      "event": {
+        "origin_node": "A",
+        "seq": 58,
+        "category": "decision",
+        "type": "decision",
+        "payload": {
+          "action": "editar",
+          "operator": "comandante-1"
+        },
+        "refs": [
+          [
+            "B",
+            31
+          ]
+        ],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "report_id_mal_formado",
+      "event": {
+        "origin_node": "A",
+        "seq": 1,
+        "category": "hecho",
+        "type": "reporte",
+        "payload": {
+          "report_id": "7",
+          "msg_type": 0,
+          "incident": 1,
+          "people": 1,
+          "flags": 97,
+          "geohash": "d2fkcdc",
+          "device_time": 27345600,
+          "text": "colapso casa 3 atrapados huele a gas",
+          "channel": "wifi",
+          "raw_hex": "10a1b2c3d40000000701a142c0010161609d25b160"
+        },
+        "refs": [],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "campo_desconocido_en_payload",
+      "event": {
+        "origin_node": "A",
+        "seq": 1,
+        "category": "hecho",
+        "type": "reporte",
+        "payload": {
+          "report_id": "a1b2c3d4-7",
+          "msg_type": 0,
+          "incident": 1,
+          "people": 1,
+          "flags": 97,
+          "geohash": "d2fkcdc",
+          "device_time": 27345600,
+          "text": "colapso casa 3 atrapados huele a gas",
+          "channel": "wifi",
+          "raw_hex": "10a1b2c3d40000000701a142c0010161609d25b160",
+          "prioridad": "alta"
+        },
+        "refs": [],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "grupo_sin_reportes",
+      "event": {
+        "origin_node": "A",
+        "seq": 4,
+        "category": "derivado",
+        "type": "incidente_agrupado",
+        "payload": {
+          "incident_id": "x",
+          "report_ids": [],
+          "link": "nuevo",
+          "confidence": 0.5
+        },
+        "refs": [],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "reasignacion_a_si_mismo",
+      "event": {
+        "origin_node": "A",
+        "seq": 12,
+        "category": "hecho",
+        "type": "reasignacion",
+        "received_at": 1794573600.0,
+        "payload": {
+          "from_node": "A",
+          "up_to_seq": 5,
+          "silent_s": 12.4
+        },
+        "refs": [
+          [
+            "A",
+            5
+          ]
+        ]
+      }
+    },
+    {
+      "name": "reasignacion_sin_refs",
+      "event": {
+        "origin_node": "B",
+        "seq": 12,
+        "category": "hecho",
+        "type": "reasignacion",
+        "received_at": 1794573600.0,
+        "payload": {
+          "from_node": "A",
+          "up_to_seq": 5,
+          "silent_s": 12.4
+        },
+        "refs": []
+      }
+    },
+    {
+      "name": "reasignacion_refs_distintas",
+      "event": {
+        "origin_node": "B",
+        "seq": 12,
+        "category": "hecho",
+        "type": "reasignacion",
+        "received_at": 1794573600.0,
+        "payload": {
+          "from_node": "A",
+          "up_to_seq": 5,
+          "silent_s": 12.4
+        },
+        "refs": [
+          [
+            "A",
+            4
+          ]
+        ]
+      }
+    },
+    {
+      "name": "pregunta_opciones_sin_opciones",
+      "event": {
+        "origin_node": "A",
+        "seq": 5,
+        "category": "derivado",
+        "type": "pregunta_seguimiento",
+        "payload": {
+          "report_id": "a1b2c3d4-7",
+          "key": "personas",
+          "kind": "opciones",
+          "text": "¿Cuántas personas hay?",
+          "options": [],
+          "reason": "no se sabe cuántas personas hay",
+          "source": "reglas",
+          "llm": null
+        },
+        "refs": [
+          [
+            "A",
+            2
+          ]
+        ],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "pregunta_si_no_con_opciones",
+      "event": {
+        "origin_node": "A",
+        "seq": 5,
+        "category": "derivado",
+        "type": "pregunta_seguimiento",
+        "payload": {
+          "report_id": "a1b2c3d4-7",
+          "key": "personas",
+          "kind": "si_no",
+          "text": "¿Cuántas personas hay?",
+          "options": [
+            "1",
+            "2 a 5",
+            "6 a 20",
+            "Más de 20"
+          ],
+          "reason": "no se sabe cuántas personas hay",
+          "source": "reglas",
+          "llm": null
+        },
+        "refs": [
+          [
+            "A",
+            2
+          ]
+        ],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "pregunta_libre_por_reglas",
+      "event": {
+        "origin_node": "A",
+        "seq": 5,
+        "category": "derivado",
+        "type": "pregunta_seguimiento",
+        "payload": {
+          "report_id": "a1b2c3d4-7",
+          "key": "libre",
+          "kind": "opciones",
+          "text": "¿Cuántas personas hay?",
+          "options": [
+            "1",
+            "2 a 5",
+            "6 a 20",
+            "Más de 20"
+          ],
+          "reason": "no se sabe cuántas personas hay",
+          "source": "reglas",
+          "llm": null
+        },
+        "refs": [
+          [
+            "A",
+            2
+          ]
+        ],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "pregunta_sin_refs",
+      "event": {
+        "origin_node": "A",
+        "seq": 5,
+        "category": "derivado",
+        "type": "pregunta_seguimiento",
+        "payload": {
+          "report_id": "a1b2c3d4-7",
+          "key": "personas",
+          "kind": "opciones",
+          "text": "¿Cuántas personas hay?",
+          "options": [
+            "1",
+            "2 a 5",
+            "6 a 20",
+            "Más de 20"
+          ],
+          "reason": "no se sabe cuántas personas hay",
+          "source": "reglas",
+          "llm": null
+        },
+        "refs": [],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "respuesta_sin_su_pregunta_en_refs",
+      "event": {
+        "origin_node": "A",
+        "seq": 7,
+        "category": "hecho",
+        "type": "respuesta_seguimiento",
+        "payload": {
+          "question_id": "A:5",
+          "answer": "si"
+        },
+        "refs": [
+          [
+            "A",
+            2
+          ]
+        ],
+        "received_at": 1794573660.0
+      }
+    },
+    {
+      "name": "respuesta_opcion_sin_indice",
+      "event": {
+        "origin_node": "A",
+        "seq": 7,
+        "category": "hecho",
+        "type": "respuesta_seguimiento",
+        "payload": {
+          "question_id": "A:5",
+          "answer": "opcion"
+        },
+        "refs": [
+          [
+            "A",
+            5
+          ]
+        ],
+        "received_at": 1794573660.0
+      }
+    },
+    {
+      "name": "respuesta_si_con_texto",
+      "event": {
+        "origin_node": "A",
+        "seq": 7,
+        "category": "hecho",
+        "type": "respuesta_seguimiento",
+        "payload": {
+          "question_id": "A:5",
+          "answer": "si",
+          "text": "hay humo"
+        },
+        "refs": [
+          [
+            "A",
+            5
+          ]
+        ],
+        "received_at": 1794573660.0
+      }
+    },
+    {
+      "name": "radio_sin_transcripcion_en_refs",
+      "event": {
+        "origin_node": "C",
+        "seq": 9,
+        "category": "hecho",
+        "type": "reporte",
+        "payload": {"report_id": "678ea16b-1", "msg_type": 0, "incident": 2, "people": 4, "flags": 36, "barrio": 4, "device_time": 1794573600, "text": "incendio en la 23 del Centro", "channel": "vhf", "raw_hex": "", "audio_id": "7c120c39db3eba4d", "split_by": "reglas"},
+        "refs": [],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "radio_sin_audio_id",
+      "event": {
+        "origin_node": "C",
+        "seq": 9,
+        "category": "hecho",
+        "type": "reporte",
+        "payload": {"report_id": "678ea16b-1", "msg_type": 0, "incident": 2, "people": 4, "flags": 36, "barrio": 4, "device_time": 1794573600, "text": "incendio en la 23 del Centro", "channel": "vhf", "raw_hex": "", "split_by": "reglas"},
+        "refs": [["C", 6]],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "radio_con_bytes_originales",
+      "event": {
+        "origin_node": "C",
+        "seq": 9,
+        "category": "hecho",
+        "type": "reporte",
+        "payload": {"report_id": "678ea16b-1", "msg_type": 0, "incident": 2, "people": 4, "flags": 36, "barrio": 4, "device_time": 1794573600, "text": "incendio en la 23 del Centro", "channel": "vhf", "raw_hex": "10a1", "audio_id": "7c120c39db3eba4d", "split_by": "reglas"},
+        "refs": [["C", 6]],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "celular_con_audio_id",
+      "event": {
+        "origin_node": "C",
+        "seq": 9,
+        "category": "hecho",
+        "type": "reporte",
+        "payload": {"report_id": "678ea16b-1", "msg_type": 0, "incident": 2, "people": 4, "flags": 36, "barrio": 4, "device_time": 1794573600, "text": "incendio en la 23 del Centro", "channel": "wifi", "raw_hex": "", "audio_id": "7c120c39db3eba4d", "split_by": "reglas"},
+        "refs": [],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "transcripcion_vacia",
+      "event": {
+        "origin_node": "C",
+        "seq": 9,
+        "category": "hecho",
+        "type": "transcripcion_radio",
+        "payload": {"audio_id": "7c120c39db3eba4d", "text": "", "direct": false},
+        "refs": [],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "audio_id_mal_formado",
+      "event": {
+        "origin_node": "C",
+        "seq": 9,
+        "category": "hecho",
+        "type": "transcripcion_radio",
+        "payload": {"audio_id": "clip-03", "text": "estamos en el sitio", "direct": true},
+        "refs": [],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "operador_sin_nombre",
+      "event": {
+        "origin_node": "C",
+        "seq": 9,
+        "category": "hecho",
+        "type": "transcripcion_radio",
+        "payload": {"audio_id": "7c120c39db3eba4d", "text": "incendio en Chipre", "direct": false, "source": "operador"},
+        "refs": [["C", 6]],
+        "received_at": 1794573600.0
+      }
+    },
+    {
+      "name": "solicitud_vigia_sin_incidente_en_refs",
+      "event": {
+        "origin_node": "A",
+        "seq": 14,
+        "category": "derivado",
+        "type": "solicitud_vigia",
+        "payload": {"incident_id": "a1b2c3d4-7", "target": "tablero", "action": "alerta_olvido", "reason": "lleva 6 min", "level": 4, "age_s": 372.0},
+        "refs": [],
+        "received_at": 1794573972.0
+      }
+    },
+    {
+      "name": "solicitud_vigia_accion_de_otro_agente",
+      "event": {
+        "origin_node": "A",
+        "seq": 14,
+        "category": "derivado",
+        "type": "solicitud_vigia",
+        "payload": {"incident_id": "a1b2c3d4-7", "target": "triaje", "action": "alerta_olvido", "reason": "lleva 6 min", "level": 4, "age_s": 372.0},
+        "refs": [["A", 4]],
+        "received_at": 1794573972.0
+      }
+    }
+  ]
+}

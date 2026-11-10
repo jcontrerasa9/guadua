@@ -1,0 +1,12 @@
+entidad,unidades_total,unidades_disponibles,es_ejemplo
+Cuerpo Oficial de Bomberos,8,4,true
+Secretaría de Salud,10,5,true
+Secretaría de Infraestructura,6,2,true
+Defensa Civil Colombiana,5,3,true
+Cruz Roja Colombiana,6,3,true
+Policía Nacional,15,8,true
+Hospitales - Entidades Red de Urgencias - ASSBASALUD,12,6,true
+CORPOCALDAS,4,2,true
+Secretaría de Medio Ambiente,3,1,true
+Aguas de Manizales S.A E.S.P,5,2,true
+Entidad Sin Unidades,4,0,true

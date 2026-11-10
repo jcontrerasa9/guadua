@@ -8,6 +8,7 @@ from guadua.knowledge.retriever import Passage, Retriever
 from guadua.providers.llm import LLMProvider, LLMReply, LLMUnavailable, Message
 from guadua.providers.transport import Transport
 from guadua.store.events import Event, EventCategory, EventStore
+from guadua.store.sqlite import SQLiteEventStore
 from tests.fakes import (
     InMemoryEventStore,
     LoopbackTransport,
@@ -61,7 +62,7 @@ def test_event_rejects_unknown_fields_and_bad_seq() -> None:
 
 # --- Almacenamiento: cada implementación real se agrega a STORES -------------
 
-STORES = [InMemoryEventStore]
+STORES = [InMemoryEventStore, SQLiteEventStore]
 
 
 @pytest.fixture(params=STORES, ids=lambda cls: cls.__name__)

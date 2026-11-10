@@ -1,0 +1,852 @@
+/* Estilos de la PWA Ciudadana - Guadua (SARD) */
+/* Negro OLED (ahorra batería) con la paleta del logo. Todo cabe en una pantalla de
+   celular sin hacer scroll; sin fuentes ni imágenes externas para funcionar sin Internet. */
+
+:root {
+  --bg: #000000;
+  --surface: #0d1710; /* negro verdoso de las tarjetas */
+  --surface-2: #142218;
+  --border: #22382a;
+  --text: #f2f0ea; /* blanco hueso de "GUADUA" */
+  --text-muted: #9aa89d;
+
+  --green-light: #8bc34a; /* borde de la guadua */
+  --green: #2e8b3a; /* montañas */
+  --green-dark: #1b5e20;
+  --orange: #f37a1f; /* ondas de radio y nodos */
+  --orange-soft: rgba(243, 122, 31, 0.16);
+  --earth: #b5602a; /* tierra */
+  --sos: #dc2626; /* rojo solo para el SOS */
+  --sos-dark: #7f1d1d;
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --touch-min: 48px;
+  --radius: 14px;
+  --gap: clamp(0.4rem, 1.4dvh, 0.85rem);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  line-height: 1.3;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* sin scroll: la pantalla se reparte con flex */
+  touch-action: manipulation;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+button,
+select,
+textarea,
+input {
+  font-family: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+/* --- Barra superior -------------------------------------------------------- */
+
+.header-bar {
+  flex: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  border-bottom: 2px solid var(--orange); /* la línea naranja del logo */
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+}
+
+.brand-name {
+  font-size: 1.15rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: var(--text);
+}
+
+.header-status {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.conn-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+
+.conn-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--green-light);
+}
+
+.conn-dot.offline {
+  background-color: var(--orange);
+}
+
+.battery-indicator.battery-critical {
+  color: var(--sos);
+  font-weight: 700;
+  animation: pulse-critical 2s infinite ease-in-out;
+}
+
+.battery-indicator.battery-charging {
+  color: var(--green-light);
+}
+
+@keyframes pulse-critical {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* --- Contenedor principal -------------------------------------------------- */
+
+.app-container {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: var(--gap) 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  overflow-y: auto; /* solo como respaldo en pantallas muy bajitas */
+}
+
+/* --- Acciones de vida o muerte --------------------------------------------- */
+
+.life-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.btn-sos-escombros {
+  background-color: var(--sos);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius);
+  padding: clamp(0.55rem, 1.6dvh, 0.9rem) 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  min-height: 60px;
+  box-shadow: 0 4px 18px rgba(220, 38, 38, 0.35);
+}
+
+.btn-sos-escombros:active {
+  background-color: var(--sos-dark);
+  transform: scale(0.99);
+}
+
+.btn-sos-title {
+  font-size: 1.25rem;
+  font-weight: 900;
+}
+
+.btn-sos-subtitle {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #fee2e2;
+}
+
+.btn-a-salvo {
+  background-color: transparent;
+  color: var(--green-light);
+  border: 2px solid var(--green-light);
+  border-radius: var(--radius);
+  min-height: var(--touch-min);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.btn-a-salvo:active {
+  background-color: rgba(139, 195, 74, 0.15);
+}
+
+/* --- Tarjeta de reporte ---------------------------------------------------- */
+
+.report-card {
+  flex: 1;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--gap) 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.report-title {
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.incident-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.incident-btn {
+  background-color: var(--surface-2);
+  color: var(--text);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  height: clamp(50px, 9dvh, 76px);
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+}
+
+.incident-icon {
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.incident-btn:active {
+  background-color: var(--border);
+}
+
+.incident-btn.selected {
+  background-color: var(--orange-soft);
+  border-color: var(--orange);
+  color: #ffffff;
+}
+
+/* "Lo veo / Me contaron" como interruptor de dos opciones */
+.segmented {
+  display: flex;
+  background-color: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 3px;
+}
+
+.segmented-option {
+  flex: 1;
+  position: relative;
+}
+
+.segmented-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segmented-option span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  border-radius: 9px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.segmented-option input:checked + span {
+  background-color: var(--green-dark);
+  color: var(--text);
+}
+
+.segmented-option input:focus-visible + span {
+  outline: 2px solid var(--orange);
+}
+
+/* Ubicación: barrio (o estado del GPS) y botón de GPS en una fila */
+.location-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.barrio-container {
+  flex: 1;
+  min-width: 0;
+}
+
+select.barrio-select {
+  width: 100%;
+  height: 100%;
+  min-height: var(--touch-min);
+  background-color: var(--surface-2);
+  color: var(--text);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 0 0.75rem;
+  font-size: 0.95rem;
+  outline: none;
+}
+
+select.barrio-select:focus {
+  border-color: var(--orange);
+}
+
+.gps-status {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 0.75rem;
+  min-height: var(--touch-min);
+  border-radius: 12px;
+  background-color: rgba(139, 195, 74, 0.12);
+  color: var(--green-light);
+  font-size: 0.85rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gps-btn {
+  flex: none;
+  min-height: var(--touch-min);
+  padding: 0 0.9rem;
+  background-color: var(--surface-2);
+  color: var(--text);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.gps-btn.active {
+  border-color: var(--green-light);
+  color: var(--green-light);
+}
+
+/* Nota opcional */
+.note-area {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.note-toggle {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--orange);
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 0.25rem 0;
+}
+
+textarea.note-input {
+  width: 100%;
+  background-color: var(--surface-2);
+  color: var(--text);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.95rem;
+  resize: none;
+  outline: none;
+}
+
+textarea.note-input:focus {
+  border-color: var(--orange);
+}
+
+/* El contador solo aparece cuando la nota se acerca al límite */
+.byte-counter {
+  display: none;
+  font-size: 0.75rem;
+  text-align: right;
+}
+
+.byte-counter.warning {
+  display: block;
+  color: var(--orange);
+  font-weight: 700;
+}
+
+.byte-counter.danger {
+  display: block;
+  color: var(--sos);
+  font-weight: 800;
+}
+
+/* Enviar: acción principal en naranja, empujada al fondo de la tarjeta */
+.btn-pedir-ayuda {
+  margin-top: auto;
+  background-color: var(--orange);
+  color: #1a0d00;
+  border: none;
+  border-radius: var(--radius);
+  min-height: 54px;
+  font-size: 1.1rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+.btn-pedir-ayuda:active {
+  filter: brightness(0.9);
+  transform: scale(0.99);
+}
+
+.btn-pedir-ayuda:disabled {
+  background-color: var(--surface-2);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* Estado del envío: tres nodos unidos por una línea, como la red del logo */
+.status-pipeline {
+  display: flex;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.status-step {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #4b5a4f;
+  transition: color 0.3s ease;
+}
+
+.status-step.active {
+  color: var(--orange);
+}
+
+.status-step.completed {
+  color: var(--green-light);
+}
+
+.status-dot-indicator {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background-color: currentColor;
+}
+
+.status-line {
+  flex: 1;
+  height: 2px;
+  margin: 0 0.4rem;
+  background-color: var(--border);
+}
+
+/* Celulares bajitos (≤ 700 px de alto): se compacta para que no haya scroll ni con la
+   nota abierta ni con el estado del envío visible. */
+@media (max-height: 700px) {
+  .report-title {
+    display: none;
+  }
+
+  .btn-sos-escombros {
+    min-height: 54px;
+  }
+
+  .btn-a-salvo {
+    min-height: 44px;
+  }
+}
+
+/* Notificación */
+.app-toast {
+  position: fixed;
+  top: calc(3.75rem + env(safe-area-inset-top)); /* arriba: no tapa el botón de enviar */
+  pointer-events: none; /* no bloquea el SOS que queda debajo */
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--surface-2);
+  color: var(--text);
+  padding: 0.7rem 1.1rem;
+  border-radius: 12px;
+  border: 1px solid var(--green);
+  font-size: 0.875rem;
+  font-weight: 600;
+  z-index: 999;
+  width: max-content;
+  max-width: 90%;
+  text-align: center;
+}
+
+/* ==========================================================================
+   MODO ESCOMBROS (docs/diseno.md §3.1 y §6.1)
+   Fondo negro puro (#000000), círculo rojo de alerta y texto grande legible.
+   ========================================================================== */
+
+.hidden {
+  display: none !important;
+}
+
+.debris-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: #000000;
+  color: #ffffff;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 1.5rem;
+  box-sizing: border-box;
+  overflow: hidden;
+  user-select: none;
+}
+
+.debris-container {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 2rem;
+}
+
+/* Círculo rojo pulsante */
+.debris-pulse-wrapper {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.debris-circle {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ef4444 0%, #b91c1c 80%, #7f1d1d 100%);
+  box-shadow: 0 0 30px rgba(239, 68, 68, 0.8), 0 0 60px rgba(220, 38, 38, 0.4);
+  animation: pulse-beacon 1s ease-in-out infinite;
+}
+
+@keyframes pulse-beacon {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.8;
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+    box-shadow: 0 0 45px rgba(239, 68, 68, 0.95);
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.8;
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+  }
+}
+
+.debris-status-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.debris-status-icon {
+  font-size: 2rem;
+}
+
+.debris-title {
+  font-size: 1.35rem;
+  font-weight: 900;
+  color: #ef4444;
+  letter-spacing: 0.05em;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.debris-advice-box {
+  background-color: #171717;
+  border: 2px solid #404040;
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  max-width: 90%;
+}
+
+.debris-advice-text {
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: #f5f5f5;
+}
+
+/* Botón de salida con retención de 3 segundos */
+.debris-exit-wrapper {
+  margin-top: 1rem;
+  width: 100%;
+}
+
+.btn-debris-exit {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  min-height: 56px;
+  background-color: #262626;
+  border: 1px solid #525252;
+  border-radius: 8px;
+  color: #a3a3a3;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}
+
+.btn-debris-exit .exit-label {
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.exit-progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 0%;
+  background-color: #dc2626;
+  opacity: 0.7;
+  transition: width 0.05s linear;
+  z-index: 1;
+}
+
+/* --- Modal ESTOY A SALVO (D2a) --------------------------------------------- */
+
+.safe-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 1500;
+}
+
+.safe-modal-container {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 20px 20px 0 0;
+  width: 100%;
+  max-width: 520px;
+  padding: 1.25rem 1rem calc(1rem + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.safe-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.safe-modal-icon {
+  font-size: 1.4rem;
+}
+
+.safe-modal-title {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--green-light);
+}
+
+.safe-modal-desc {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.safe-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.safe-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.safe-input {
+  background-color: var(--surface-2);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  min-height: var(--touch-min);
+  padding: 0 0.75rem;
+  font-size: 1rem;
+  outline: none;
+}
+
+.safe-input:focus {
+  border-color: var(--green-light);
+}
+
+.safe-modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.btn-safe-cancel {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  font-weight: 700;
+  padding: 0 0.75rem;
+  min-height: var(--touch-min);
+}
+
+.btn-safe-submit {
+  flex: 1;
+  background-color: var(--green-light);
+  border: none;
+  border-radius: var(--radius);
+  color: #0b1a05;
+  font-size: 1rem;
+  font-weight: 800;
+  min-height: 52px;
+}
+
+.btn-safe-submit:active {
+  filter: brightness(0.9);
+}
+
+/* --- Pregunta de seguimiento (D5b): hoja inferior -------------------------- */
+
+.question-card {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0 auto;
+  max-width: 520px;
+  z-index: 1200;
+  background-color: var(--surface);
+  border: 2px solid var(--orange);
+  border-bottom: none;
+  border-radius: 20px 20px 0 0;
+  padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.7);
+}
+
+.question-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.btn-question-later {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.25rem 0;
+}
+
+.question-card-title {
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--orange);
+}
+
+.question-card-text {
+  font-size: 1.2rem;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.question-card-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.btn-question-no,
+.btn-question-yes {
+  flex: 1;
+  min-height: 54px;
+  border-radius: var(--radius);
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.btn-question-no {
+  background-color: var(--surface-2);
+  border: 1.5px solid var(--border);
+  color: var(--text);
+}
+
+.btn-question-yes {
+  background-color: var(--green-light);
+  border: none;
+  color: #0b1a05;
+}
+
+.btn-question-no:active,
+.btn-question-yes:active {
+  filter: brightness(0.9);
+}

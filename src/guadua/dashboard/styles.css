@@ -1,0 +1,1337 @@
+/* Estilos del Tablero del Comandante - Guadua (SARD) */
+/* Área de trabajo clara y barra superior negra con la paleta del logo. Sin frameworks ni
+   CDNs. Los colores de urgencia son los del triaje y no se mezclan con los de la marca. */
+
+:root {
+  /* Neutros cálidos */
+  --bg: #f4f3ef;
+  --surface: #ffffff;
+  --surface-alt: #f8f7f4;
+  --border: #e2e0d9;
+  --border-strong: #cfccc3;
+  --text: #1c1f1d;
+  --text-muted: #6b6f6a;
+  --text-faint: #9a9d97;
+
+  /* Marca (logo) */
+  --ink: #0b0d0c; /* barra superior */
+  --ink-2: #161a17;
+  --ink-border: #2a302b;
+  --ink-text: #f2f0ea;
+  --ink-muted: #9aa39b;
+  --green: #2e7d32; /* acción principal */
+  --green-hover: #256628;
+  --green-light: #8bc34a;
+  --orange: #f37a1f; /* foco, selección, avisos */
+
+  /* Urgencia (triaje) */
+  --color-critica: #c62828;
+  --color-critica-bg: #fdecea;
+  --color-alta: #e65100;
+  --color-alta-bg: #fff1e6;
+  --color-media: #b7791f;
+  --color-media-bg: #fdf6e3;
+  --color-baja: #2e7d32;
+  --color-baja-bg: #edf5ee;
+
+  --color-rumor: #6a4c93;
+  --color-verify: #b71c1c;
+
+  --radius: 8px;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  background-color: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--orange);
+  outline-offset: 2px;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.empty-state {
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.empty-state.card {
+  background-color: var(--surface);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.panel-empty {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+/* --- Barra superior -------------------------------------------------------- */
+
+.topbar {
+  flex: none;
+  background-color: var(--ink);
+  color: var(--ink-text);
+  padding: 0.5rem 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  border-bottom: 2px solid var(--orange); /* la línea naranja del logo */
+}
+
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.topbar-brand h1 {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.brand-subtitle {
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+}
+
+.topbar-meta {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  font-size: 0.8125rem;
+  color: var(--ink-muted);
+}
+
+.node-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--ink-text);
+  font-weight: 600;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--green-light);
+  box-shadow: 0 0 0 3px rgba(139, 195, 74, 0.2);
+}
+
+.status-dot.disconnected {
+  background-color: #e53935;
+  box-shadow: 0 0 0 3px rgba(229, 57, 53, 0.2);
+}
+
+.operator-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.operator-badge strong {
+  color: var(--ink-text);
+  font-weight: 600;
+}
+
+.last-update {
+  font-size: 0.75rem;
+}
+
+.btn-secondary-sm {
+  background-color: transparent;
+  color: inherit;
+  border: 1px solid var(--border-strong);
+  padding: 0.15rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+}
+
+.btn-secondary-sm:hover {
+  background-color: var(--surface-alt);
+}
+
+.topbar .btn-secondary-sm,
+.simulation-bar .btn-secondary-sm {
+  border-color: var(--ink-border);
+  color: var(--ink-text);
+}
+
+.topbar .btn-secondary-sm:hover,
+.simulation-bar .btn-secondary-sm:hover {
+  background-color: var(--ink-2);
+}
+
+/* --- Layout ---------------------------------------------------------------- */
+
+.dashboard-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  overflow: hidden;
+}
+
+@media (min-width: 992px) {
+  .dashboard-grid {
+    grid-template-columns: minmax(0, 58fr) minmax(0, 42fr);
+  }
+}
+
+.feed-column {
+  overflow-y: auto;
+  padding: 1.25rem 1.5rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+}
+
+.section-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.section-subtitle {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+/* Selector Por decidir / Despachados / Todos */
+.decision-filter {
+  flex: none;
+  display: inline-flex;
+  background-color: #ebe9e3;
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.filter-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.filter-option:hover {
+  color: var(--text);
+}
+
+.filter-option[aria-pressed="true"] {
+  background-color: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.filter-count {
+  min-width: 1.4em;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background-color: rgba(0, 0, 0, 0.06);
+  font-size: 0.6875rem;
+  text-align: center;
+}
+
+.filter-option[aria-pressed="true"] .filter-count {
+  background-color: var(--ink);
+  color: var(--ink-text);
+}
+
+/* --- Tarjetas de incidente ------------------------------------------------- */
+
+.cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.incident-card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.incident-card.level-4 {
+  border-left-color: var(--color-critica);
+}
+
+.incident-card.level-3 {
+  border-left-color: var(--color-alta);
+}
+
+.incident-card.level-2 {
+  border-left-color: var(--color-media);
+}
+
+.incident-card.level-1 {
+  border-left-color: var(--color-baja);
+}
+
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.card-time {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.card-title {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.card-meta {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin-top: -0.5rem;
+}
+
+.card-meta .sep {
+  margin: 0 0.4rem;
+  color: var(--text-faint);
+}
+
+/* Etiquetas: urgencia, estado y alertas de confianza */
+.priority-tag,
+.status-badge,
+.tag-alert,
+.tag-rumor {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  line-height: 1.5;
+}
+
+.priority-tag.level-4 {
+  background-color: var(--color-critica);
+  color: #ffffff;
+}
+
+.priority-tag.level-3 {
+  background-color: var(--color-alta);
+  color: #ffffff;
+}
+
+.priority-tag.level-2 {
+  background-color: var(--color-media-bg);
+  color: var(--color-media);
+}
+
+.priority-tag.level-1 {
+  background-color: var(--color-baja-bg);
+  color: var(--color-baja);
+}
+
+.status-badge {
+  background-color: var(--surface-alt);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+.status-badge.status-pendiente {
+  color: #8a5a00;
+  background-color: #fdf6e3;
+  border-color: #f1dfb0;
+}
+
+.status-badge.status-aprobada {
+  color: var(--green);
+  background-color: var(--color-baja-bg);
+  border-color: #c6dfc8;
+}
+
+.status-badge.status-editada {
+  color: #37474f;
+  background-color: #eef1f2;
+  border-color: #d5dcdf;
+}
+
+.status-badge.status-rechazada {
+  color: #8d4b16;
+  background-color: #fbefe5;
+  border-color: #efd2b9;
+}
+
+.status-badge.status-conflicto {
+  color: var(--color-critica);
+  background-color: var(--color-critica-bg);
+  border-color: #f2c4c0;
+}
+
+.tag-alert {
+  background-color: var(--color-critica-bg);
+  color: var(--color-verify);
+  border: 1px solid #f2c4c0;
+}
+
+.tag-rumor {
+  background-color: #f2eef8;
+  color: var(--color-rumor);
+  border: 1px solid #ddd2ec;
+}
+
+/* Posible duplicado: la correlación no estaba segura; decide el comandante */
+.duplicate-box {
+  background-color: #f2eef8;
+  border: 1px solid #ddd2ec;
+  border-radius: 6px;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.8125rem;
+  color: #4a3570;
+}
+
+/* Riesgo para rescatistas: franja visible, no cambia la urgencia */
+.risk-box {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  background-color: #fff6ec;
+  border: 1px solid #f6d3ae;
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.8125rem;
+  color: #6d3a0a;
+}
+
+.risk-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 0.1rem;
+  color: var(--color-alta);
+}
+
+.risk-title {
+  display: block;
+  font-weight: 700;
+  color: #8a3c00;
+}
+
+/* Sugerencia de coordinación y mensaje de despacho */
+.suggestion-box {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 1rem;
+  row-gap: 0.35rem;
+  background-color: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.8125rem;
+}
+
+.suggestion-box dt {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding-top: 0.15rem;
+}
+
+.suggestion-box dd {
+  color: var(--text);
+}
+
+.suggestion-box .suggestion-text {
+  font-weight: 600;
+}
+
+/* Acciones */
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.btn-primary,
+.btn-secondary,
+.btn-danger {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.45rem 0.9rem;
+  border-radius: 6px;
+  line-height: 1.4;
+}
+
+.btn-primary {
+  background-color: var(--green);
+  color: #ffffff;
+  border: 1px solid var(--green);
+}
+
+.btn-primary:hover {
+  background-color: var(--green-hover);
+}
+
+.btn-secondary {
+  background-color: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+}
+
+.btn-secondary:hover {
+  background-color: var(--surface-alt);
+}
+
+.btn-danger {
+  background-color: transparent;
+  color: var(--color-critica);
+  border: 1px solid transparent;
+}
+
+.btn-danger:hover {
+  background-color: var(--color-critica-bg);
+}
+
+.btn-disabled,
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.no-ficha {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* "Por qué está aquí" */
+.details-toggle {
+  border-top: 1px solid var(--border);
+  padding-top: 0.6rem;
+  font-size: 0.8125rem;
+}
+
+.details-toggle summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-muted);
+  list-style: none;
+  user-select: none;
+}
+
+.details-toggle summary::-webkit-details-marker {
+  display: none;
+}
+
+.details-toggle summary::before,
+.other-incidents-details summary::before,
+.safe-people-summary::before,
+.radio-fix summary::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+  flex: none;
+}
+
+.details-toggle[open] summary::before,
+.other-incidents-details[open] summary::before,
+.safe-people-details[open] .safe-people-summary::before,
+.radio-fix[open] summary::before {
+  transform: rotate(45deg);
+}
+
+.details-toggle summary:hover {
+  color: var(--text);
+}
+
+.details-content {
+  margin-top: 0.75rem;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.detail-block h4 {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.detail-list {
+  list-style: none;
+  font-size: 0.8125rem;
+}
+
+.detail-list li {
+  position: relative;
+  padding: 0.1rem 0 0.1rem 0.9rem;
+}
+
+.detail-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.65rem;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: var(--text-faint);
+}
+
+.detail-list.contradictions li {
+  color: var(--color-critica);
+}
+
+.detail-list.contradictions li::before {
+  background-color: var(--color-critica);
+}
+
+.prob-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  font-size: 0.8125rem;
+}
+
+.report-ids {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  word-break: break-all;
+}
+
+.detail-error {
+  color: var(--color-critica);
+}
+
+/* Incidentes de prioridad media o baja */
+.other-incidents-details {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+}
+
+.other-incidents-details summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  list-style: none;
+  user-select: none;
+}
+
+.other-incidents-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.other-incidents-details .cards-list {
+  margin-top: 0.75rem;
+}
+
+/* --- Columna derecha: mapa y paneles --------------------------------------- */
+
+.map-column {
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  background-color: var(--surface);
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.map-header,
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.map-header {
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.map-header h2,
+.panel-header h3 {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.panel-count {
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-left: 0.25rem;
+}
+
+.map-header .muted {
+  font-size: 0.75rem;
+}
+
+.map-container {
+  flex: none;
+  height: 46vh;
+  min-height: 300px;
+  position: relative;
+  /* Sin teselas (offline): fondo liso con cuadrícula sutil */
+  background-color: #1c211e;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* Calles de OpenStreetMap oscurecidas: combinan con el panel y dejan leer los barrios */
+.osm-tiles {
+  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.35);
+}
+
+.leaflet-container .leaflet-control-attribution {
+  background-color: rgba(11, 13, 12, 0.75);
+  color: var(--ink-muted);
+  font-size: 10px;
+}
+
+.leaflet-container .leaflet-control-attribution a {
+  color: var(--ink-text);
+}
+
+/* Nombre del barrio sobre el mapa sin teselas */
+.barrio-label {
+  color: rgba(242, 240, 234, 0.75);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  transform: translate(-50%, 14px);
+  text-shadow: 0 1px 2px #000;
+  pointer-events: none;
+}
+
+.map-offline-notice {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background-color: rgba(11, 13, 12, 0.8);
+  color: var(--ink-muted);
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.6875rem;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.barrios-panel,
+.radio-panel,
+.safe-people-panel {
+  padding: 1rem 1.25rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.barrio-item {
+  font-size: 0.8125rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.barrio-item:last-child {
+  border-bottom: none;
+}
+
+.barrio-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.barrio-tag {
+  flex: none;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+}
+
+/* --- Modal de edición ------------------------------------------------------ */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(11, 13, 12, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 2000;
+}
+
+.modal-overlay.hidden,
+.hidden {
+  display: none !important;
+}
+
+.modal-box {
+  background-color: var(--surface);
+  border-radius: 10px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  width: 100%;
+  max-width: 540px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.modal-box h3 {
+  font-size: 1.0625rem;
+  font-weight: 700;
+}
+
+.modal-box p {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.modal-box textarea,
+.sought-textarea,
+.radio-fix-text {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background-color: var(--surface);
+  color: var(--text);
+  font-size: 0.875rem;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.modal-box textarea {
+  min-height: 110px;
+}
+
+.modal-box textarea:focus,
+.sought-textarea:focus,
+.radio-fix-text:focus {
+  outline: none;
+  border-color: var(--orange);
+  box-shadow: 0 0 0 3px rgba(243, 122, 31, 0.15);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+/* --- Avisos ---------------------------------------------------------------- */
+
+.alert-banner {
+  padding: 0.6rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  margin-bottom: 0.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid;
+  border-left-width: 4px;
+}
+
+.alert-banner.error {
+  background-color: var(--color-critica-bg);
+  color: #8e1c1c;
+  border-color: #f2c4c0;
+  border-left-color: var(--color-critica);
+}
+
+.alert-banner.success {
+  background-color: var(--color-baja-bg);
+  color: #1e5b22;
+  border-color: #c6dfc8;
+  border-left-color: var(--green);
+}
+
+.alert-banner button {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0 0.25rem;
+}
+
+/* --- Personas a salvo (D2b) ------------------------------------------------ */
+
+.sought-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.sought-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.sought-textarea {
+  min-height: 64px;
+  font-size: 0.8125rem;
+}
+
+.sought-matches-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.sought-match {
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--border);
+}
+
+.sought-match.found {
+  background-color: var(--color-baja-bg);
+  border-color: #c6dfc8;
+  color: #1e5b22;
+}
+
+.sought-match.found .sought-status {
+  font-weight: 700;
+}
+
+.sought-match.not-found {
+  background-color: var(--surface-alt);
+  color: var(--text-muted);
+}
+
+.safe-people-details {
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+}
+
+.safe-people-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  margin-bottom: 0.4rem;
+}
+
+.safe-people-summary::-webkit-details-marker {
+  display: none;
+}
+
+.safe-people-list {
+  max-height: 180px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.safe-person-item {
+  font-size: 0.8125rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.safe-person-item:last-child {
+  border-bottom: none;
+}
+
+.safe-person-name {
+  font-weight: 600;
+}
+
+.safe-person-anon {
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.safe-person-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: flex;
+  gap: 0.6rem;
+}
+
+/* --- Barra de simulación del jurado (D9) ----------------------------------- */
+
+.simulation-bar {
+  flex: none;
+  background-color: var(--ink-2);
+  color: var(--ink-text);
+  border-bottom: 1px solid var(--ink-border);
+  padding: 0.4rem 1.5rem;
+  font-size: 0.8125rem;
+}
+
+.simulation-summary {
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  user-select: none;
+  list-style: none;
+}
+
+.simulation-summary::-webkit-details-marker {
+  display: none;
+}
+
+.simulation-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+.simulation-title::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+}
+
+.simulation-bar[open] .simulation-title::before {
+  transform: rotate(45deg);
+}
+
+.convergence-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--green-light);
+}
+
+.convergence-badge::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: currentColor;
+}
+
+.convergence-badge.diverged {
+  color: var(--orange);
+}
+
+.simulation-content {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.75rem;
+  padding: 0.65rem 0 0.25rem;
+  margin-top: 0.4rem;
+  border-top: 1px solid var(--ink-border);
+}
+
+.sim-group {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.sim-group-label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.sim-buttons {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.btn-sim {
+  background-color: transparent;
+  color: var(--ink-text);
+  border: 1px solid var(--ink-border);
+  padding: 0.25rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 6px;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-sim:hover {
+  background-color: #222823;
+}
+
+.btn-sim.active {
+  border-color: var(--orange);
+  color: var(--orange);
+}
+
+.btn-sim-danger {
+  color: #ef9a9a;
+}
+
+.btn-sim-danger:hover {
+  border-color: #e57373;
+}
+
+.btn-sim-danger.active-killed {
+  background-color: #b71c1c;
+  border-color: #b71c1c;
+  color: #ffffff;
+}
+
+.sim-hashes-group,
+.sim-hashes-list {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.sim-hash-item {
+  border: 1px solid var(--ink-border);
+  border-radius: 6px;
+  padding: 0.15rem 0.5rem;
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  font-size: 0.6875rem;
+}
+
+.sim-hash-item.diverged {
+  border-color: var(--orange);
+}
+
+.sim-hash-item.killed {
+  border-color: #b71c1c;
+  opacity: 0.6;
+}
+
+.sim-node-tag {
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
+.sim-hash-code {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--ink-text);
+}
+
+.sim-status-line {
+  width: 100%;
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* --- Radio VHF (D7) -------------------------------------------------------- */
+
+.radio-panel-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.radio-upload {
+  cursor: pointer;
+}
+
+.radio-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.radio-clip {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
+}
+
+.radio-clip.pending {
+  border-left: 3px solid var(--color-media);
+}
+
+.radio-clip-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.radio-clip audio {
+  width: 100%;
+  height: 32px;
+}
+
+.radio-text {
+  color: var(--text);
+}
+
+.radio-pending {
+  color: var(--color-media);
+}
+
+.radio-muted,
+.radio-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.radio-fix summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  list-style: none;
+}
+
+.radio-fix summary::-webkit-details-marker {
+  display: none;
+}
+
+.radio-fix-text {
+  margin: 0.4rem 0;
+  font-size: 0.8125rem;
+}

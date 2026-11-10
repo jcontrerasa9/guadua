@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <title>Guadua — Emergencias</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="img/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Barra superior: marca, conexión y batería -->
+  <header class="header-bar">
+    <div class="brand">
+      <img src="img/logo-mark.png" alt="" class="brand-mark" width="36" height="36">
+      <span class="brand-name">GUADUA</span>
+    </div>
+    <div class="header-status">
+      <div class="conn-pill" id="conn-status">
+        <span class="conn-dot" aria-hidden="true"></span>
+        <span id="conn-text">Sin internet</span>
+      </div>
+      <div class="battery-indicator" id="battery-status">
+        <span id="battery-text">🔋 --</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-container">
+    <!-- Acciones de vida o muerte -->
+    <section class="life-actions" aria-label="Si estás atrapado o a salvo">
+      <button type="button" id="btn-sos-escombros" class="btn-sos-escombros">
+        <span class="btn-sos-title">🚨 Estoy atrapado</span>
+        <span class="btn-sos-subtitle">SOS con sonido · o toca 5 veces la pantalla</span>
+      </button>
+      <button type="button" id="btn-a-salvo" class="btn-a-salvo">✅ Estoy a salvo</button>
+    </section>
+
+    <!-- Reporte en 3 toques -->
+    <section class="report-card" aria-label="Reportar una emergencia">
+      <h2 class="report-title">Reportar emergencia</h2>
+
+      <div class="incident-grid" role="radiogroup" aria-label="¿Qué pasa?">
+        <button type="button" class="incident-btn" data-id="colapso"><span class="incident-icon">🏚️</span>Derrumbe</button>
+        <button type="button" class="incident-btn" data-id="incendio"><span class="incident-icon">🔥</span>Incendio</button>
+        <button type="button" class="incident-btn" data-id="fuga_gas"><span class="incident-icon">⚠️</span>Gas</button>
+        <button type="button" class="incident-btn" data-id="herido"><span class="incident-icon">🩸</span>Herido</button>
+        <button type="button" class="incident-btn" data-id="via_bloqueada"><span class="incident-icon">🚧</span>Vía cerrada</button>
+        <button type="button" class="incident-btn" data-id="atrapados"><span class="incident-icon">🆘</span>Atrapados</button>
+      </div>
+
+      <div class="segmented" role="radiogroup" aria-label="¿Lo estás viendo tú?">
+        <label class="segmented-option">
+          <input type="radio" name="observation" value="directa" checked>
+          <span>Lo veo</span>
+        </label>
+        <label class="segmented-option">
+          <input type="radio" name="observation" value="segunda_mano">
+          <span>Me contaron</span>
+        </label>
+      </div>
+
+      <div class="location-row">
+        <div id="barrio-container" class="barrio-container">
+          <select id="barrio-select" class="barrio-select" aria-label="Barrio">
+            <option value="" disabled selected>Barrio…</option>
+          </select>
+        </div>
+        <span id="gps-status-text" class="gps-status hidden" aria-live="polite"></span>
+        <button type="button" id="btn-toggle-gps" class="gps-btn" aria-pressed="false">📍 GPS</button>
+      </div>
+
+      <div class="note-area">
+        <button type="button" id="btn-toggle-note" class="note-toggle" aria-expanded="false" aria-controls="note-input">+ Agregar nota</button>
+        <textarea id="note-input" class="note-input hidden" placeholder="Ej. frente a la iglesia, piso 2" rows="2" maxlength="250"></textarea>
+        <div id="byte-counter" class="byte-counter">0 / 100 bytes</div>
+      </div>
+
+      <button type="button" id="btn-pedir-ayuda" class="btn-pedir-ayuda" disabled>Enviar reporte</button>
+
+      <!-- Estado del envío: Guardado → Enviando → Recibido -->
+      <div class="status-pipeline hidden" id="status-pipeline" aria-live="polite">
+        <div class="status-step" id="step-guardado"><span class="status-dot-indicator"></span><span>Guardado</span></div>
+        <span class="status-line" aria-hidden="true"></span>
+        <div class="status-step" id="step-enviando"><span class="status-dot-indicator"></span><span>Enviando</span></div>
+        <span class="status-line" aria-hidden="true"></span>
+        <div class="status-step" id="step-recibido"><span class="status-dot-indicator"></span><span>Recibido</span></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Pregunta de seguimiento (D5b): hoja inferior para no empujar el formulario -->
+  <section id="question-card" class="question-card hidden" aria-live="polite" role="region" aria-label="Pregunta de seguimiento">
+    <div class="question-card-header">
+      <span class="question-card-title">Pregunta de los socorristas</span>
+      <button type="button" id="btn-question-later" class="btn-question-later">Después</button>
+    </div>
+    <p id="question-text" class="question-card-text">¿Huele a gas?</p>
+    <div class="question-card-actions">
+      <button type="button" id="btn-question-no" class="btn-question-no">No</button>
+      <button type="button" id="btn-question-yes" class="btn-question-yes">Sí</button>
+    </div>
+  </section>
+
+  <!-- Pantalla de MODO ESCOMBROS (oculta por defecto) -->
+  <aside id="debris-overlay" class="debris-overlay hidden" aria-live="assertive" role="alertdialog" aria-modal="true" aria-labelledby="debris-title">
+    <div class="debris-container">
+      <div class="debris-pulse-wrapper">
+        <div class="debris-circle" aria-hidden="true"></div>
+      </div>
+
+      <div class="debris-status-badge">
+        <span class="debris-status-icon">🚨</span>
+        <h1 id="debris-title" class="debris-title">ALERTA ENVIADA Y SONIDO ACTIVO</h1>
+      </div>
+
+      <div class="debris-advice-box">
+        <p id="debris-advice-text" class="debris-advice-text">
+          No enciendas fuego ni fósforos. Cubre tu nariz y boca. Si escuchas rescatistas o perros cerca, golpea una tubería o muro para que te ubiquen.
+        </p>
+      </div>
+
+      <div class="debris-exit-wrapper">
+        <button id="btn-debris-exit" type="button" class="btn-debris-exit" aria-label="Mantener presionado 3 segundos para salir">
+          <span class="exit-label">Mantener presionado 3 s para salir</span>
+          <div class="exit-progress-bar" id="debris-exit-progress"></div>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Modal de ESTOY A SALVO (oculto por defecto) -->
+  <aside id="safe-overlay" class="safe-modal-overlay hidden" aria-live="polite" role="dialog" aria-modal="true" aria-labelledby="safe-title">
+    <div class="safe-modal-container">
+      <div class="safe-modal-header">
+        <span class="safe-modal-icon">✅</span>
+        <h2 id="safe-title" class="safe-modal-title">Estoy a salvo</h2>
+      </div>
+      <p class="safe-modal-desc">
+        Avisa a familiares y Bomberos que estás bien. Esto ayuda a enfocar la búsqueda en quienes siguen atrapados.
+      </p>
+
+      <div class="safe-form-group">
+        <label for="safe-barrio-select" class="safe-label">¿En qué barrio estás? *</label>
+        <select id="safe-barrio-select" class="barrio-select" aria-label="Seleccionar barrio donde estás a salvo">
+          <option value="" disabled selected>Seleccione el barrio...</option>
+        </select>
+      </div>
+
+      <div class="safe-form-group">
+        <label for="safe-name-input" class="safe-label">Tu nombre (opcional, máx. 40 letras)</label>
+        <input type="text" id="safe-name-input" class="safe-input" placeholder="Ej. Juan Pérez" maxlength="40" autocomplete="name">
+        <div id="safe-name-counter" class="byte-counter">0 / 40 bytes</div>
+      </div>
+
+      <div class="safe-modal-actions">
+        <button type="button" id="btn-safe-cancel" class="btn-safe-cancel">Cancelar</button>
+        <button type="button" id="btn-safe-submit" class="btn-safe-submit">✅ Avisar que estoy a salvo</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Script principal como módulo ES -->
+  <script type="module" src="app.js"></script>
+</body>
+</html>

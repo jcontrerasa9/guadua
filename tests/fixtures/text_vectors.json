@@ -1,0 +1,123 @@
+{
+  "description": "Vectores compartidos del texto comprimido con diccionario (docs/contratos.md, protocol/text.py). JS (N16) debe decodificar cada hex a su texto exacto y hacer ida y vuelta; Python además produce el hex exacto. CONTRATO: no editar sin pedirlo explícitamente.",
+  "dict_version": 1,
+  "dict_file": "data/diccionario_manizales.txt",
+  "dict_sha256": "36e550873bddd7229a5cad07689d4b7e4a51f880db36c973f10a35889371ba91",
+  "max_text_bytes": 100,
+  "valid": [
+    {
+      "name": "vacio",
+      "text": "",
+      "hex": "",
+      "mode": null,
+      "bytes": 0
+    },
+    {
+      "name": "colapso_atrapados_gas",
+      "text": "colapso casa 3 atrapados huele a gas",
+      "hex": "1183c72f288e8c915209922200",
+      "mode": 1,
+      "bytes": 13
+    },
+    {
+      "name": "herido_grave",
+      "text": "hay un herido grave sangra mucho de la pierna",
+      "hex": "1103a59f5298144a21022d3b80419c032b2900",
+      "mode": 1,
+      "bytes": 19
+    },
+    {
+      "name": "barrio_y_via",
+      "text": "via bloqueada por derrumbe en la Av. Santander",
+      "hex": "1103550088c20a1438f01a056802b409056f5d0100",
+      "mode": 1,
+      "bytes": 21
+    },
+    {
+      "name": "tildes_y_enie",
+      "text": "señora embarazada inconsciente, necesitamos ambulancia",
+      "hex": "1103155af94528591539efebe0081d00",
+      "mode": 1,
+      "bytes": 16
+    },
+    {
+      "name": "palabra_corta",
+      "text": "sí",
+      "hex": "1073c3ad",
+      "mode": 0,
+      "bytes": 4
+    },
+    {
+      "name": "emoji_plano",
+      "text": "🆘🆘",
+      "hex": "10f09f8698f09f8698",
+      "mode": 0,
+      "bytes": 9
+    },
+    {
+      "name": "incompresible_plano",
+      "text": "xq7#Zk!9wQ",
+      "hex": "10787137235a6b21397751",
+      "mode": 0,
+      "bytes": 11
+    },
+    {
+      "name": "texto_largo_comprimido",
+      "text": "niños atrapados en el colegio, se escuchan gritos, se cayó el techo, hay heridos, niños atrapados en el colegio, se escuchan gritos, se cayó el techo, hay heridos, ",
+      "hex": "1183e54278ea00999a03abb474b0c48c0e66d1af03499410e3751468612600",
+      "mode": 1,
+      "bytes": 31
+    },
+    {
+      "name": "cerca_del_maximo",
+      "text": ",Qv=b)Ns:_&Kp7\\#Hm4Y~Ej1V{Bg.Sx?d+Pu<a(Mr9^%Jo6[\"Gl3X}Di0UzAf-Rw>c*Ot;`'Lq8]$In5Z!Fk2W|Ch/Ty@e,Qv=b",
+      "hex": "11d3092cb34dd2f42bb68a57f32e308f51f6c83589ac73cd320cab764ad70baeb04fd10e28b549d4f02db28c53f5ca378b5672cf318ea875c93408ad724cd30d2ab74bd6f22fb14e50f729b48855f1cc338d5274cb360aaf71ced00fa97448059b0e00",
+      "mode": 1,
+      "bytes": 99
+    }
+  ],
+  "invalid_decode": [
+    {
+      "name": "version_desconocida",
+      "hex": "2143620300"
+    },
+    {
+      "name": "modo_desconocido",
+      "hex": "1543620300"
+    },
+    {
+      "name": "solo_prefijo_plano",
+      "hex": "10"
+    },
+    {
+      "name": "solo_prefijo_diccionario",
+      "hex": "11"
+    },
+    {
+      "name": "deflate_corrupto",
+      "hex": "11ffffffff"
+    },
+    {
+      "name": "deflate_truncado",
+      "hex": "114362"
+    },
+    {
+      "name": "deflate_con_bytes_de_sobra",
+      "hex": "114362030000"
+    },
+    {
+      "name": "plano_utf8_invalido",
+      "hex": "10c328"
+    },
+    {
+      "name": "mas_de_100_bytes",
+      "hex": "1061616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161"
+    }
+  ],
+  "invalid_encode": [
+    {
+      "name": "excede_100_bytes",
+      "text": "一严乊乯五亹仞伃伨位佲侗侼信倆倫偐偵傚傿僤儉儮兓典冝凂凧刌刱剖剻加勅勪匏匴卙卾厣"
+    }
+  ]
+}

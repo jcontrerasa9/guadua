@@ -1,16 +1,102 @@
-# Levanta un esqueleto: tres nodos con el mismo código. El comando real se define en la tarea de nodos.
+# Tres nodos A ↔ B ↔ C (sin enlace A–C) más el proxy de fallos delante de A. Sin Internet ni .env.
+#
+#   docker compose up --build
+#   Tablero:          http://localhost:8000/tablero/
+#   PWA ciudadana:    http://localhost:8000/ciudadano/      (directo al nodo A)
+#                     http://localhost:8080/ciudadano/      (a través del proxy de fallos)
+#   Nodos:            http://localhost:8000 · 8001 · 8002    (lo que espera el tablero)
+#   Proxy:            http://localhost:8080/_channel/stats
+#
+# Barra de simulación del tablero (D9): los perfiles y la ráfaga van al proxy (:8080); "Apagar
+# nodo A" usa POST /_sim/power del nodo (API en 503 y gossip callado: B toma su trabajo en
+# ~10 s). Vigía (D6): para la demo, SARD_VIGIA_CRITICO_S=60 SARD_VIGIA_INTERVAL=10 docker compose up
+#
+# El gossip viaja por UDP con tramas de 200 B (como LoRa). Para simular pérdida entre nodos:
+#   SARD_CHANNEL_PROFILE=lora docker compose up
+#
+# Caída de un nodo (N12): un vecino que calla SARD_PEER_TIMEOUT s (10) se da por caído y el
+# de id más bajo que lo oía toma su trabajo pendiente. Para probarlo:
+#   docker compose stop node-a     # B publica una reasignación y termina lo de A
+#   docker compose start node-a    # A se pone al día desde su SQLite y el gossip
+#   docker compose logs node-a node-b | grep -E "tomó|recuperado"
 
+# LLM del agente de triaje (N8), opcional. Sin estas variables no hay LLM y los casos dudosos
+# quedan "ambiguo, revisar". Ejemplo con Ollama corriendo en el equipo:
+#   LLM_PROVIDER=ollama OLLAMA_MODEL=qwen2.5:3b OLLAMA_HOST=http://host.docker.internal:11434 \
+#     docker compose up
+#
+# Radio VHF (D7): la imagen trae faster-whisper y el modelo small (se bajan al construir).
+# Para construir sin el modelo (más liviana; el operador escribe el texto de los clips):
+#   docker compose build --build-arg WHISPER_MODEL=none
+#   python -m guadua.radio enviar data/radio/clip_colapso_dos_incidentes.ogg --nodo http://localhost:8000
+x-llm: &llm
+  SARD_TRANSCRIBER: ${SARD_TRANSCRIBER:-auto}
+  WHISPER_THREADS: ${WHISPER_THREADS:-2}
+  SARD_VIGIA_INTERVAL: ${SARD_VIGIA_INTERVAL:-30}
+  SARD_VIGIA_CRITICO_S: ${SARD_VIGIA_CRITICO_S:-300}
+  SARD_VIGIA_OLVIDO_S: ${SARD_VIGIA_OLVIDO_S:-900}
+  LLM_PROVIDER: ${LLM_PROVIDER:-auto}
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  GEMINI_MODEL: ${GEMINI_MODEL:-}
+  OLLAMA_HOST: ${OLLAMA_HOST:-}
+  OLLAMA_MODEL: ${OLLAMA_MODEL:-}
+
+# Una sola imagen (guadua-node) para los tres nodos y el proxy: se construye una vez.
 x-node: &node
+  image: guadua-node
   build: .
-  command: ["python", "-m", "guadua"]
+  restart: unless-stopped
+  extra_hosts: ["host.docker.internal:host-gateway"]  # para llegar a un Ollama del equipo
 
 services:
   node-a:
     <<: *node
-    environment: { SARD_NODE_ID: A, SARD_PEERS: B }
+    environment:
+      <<: *llm
+      SARD_NODE_ID: A
+      SARD_PEER_TIMEOUT: ${SARD_PEER_TIMEOUT:-10}
+      SARD_PEERS: B
+      SARD_PEER_ADDRS: B=node-b:9000
+      SARD_CHANNEL_PROFILE: ${SARD_CHANNEL_PROFILE:-}
+    ports: ["8000:8000"]
+    volumes: [node-a:/var/lib/sard]
+
   node-b:
     <<: *node
-    environment: { SARD_NODE_ID: B, SARD_PEERS: "A,C" }
+    environment:
+      <<: *llm
+      SARD_NODE_ID: B
+      SARD_PEER_TIMEOUT: ${SARD_PEER_TIMEOUT:-10}
+      SARD_PEERS: A,C
+      SARD_PEER_ADDRS: A=node-a:9000,C=node-c:9000
+      SARD_CHANNEL_PROFILE: ${SARD_CHANNEL_PROFILE:-}
+    ports: ["8001:8000"]
+    volumes: [node-b:/var/lib/sard]
+
   node-c:
     <<: *node
-    environment: { SARD_NODE_ID: C, SARD_PEERS: B }
+    environment:
+      <<: *llm
+      SARD_NODE_ID: C
+      SARD_PEER_TIMEOUT: ${SARD_PEER_TIMEOUT:-10}
+      SARD_PEERS: B
+      SARD_PEER_ADDRS: B=node-b:9000
+      SARD_CHANNEL_PROFILE: ${SARD_CHANNEL_PROFILE:-}
+    ports: ["8002:8000"]
+    volumes: [node-c:/var/lib/sard]
+
+  proxy:
+    <<: *node
+    command:
+      [
+        "python", "-m", "guadua.channel.proxy",
+        "--upstream", "http://node-a:8000",
+        "--profile", "wifi", "--host", "0.0.0.0", "--port", "8080",
+      ]
+    ports: ["8080:8080"]
+    depends_on: [node-a]
+
+volumes:
+  node-a:
+  node-b:
+  node-c:

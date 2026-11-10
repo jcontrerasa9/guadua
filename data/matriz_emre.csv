@@ -1,0 +1,19 @@
+tipo_incidente,tarea,entidad,rol,documento,seccion,es_ejemplo
+0,1.2 Búsqueda y rescate,Cuerpo Oficial de Bomberos,L,EMRE Manizales 2024 - Anexo 1,"Tarea 1.2, p. 6-8",false
+0,1.2 Búsqueda y rescate,Defensa Civil Colombiana,R,EMRE Manizales 2024 - Anexo 1,"Tarea 1.2, p. 6-8",false
+0,1.2 Búsqueda y rescate,Cruz Roja Colombiana,R,EMRE Manizales 2024 - Anexo 1,"Tarea 1.2, p. 6-8",false
+1,1.2 Búsqueda y rescate,Cuerpo Oficial de Bomberos,L,EMRE Manizales 2024 - Anexo 1,"Tarea 1.2, p. 6-8",false
+1,1.2 Búsqueda y rescate,Defensa Civil Colombiana,R,EMRE Manizales 2024 - Anexo 1,"Tarea 1.2, p. 6-8",false
+1,1.2 Búsqueda y rescate,Cruz Roja Colombiana,R,EMRE Manizales 2024 - Anexo 1,"Tarea 1.2, p. 6-8",false
+2,1.3 Extinción de incendios,Cuerpo Oficial de Bomberos,L,EMRE Manizales 2024 - Anexo 1,"Tarea 1.3, p. 9-11",false
+2,1.3 Extinción de incendios,CORPOCALDAS,R,EMRE Manizales 2024 - Anexo 1,"Tarea 1.3, p. 9-11",false
+2,1.3 Extinción de incendios,Secretaría de Medio Ambiente,R,EMRE Manizales 2024 - Anexo 1,"Tarea 1.3, p. 9-11",false
+3,1.4 Manejo de riesgos tecnológicos materiales peligrosos,Cuerpo Oficial de Bomberos,L,EMRE Manizales 2024 - Anexo 1,"Tarea 1.4, p. 12-13",false
+3,1.4 Manejo de riesgos tecnológicos materiales peligrosos,Policía Nacional,R,EMRE Manizales 2024 - Anexo 1,"Tarea 1.4, p. 12-13",false
+3,1.4 Manejo de riesgos tecnológicos materiales peligrosos,Secretaría de Salud,R,EMRE Manizales 2024 - Anexo 1,"Tarea 1.4, p. 12-13",false
+3,1.4 Manejo de riesgos tecnológicos materiales peligrosos,Aguas de Manizales S.A E.S.P,R,EMRE Manizales 2024 - Anexo 1,"Tarea 1.4, p. 12-13",false
+3,1.4 Manejo de riesgos tecnológicos materiales peligrosos,CORPOCALDAS,R,EMRE Manizales 2024 - Anexo 1,"Tarea 1.4, p. 12-13",false
+3,1.4 Manejo de riesgos tecnológicos materiales peligrosos,Secretaría de Medio Ambiente,R,EMRE Manizales 2024 - Anexo 1,"Tarea 1.4, p. 12-13",false
+4,2.1 Atención prehospitalaria,Secretaría de Salud,L,EMRE Manizales 2024 - Anexo 2,"Tarea 2.1, p. 4-5",false
+4,2.1 Atención prehospitalaria,Hospitales - Entidades Red de Urgencias - ASSBASALUD,R,EMRE Manizales 2024 - Anexo 2,"Tarea 2.1, p. 4-5",false
+5,4.4 Daños líneas vitales,Secretaría de Infraestructura,R,EMRE Manizales 2024 - Anexo 4,"Tarea 4.4, p. 10-11",false
