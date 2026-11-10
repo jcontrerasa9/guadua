@@ -34,7 +34,8 @@ ENV WHISPER_MODEL=$WHISPER_MODEL
 COPY README.md ./
 COPY src ./src
 RUN pip install --no-cache-dir --no-deps --no-build-isolation -e .
-COPY data/barrios.json data/diccionario_manizales.txt data/matriz_emre.csv data/recursos_ejemplo.csv ./data/
+COPY data/barrios.json data/diccionario_manizales.txt data/matriz_emre.csv data/recursos_ejemplo.csv \
+     data/riesgos_unidad.csv data/emre_passages.json ./data/
 COPY data/sinteticos/reportes.csv ./data/sinteticos/
 COPY data/radio ./data/radio
 COPY citizen ./citizen

@@ -238,12 +238,103 @@ def evaluar_rag(retriever: Retriever | None = None) -> ResultadoEvalRAG:
     )
 
 
-if __name__ == "__main__":
-    resultado = evaluar_rag()
+# --- Benchmark oficial: páginas verificables de los PDF de data/fuentes ---------------------
+
+
+@dataclass(frozen=True, slots=True)
+class PreguntaOficial:
+    """Pregunta cuya respuesta está en páginas concretas de un PDF oficial (verificadas a
+    mano con pdftotext). Mide el RAG sobre el texto real, no sobre los resúmenes."""
+
+    pregunta: str
+    documento: str  # parte del nombre del documento ("Anexo 1", "Responsabilidades")
+    paginas: frozenset[int]
+
+
+BENCHMARK_OFICIAL: tuple[PreguntaOficial, ...] = (
+    PreguntaOficial("funciones de EFIGAS ante fugas de gas natural", "Responsabilidades",
+                    frozenset({36})),
+    PreguntaOficial("funciones de la CHEC en redes de energía eléctrica", "Responsabilidades",
+                    frozenset({37})),
+    PreguntaOficial("funciones de la Cruz Roja Colombiana", "Responsabilidades",
+                    frozenset({16, 17, 18})),
+    PreguntaOficial("funciones de la Defensa Civil", "Responsabilidades", frozenset({14, 15})),
+    PreguntaOficial("funciones del Cuerpo Oficial de Bomberos", "Responsabilidades",
+                    frozenset({19, 20, 21})),
+    PreguntaOficial("Secretaría de Movilidad control de tránsito en emergencias",
+                    "Responsabilidades", frozenset({10})),
+    PreguntaOficial("Medicina Legal y Fiscalía en el manejo de cadáveres", "Responsabilidades",
+                    frozenset({32})),
+    PreguntaOficial("Aguas de Manizales daños en el acueducto", "Responsabilidades",
+                    frozenset({33, 34})),
+    PreguntaOficial("CORPOCALDAS evaluación de deslizamientos y laderas", "Responsabilidades",
+                    frozenset({39, 40, 41})),
+    PreguntaOficial("búsqueda y rescate de personas atrapadas: actividades y responsables",
+                    "Anexo 1", frozenset({6, 7, 8})),
+    PreguntaOficial("extinción de incendios: actividades de respuesta", "Anexo 1",
+                    frozenset({9, 10, 11})),
+    PreguntaOficial("derrames de sustancias peligrosas y riesgos tecnológicos", "Anexo 1",
+                    frozenset({12, 13})),
+    PreguntaOficial("evacuación de la población", "Anexo 1", frozenset({14, 15, 16})),
+    PreguntaOficial("atención prehospitalaria de heridos", "Anexo 2", frozenset({4, 5})),
+    PreguntaOficial("manejo de cadáveres en la emergencia", "Anexo 2", frozenset({14, 15})),
+    PreguntaOficial("alojamiento temporal de familias en albergues", "Anexo 3",
+                    frozenset({7, 8, 9})),
+)  # fmt: skip
+
+
+def evaluar_rag_oficial(retriever: Retriever | None = None) -> ResultadoEvalRAG:
+    """Hit@1, Hit@3 y MRR sobre los pasajes oficiales (los resúmenes del equipo no cuentan:
+    se descartan antes de rankear)."""
+    ret = retriever if retriever is not None else HybridRetriever.default()
+    hits_1 = hits_3 = 0
+    suma = 0.0
+    detalles: list[dict[str, Any]] = []
+    for item in BENCHMARK_OFICIAL:
+        oficiales = [p for p in ret.search(item.pregunta, k=10) if not p.is_example][:3]
+        obtenidas = [f"{p.document} {p.section}" for p in oficiales]
+        rank = next(
+            (
+                i
+                for i, p in enumerate(oficiales, 1)
+                if item.documento in p.document
+                and p.section.startswith("p. ")
+                and int(p.section[3:]) in item.paginas
+            ),
+            None,
+        )
+        hits_1 += rank == 1
+        hits_3 += rank is not None
+        suma += 1 / rank if rank else 0.0
+        detalles.append(
+            {"pregunta": item.pregunta, "obtenidas": obtenidas, "rank_acierto": rank,
+             "en_top_3": rank is not None}
+        )  # fmt: skip
+    total = len(BENCHMARK_OFICIAL)
+    return ResultadoEvalRAG(
+        total_preguntas=total,
+        hits_top_1=hits_1,
+        hits_top_3=hits_3,
+        hit_rate_top_1=hits_1 / total,
+        hit_rate_top_3=hits_3 / total,
+        mrr=suma / total,
+        detalles=tuple(detalles),
+    )
+
+
+def _imprimir(nombre: str, resultado: ResultadoEvalRAG) -> None:
     pct_1 = resultado.hit_rate_top_1 * 100
     pct_3 = resultado.hit_rate_top_3 * 100
-    print("=== Evaluación RAG Guadua (D8) ===")
+    print(f"=== {nombre} ===")
     print(f"Total preguntas : {resultado.total_preguntas}")
     print(f"Hit@1           : {resultado.hits_top_1}/{resultado.total_preguntas} ({pct_1:.1f} %)")
     print(f"Hit@3           : {resultado.hits_top_3}/{resultado.total_preguntas} ({pct_3:.1f} %)")
     print(f"MRR             : {resultado.mrr:.3f}")
+    for d in resultado.detalles:
+        if not d["en_top_3"]:
+            print(f"  falla: {d['pregunta']} → {d['obtenidas']}")
+
+
+if __name__ == "__main__":
+    _imprimir("RAG · páginas oficiales de la EMRE", evaluar_rag_oficial())
+    _imprimir("RAG · resúmenes operativos del equipo", evaluar_rag())
