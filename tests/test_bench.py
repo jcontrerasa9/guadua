@@ -127,13 +127,14 @@ def test_lo_que_no_se_puede_medir_sale_como_pendiente(table) -> None:
     rows = {line.split(" | ")[0]: line for line in table.splitlines() if line.startswith("| ")}
     for metric, task in (
         ("| Duplicados bien vinculados, fusiones erróneas, rumores", "pendiente (D4)"),
-        ("| Calidad de la búsqueda del RAG", "pendiente (D8)"),
         ("| Tamaño de la miniatura de foto", "pendiente (nivel 3)"),
         ("| Casos ambiguos resueltos con LLM en la nube y local", "pendiente: requiere LLM"),
         ("| Tiempo de cambio de nodo del tablero", "pendiente (se mide en el navegador"),
     ):
         value = rows[metric].split(" | ")[1]
         assert value.startswith(task), value
+    # El RAG ya se mide (D8): páginas oficiales y resúmenes
+    assert rows["| Calidad de la búsqueda del RAG"].split(" | ")[1].startswith("Hit@3 ")
     # El objetivo de la miniatura queda en su columna, no como valor medido
     assert rows["| Tamaño de la miniatura de foto"].split(" | ")[1] != "< 3 KB"
 

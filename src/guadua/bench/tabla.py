@@ -90,6 +90,21 @@ def _pick[T](rows: Sequence[T], profile: str, label: str) -> T | None:
 # --- Secciones ----------------------------------------------------------------------------
 
 
+def _rag_quality() -> str:
+    """Hit@3 del RAG sobre páginas verificadas de los PDF (knowledge/eval_rag.py)."""
+    try:
+        from guadua.knowledge.eval_rag import evaluar_rag, evaluar_rag_oficial
+
+        oficial, resumenes = evaluar_rag_oficial(), evaluar_rag()
+    except Exception as exc:  # sin scikit-learn o sin corpus: no tumba el banco
+        return f"no se pudo medir ({type(exc).__name__})"
+    return (
+        f"Hit@3 {pct(oficial.hit_rate_top_3)} en {oficial.total_preguntas} preguntas sobre "
+        f"páginas oficiales de la EMRE; {pct(resumenes.hit_rate_top_3)} en "
+        f"{resumenes.total_preguntas} sobre los resúmenes del equipo"
+    )
+
+
 def summary(res: Results) -> str:
     st, ev = res.static, res.static.evaluation
     lora = {label: _pick(res.send, "lora", label) for label in ("0 %", "30 %", "60 %", "cortes")}
@@ -149,7 +164,7 @@ def summary(res: Results) -> str:
             "pendiente: requiere LLM (`python -m guadua.agents.triaje_eval`)",
             "—",
         ),
-        ("Calidad de la búsqueda del RAG", "pendiente (D8)", "—"),
+        ("Calidad de la búsqueda del RAG", _rag_quality(), "pasaje esperado en el top 3"),
         ("Tiempo de recuperación de un nodo", recovery, "—"),
         (
             "Hashes iguales tras sincronizar",
