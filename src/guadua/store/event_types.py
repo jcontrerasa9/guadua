@@ -276,6 +276,35 @@ class PreguntaSeguimiento(Payload):
         return self
 
 
+class SolicitudVigia(Payload):
+    """Agente 7 (vigía, D6). Un caso lleva demasiado sin atender: pide a `target` que actúe.
+
+    Nunca cambia prioridades (regla 1): `level` es la urgencia que el caso ya tenía, solo
+    para leerla. El evento lleva en `refs[0]` el `incidente_agrupado` que revisó. Como máximo
+    una por incidente y acción.
+    """
+
+    incident_id: str = Field(min_length=1)
+    target: Literal["triaje", "coordinacion", "tablero"]
+    action: Literal["reevaluacion_triaje", "crear_ficha", "revisar_demora", "alerta_olvido"]
+    reason: str = Field(min_length=1)
+    level: Urgency
+    age_s: float = Field(ge=0)  # segundos desde el primer reporte del incidente
+    new_reports: int = Field(default=0, ge=0)  # evidencia llegada desde la última acción
+
+    @model_validator(mode="after")
+    def _action_matches_target(self) -> SolicitudVigia:
+        targets = {
+            "reevaluacion_triaje": "triaje",
+            "crear_ficha": "coordinacion",
+            "revisar_demora": "coordinacion",
+            "alerta_olvido": "tablero",
+        }
+        if targets[self.action] != self.target:
+            raise ValueError(f"{self.action} va dirigida a {targets[self.action]}")
+        return self
+
+
 # --- Decisiones humanas: vienen del tablero ---------------------------------------------
 
 
@@ -305,6 +334,7 @@ CATALOG: dict[str, tuple[EventCategory, type[Payload]]] = {
     "pregunta_seguimiento": (EventCategory.DERIVADO, PreguntaSeguimiento),
     "incidente_agrupado": (EventCategory.DERIVADO, IncidenteAgrupado),
     "ficha": (EventCategory.DERIVADO, Ficha),
+    "solicitud_vigia": (EventCategory.DERIVADO, SolicitudVigia),
     "decision": (EventCategory.DECISION, Decision),
 }
 
@@ -321,7 +351,10 @@ def validate_event(event: Event) -> Payload:
     category, model = entry
     if event.category != category:
         raise EventTypeError(f"{event.type} debe ser {category.value}, no {event.category.value}")
-    if event.type in ("pregunta_seguimiento", "respuesta_seguimiento") and not event.refs:
+    if (
+        event.type in ("pregunta_seguimiento", "respuesta_seguimiento", "solicitud_vigia")
+        and not event.refs
+    ):
         raise EventTypeError(f"{event.type} debe referenciar el evento en el que se basa")
     if event.type == "decision" and not event.refs:
         raise EventTypeError("una decisión debe referenciar la ficha en refs[0]")

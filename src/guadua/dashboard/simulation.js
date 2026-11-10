@@ -160,8 +160,12 @@ export class MockSimulationClient {
   }
 }
 
+/** Nombres de perfil del tablero → nombres del proxy de fallos (channel/profiles.py). */
+export const PROXY_PROFILES = { wifi: "wifi", radio_lora: "lora", sms: "sms" };
+
 /**
- * Cliente HTTP real para llamar a las rutas cuando Jacobo las defina.
+ * Cliente HTTP real de la barra: perfil y ráfaga en el proxy de fallos, radio y apagado
+ * simulado en los nodos, hashes con GET /api/digest de cada nodo.
  */
 export class HttpSimulationClient {
   constructor(options = {}) {
@@ -172,71 +176,77 @@ export class HttpSimulationClient {
       C: "http://localhost:8002",
     };
     this.fetchFn = options.fetchFn || (typeof fetch !== "undefined" ? fetch.bind(globalThis) : null);
+    this.killedNodes = new Set();
+  }
+
+  async _call(url, options = {}) {
+    if (!this.fetchFn) throw new Error("fetch no disponible");
+    try {
+      const res = await this.fetchFn(url, options);
+      const isJson = res.headers?.get?.("content-type")?.includes("application/json");
+      const data = isJson ? await res.json() : await res.text();
+      return { ok: res.ok, status: res.status, data };
+    } catch (err) {
+      return { ok: false, status: 0, data: { error: `sin conexión con ${url}` } };
+    }
+  }
+
+  _json(method, body) {
+    return {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    };
   }
 
   async setProfile(profileName) {
-    if (!this.fetchFn) throw new Error("fetch no disponible");
-    const res = await this.fetchFn(`${this.proxyUrl}/_channel/profile`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ profile: profileName }),
-    });
-    const isJson = res.headers?.get?.("content-type")?.includes("application/json");
-    const data = isJson ? await res.json() : await res.text();
-    return { ok: res.ok, status: res.status, data };
+    const profile = PROXY_PROFILES[profileName] || profileName;
+    return this._call(`${this.proxyUrl}/_channel/profile`, this._json("PUT", { profile }));
   }
 
+  /** Ráfaga de `n` reportes sintéticos por el proxy: data = { sent, delivered, lost }. */
   async burst(n = 10) {
-    if (!this.fetchFn) throw new Error("fetch no disponible");
-    const res = await this.fetchFn(`${this.proxyUrl}/_sim/burst`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ count: n }),
-    });
-    const isJson = res.headers?.get?.("content-type")?.includes("application/json");
-    const data = isJson ? await res.json() : await res.text();
-    return { ok: res.ok, status: res.status, data };
+    return this._call(`${this.proxyUrl}/_sim/burst`, this._json("POST", { count: n }));
   }
 
+  /** D7: el nodo transcribe un clip de data/radio/. La radio no pasa por el canal celular:
+   * va directo al primer nodo encendido. */
   async injectRadio(clipId = "clip_colapso_dos_incidentes") {
-    if (!this.fetchFn) throw new Error("fetch no disponible");
-    // D7: el nodo transcribe un clip grabado de data/radio/ (a través del proxy si lo hay).
-    const base = this.proxyUrl || this.nodeUrls.A;
-    const res = await this.fetchFn(`${base}/api/radio/demo/${encodeURIComponent(clipId)}`, {
-      method: "POST",
-    });
-    const isJson = res.headers?.get?.("content-type")?.includes("application/json");
-    const data = isJson ? await res.json() : await res.text();
-    return { ok: res.ok, status: res.status, data };
+    const nodeId = Object.keys(this.nodeUrls).find((id) => !this.killedNodes.has(id)) || "A";
+    const url = `${this.nodeUrls[nodeId]}/api/radio/demo/${encodeURIComponent(clipId)}`;
+    return this._call(url, { method: "POST" });
   }
 
+  /** Apaga o enciende (alterna) un nodo con POST /_sim/power. */
   async killNode(nodeId = "A") {
-    if (!this.fetchFn) throw new Error("fetch no disponible");
-    const res = await this.fetchFn(`${this.proxyUrl}/_sim/kill`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ node: nodeId }),
-    });
-    const isJson = res.headers?.get?.("content-type")?.includes("application/json");
-    const data = isJson ? await res.json() : await res.text();
-    return { ok: res.ok, status: res.status, data };
+    const target = String(nodeId).toUpperCase();
+    const turnOn = this.killedNodes.has(target);
+    const res = await this._call(
+      `${this.nodeUrls[target]}/_sim/power`,
+      this._json("POST", { on: turnOn }),
+    );
+    if (res.ok) {
+      if (res.data?.on === false) this.killedNodes.add(target);
+      else this.killedNodes.delete(target);
+    }
+    return { ...res, nodeId: target, killed: this.killedNodes.has(target) };
+  }
+
+  /** Lee el estado de energía de los nodos (p. ej., al recargar el tablero con A apagado). */
+  async syncPower() {
+    for (const [nodeId, url] of Object.entries(this.nodeUrls)) {
+      const res = await this._call(`${url}/_sim/power`);
+      if (res.ok && res.data?.on === false) this.killedNodes.add(nodeId);
+      else if (res.ok) this.killedNodes.delete(nodeId);
+    }
+    return new Set(this.killedNodes);
   }
 
   async getHashes() {
-    if (!this.fetchFn) throw new Error("fetch no disponible");
     const hashes = {};
     for (const [nodeId, url] of Object.entries(this.nodeUrls)) {
-      try {
-        const res = await this.fetchFn(`${url}/api/digest`);
-        if (res.ok) {
-          const data = await res.json();
-          hashes[nodeId] = data.digest || data.hash || "";
-        } else {
-          hashes[nodeId] = "";
-        }
-      } catch {
-        hashes[nodeId] = "";
-      }
+      const res = await this._call(`${url}/api/digest`);
+      hashes[nodeId] = res.ok ? res.data?.digest || res.data?.hash || "" : "";
     }
     return hashes;
   }

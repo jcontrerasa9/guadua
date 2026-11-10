@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  defaultSimulationClient,
   setupSimulationBar,
   state as appState,
   updateHashesUi,
@@ -305,7 +306,10 @@ test("HttpSimulationClient despacha las llamadas HTTP con los formatos previstos
       headers: { get: () => "application/json" },
       json: async () => {
         if (url.includes("/api/digest")) {
-          return { digest: "hash-1234" };
+          return { node: "A", digest: "hash-1234", events: 3 };
+        }
+        if (url.includes("/_sim/power")) {
+          return { node: "A", on: JSON.parse(options.body || '{"on": true}').on };
         }
         return { ok: true };
       },
@@ -327,17 +331,29 @@ test("HttpSimulationClient despacha las llamadas HTTP con los formatos previstos
   assert.equal(requests.at(-1).options.method, "PUT");
   assert.deepEqual(JSON.parse(requests.at(-1).options.body), { profile: "sms" });
 
+  await client.setProfile("radio_lora"); // el proxy lo llama "lora"
+  assert.deepEqual(JSON.parse(requests.at(-1).options.body), { profile: "lora" });
+
   await client.burst(15);
   assert.equal(requests.at(-1).url, "http://proxy.local/_sim/burst");
   assert.deepEqual(JSON.parse(requests.at(-1).options.body), { count: 15 });
 
-  await client.injectRadio("clip_1");
-  assert.equal(requests.at(-1).url, "http://proxy.local/api/radio/demo/clip_1"); // D7
+  await client.injectRadio("clip_1"); // D7: la radio va directo al nodo, no por el celular
+  assert.equal(requests.at(-1).url, "http://node-a.local/api/radio/demo/clip_1");
   assert.equal(requests.at(-1).options.method, "POST");
 
-  await client.killNode("A");
-  assert.equal(requests.at(-1).url, "http://proxy.local/_sim/kill");
-  assert.deepEqual(JSON.parse(requests.at(-1).options.body), { node: "A" });
+  const off = await client.killNode("A");
+  assert.equal(requests.at(-1).url, "http://node-a.local/_sim/power");
+  assert.deepEqual(JSON.parse(requests.at(-1).options.body), { on: false });
+  assert.equal(off.killed, true);
+  assert.equal(client.killedNodes.has("A"), true);
+
+  await client.injectRadio("clip_1"); // con A apagado, la radio entra por B
+  assert.equal(requests.at(-1).url, "http://node-b.local/api/radio/demo/clip_1");
+
+  const on = await client.killNode("A");
+  assert.deepEqual(JSON.parse(requests.at(-1).options.body), { on: true });
+  assert.equal(on.killed, false);
 
   const hashes = await client.getHashes();
   assert.deepEqual(hashes, {
@@ -345,4 +361,29 @@ test("HttpSimulationClient despacha las llamadas HTTP con los formatos previstos
     B: "hash-1234",
     C: "hash-1234",
   });
+});
+
+test("HttpSimulationClient: un nodo que no responde deja su hash vacío y no lanza", async () => {
+  const client = new HttpSimulationClient({
+    proxyUrl: "http://proxy.local",
+    nodeUrls: { A: "http://node-a.local", B: "http://node-b.local", C: "http://node-c.local" },
+    fetchFn: async (url) => {
+      if (url.startsWith("http://node-a.local")) throw new TypeError("Failed to fetch");
+      return { ok: true, status: 200, headers: { get: () => "application/json" }, json: async () => ({ digest: "h" }) };
+    },
+  });
+  assert.deepEqual(await client.getHashes(), { A: "", B: "h", C: "h" });
+  const res = await client.burst(10);
+  assert.equal(res.ok, true);
+});
+
+test("defaultSimulationClient: real por defecto, simulado con ?mock=1", () => {
+  const real = defaultSimulationClient({ protocol: "http:", hostname: "10.0.0.5", search: "" });
+  assert.ok(real instanceof HttpSimulationClient);
+  assert.equal(real.proxyUrl, "http://10.0.0.5:8080");
+  assert.equal(real.nodeUrls.C, "http://10.0.0.5:8002");
+  const custom = defaultSimulationClient({ protocol: "http:", hostname: "h", search: "?proxy=http://p:9" });
+  assert.equal(custom.proxyUrl, "http://p:9");
+  const mock = defaultSimulationClient({ protocol: "http:", hostname: "h", search: "?mock=1" });
+  assert.ok(mock instanceof MockSimulationClient);
 });

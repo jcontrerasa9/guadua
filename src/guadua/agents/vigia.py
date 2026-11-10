@@ -27,7 +27,8 @@ from typing import Literal
 from guadua.classifier.urgency import Urgency
 from guadua.node.views import IncidentDetail, incident_details
 from guadua.providers.llm import LLMProvider, LLMUnavailable, Message
-from guadua.store.events import Event, EventStore
+from guadua.store.event_types import SolicitudVigia
+from guadua.store.events import Event, EventCategory, EventStore
 
 # Umbrales por defecto en segundos
 DEFAULT_UMBRAL_OLVIDO_S: float = 900.0  # 15 minutos para caso rezagado
@@ -451,3 +452,28 @@ class AgenteVigia:
             f"Incidente {caso.incident_id} ({caso.level.name.lower()}) sin ficha tras "
             f"{minutos} min; requiere asignación de responsable y recursos según matriz EMRE."
         )
+
+
+def solicitud_event(
+    solicitud: Solicitud, incidente: Event, *, node_id: str, seq: int, received_at: float
+) -> Event:
+    """La solicitud como evento `solicitud_vigia` (D6), con el `incidente_agrupado` que se
+    revisó en `refs[0]`. Así queda en el registro, viaja por gossip y se ve en el tablero."""
+    payload = SolicitudVigia(
+        incident_id=solicitud.incident_id,
+        target=solicitud.target_agent,
+        action=solicitud.action,
+        reason=solicitud.reason,
+        level=solicitud.incident_level,
+        age_s=max(0.0, solicitud.age_seconds),
+        new_reports=solicitud.new_reports_count,
+    )
+    return Event(
+        origin_node=node_id,
+        seq=seq,
+        category=EventCategory.DERIVADO,
+        type="solicitud_vigia",
+        payload=payload.model_dump(mode="json"),
+        refs=(incidente.id,),
+        received_at=received_at,
+    )

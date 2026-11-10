@@ -54,7 +54,8 @@ class HybridRetriever(Retriever):
         self.w_sem = w_sem
         self.k_rrf = k_rrf
 
-        self._con = sqlite3.connect(db_path)
+        # El nodo lo crea en un hilo y lo consulta desde el del servidor: solo lee.
+        self._con = sqlite3.connect(db_path, check_same_thread=False)
         self._crear_tablas()
 
         self._vectorizer: TfidfVectorizer | None = None

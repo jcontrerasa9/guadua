@@ -89,10 +89,13 @@ Todas las rutas cuelgan de `/api`. Los errores 4xx devuelven `ApiError` (`{"erro
 | `GET /api/radio` | — | `RadioList` | tablero | 2 |
 | `GET /api/radio/{audio_id}/audio` | — | 200 bytes `audio/*` · 404 | tablero | 2 |
 | `POST /api/radio/{audio_id}/transcription` | `TranscriptionRequest` | 201 `RadioAck` · 404 | tablero | 2 |
+| `GET /api/digest` | — | `Digest` | barra de simulación | 2 |
 
 - **`GET /api/questions/{device_id}`** (dispositivo en 8 dígitos hex) devuelve las preguntas sin responder de ese dispositivo, como máximo una por reporte, **la del reporte más reciente primero** y solo las de los últimos 5 minutos (desde que el nodo recibió el reporte). Una pregunta vencida no se borra: deja de ofrecerse, y si llega su respuesta igual se acepta. "No sé" siempre se ofrece, aunque no esté en `options`.
 - **`POST /api/messages`** recibe todos los mensajes binarios: reporte, SOS, "Estoy a salvo" y respuesta de seguimiento. El `200` es el ACK. Un mensaje repetido también recibe `200`, con `duplicate: true`, y no se guarda dos veces.
 - **Radio VHF (D7).** `POST /api/radio` guarda el audio (hasta 8 MB; wav, ogg, mp3, mp4, webm, flac), lo transcribe con faster-whisper en otro hilo y responde cuando termina: `transcrito` con el texto y el id de la `transcripcion_radio`, o `pendiente` con `note` (sin transcriptor o audio ininteligible). El `audio_id` son los primeros 16 hex del SHA-256 del audio: el mismo audio otra vez responde `duplicate: true` sin transcribir de nuevo (si quedó pendiente, se vuelve a intentar). El audio queda en el nodo que lo recibió (`has_audio` en `RadioList`); la transcripción viaja por gossip. `POST /api/radio/{audio_id}/transcription` publica una transcripción del operador; si ya había una, la corrige (la anterior en `refs[0]`).
+- **`GET /api/digest`** (D9) devuelve la huella del registro: `node`, `digest` (el SHA-256 de `EventStore.digest()`) y `events` (cuántos eventos tiene). Si coincide en los tres nodos, convergieron.
+- **Rutas de demostración (D9), fuera de `/api` y fuera del contrato.** En el nodo, `GET /_sim/power` y `POST /_sim/power` con `{"on": false}` o `{"on": true}`: apagado, el nodo responde **503** en todo `/api/*` y su gossip calla (ni envía ni atiende tramas), así que los vecinos lo dan por caído y toman su trabajo como en una caída real (N12). Al encenderlo se pone al día antes de dar a otro por caído. Las pantallas siguen servidas. En el proxy de fallos, `POST /_sim/burst` con `{"count": 1…50}` envía reportes sintéticos al nodo con los fallos del perfil activo y responde `{"sent", "delivered", "lost", "profile"}`. Las rutas de control del proxy (`/_channel/*`, `/_sim/*`) tienen CORS abierto.
 - **El tablero** consulta `GET /api/incidents` cada pocos segundos. Si el nodo no responde, pasa al siguiente de su lista usando `GET /api/health`.
 - **Mientras N6 no exista**, la PWA y el tablero usan `tests/fixtures/api_examples.json` como respuestas simuladas.
 
@@ -114,6 +117,7 @@ Cada nodo valida un evento con `validate_event` antes de guardarlo. El tipo fija
 | `respuesta_seguimiento` | hecho | Nodo | Pregunta (`question_id` = id de la pregunta), respuesta: sí / no / no sé / opción / texto. `refs[0]` = la pregunta | 2 |
 | `confirmacion_campo` | hecho | Nodo | Incidente, confirmado, nota | 2 |
 | `reasignacion` | hecho | Agente 5 · resiliencia, en el nodo que toma el trabajo | Nodo caído, hasta qué consecutivo, segundos sin latidos. `refs[0]` = `(from_node, up_to_seq)` | 1 |
+| `solicitud_vigia` | derivado | Agente 7 · vigía | Incidente, a quién va (`triaje` / `coordinacion` / `tablero`), acción (`reevaluacion_triaje`, `crear_ficha`, `revisar_demora`, `alerta_olvido`), motivo, urgencia que ya tenía (solo para leer), segundos sin atender, reportes nuevos. `refs[0]` = el `incidente_agrupado` revisado | 2 |
 
 **Cómo se encadenan:** `reporte` → `reporte_normalizado` → `urgencia_estimada` → `incidente_agrupado` → `ficha` → `decision`. Cada evento derivado apunta en `refs` al evento en el que se basa. Los eventos no se editan: si cambia la urgencia o un grupo, se publica un evento nuevo, y vale el más reciente.
 
@@ -128,4 +132,4 @@ Cada nodo valida un evento con `validate_event` antes de guardarlo. El tipo fija
 - `msg_type` = 0 (reporte), `raw_hex` vacío, `flags` solo con lo dicho (observación directa si alguien dijo que estaba en el sitio; atrapados, no respira o sangrado, incendio si el texto lo dice), `people` solo con un número dicho (si no, "no sé"), `barrio` solo si se nombró (si no, `geohash` y `barrio` van en None y la normalización usa toda la ciudad con radio de 5 km, con `location` en `unknown_fields`).
 - Por radio no hay preguntas de seguimiento. Si el operador corrige la transcripción, los reportes de la anterior siguen en el registro y el tablero los oculta.
 
-**Pendiente de definir** (se agrega al catálogo cuando llegue su tarea): las solicitudes entre agentes del vigía (D6).
+**Vigía (D6).** El nodo corre una ronda cada `SARD_VIGIA_INTERVAL` s (30). Publica una `solicitud_vigia` por cada caso olvidado del que es dueño (el de su `incidente_agrupado` más reciente), **como máximo una por incidente y acción**. Una solicitud **nunca cambia la urgencia** (regla 1): el `level` que lleva es el que el caso ya tenía. Cada acción va a un solo destino: `reevaluacion_triaje` → triaje; `crear_ficha` y `revisar_demora` → coordinación; `alerta_olvido` → tablero. El tablero las muestra en "por qué está aquí".

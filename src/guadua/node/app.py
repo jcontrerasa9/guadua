@@ -4,6 +4,7 @@
     /tablero/       tablero del comandante (src/guadua/dashboard)
     /ciudadano/     PWA ciudadana (citizen/)
     /data/...       barrios.json y el diccionario, que usan las pantallas
+    /_sim/power     apagado simulado del nodo para la barra del jurado (D9); no es de la API
 
 Los errores 4xx devuelven ApiError ({"error": "..."}). CORS abierto: el tablero servido por
 un nodo consulta también a los demás cuando cambia de nodo.
@@ -23,10 +24,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from guadua.node.api import (
     DecisionAck,
     DecisionRequest,
+    Digest,
     Health,
     IncidentDetail,
     IncidentList,
@@ -59,6 +62,12 @@ def _error(message: str, status: int) -> JSONResponse:
     return JSONResponse({"error": message}, status_code=status)
 
 
+class Power(BaseModel):
+    """POST /_sim/power: {"on": false} apaga el nodo (simulado); {"on": true} lo enciende."""
+
+    on: bool
+
+
 def demo_clip(clip_id: str) -> tuple[Path, str] | None:
     """Un clip grabado por el equipo en data/radio/ (para la barra de simulación, D9)."""
     if not DEMO_ID.match(clip_id):
@@ -70,9 +79,12 @@ def demo_clip(clip_id: str) -> tuple[Path, str] | None:
     return None
 
 
-def create_app(node: Node, *, gossip_interval: float | None = 2.0) -> FastAPI:
-    """`gossip_interval=None` no arranca el ciclo de gossip ni el de resiliencia (útil en
-    pruebas). La resiliencia (N12) hace una ronda con la misma frecuencia que el gossip."""
+def create_app(
+    node: Node, *, gossip_interval: float | None = 2.0, vigia_interval: float = 30.0
+) -> FastAPI:
+    """`gossip_interval=None` no arranca el ciclo de gossip, ni el de resiliencia, ni el del
+    vigía (útil en pruebas). La resiliencia (N12) hace una ronda con la misma frecuencia que
+    el gossip; el vigía (D6), una cada `vigia_interval` segundos."""
 
     @contextlib.asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -85,6 +97,7 @@ def create_app(node: Node, *, gossip_interval: float | None = 2.0) -> FastAPI:
             tasks.append(asyncio.create_task(node.gossip.run(gossip_interval, stop)))
         if gossip_interval is not None:
             tasks.append(asyncio.create_task(node.resilience.run(gossip_interval, stop)))
+            tasks.append(asyncio.create_task(node.run_vigia(vigia_interval, stop)))
         try:
             yield
         finally:
@@ -105,6 +118,14 @@ def create_app(node: Node, *, gossip_interval: float | None = 2.0) -> FastAPI:
         if request.url.path.startswith(VIEW_PREFIXES):
             response.headers["Cache-Control"] = "no-cache"
         return response
+
+    @app.middleware("http")
+    async def _powered_off(request: Request, call_next):
+        """Apagado simulado (D9): la API no contesta, como un nodo sin energía. Las pantallas
+        siguen servidas para que el tablero ya abierto pase solo a otro nodo (N14)."""
+        if not node.powered and request.url.path.startswith("/api/"):
+            return _error(f"nodo {node.node_id} apagado (simulación)", 503)
+        return await call_next(request)
 
     app.add_middleware(
         CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST"], allow_headers=["*"]
@@ -207,6 +228,21 @@ def create_app(node: Node, *, gossip_interval: float | None = 2.0) -> FastAPI:
             return node.correct_transcription(audio_id, request)
         except NotFound as exc:
             return _error(str(exc), 404)
+
+    @app.get("/api/digest", response_model=Digest)
+    async def digest() -> Digest:
+        return node.digest()
+
+    # --- Simulación para el jurado (D9): fuera de /api, no es parte del contrato ------------
+
+    @app.get("/_sim/power")
+    async def power_state() -> dict:
+        return {"node": node.node_id, "on": node.powered}
+
+    @app.post("/_sim/power")
+    async def power(request: Power) -> dict:
+        node.set_power(request.on)
+        return {"node": node.node_id, "on": node.powered}
 
     # --- Pantallas -------------------------------------------------------------------------
 

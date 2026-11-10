@@ -49,6 +49,8 @@ def build_node(config: NodeConfig) -> Node:
         question_kinds=frozenset(config.question_kinds),
         transcriber=transcriber,
         clips=clip_store_for(config.db_path),
+        vigia_critico_s=config.vigia_critico_s,
+        vigia_olvido_s=config.vigia_olvido_s,
     )
 
 
@@ -63,7 +65,11 @@ def main() -> None:
         "guadua %s · nodo %s · vecinos %s · base %s",
         __version__, config.node_id, ",".join(config.peers) or "-", config.db_path,
     )  # fmt: skip
-    app = create_app(build_node(config), gossip_interval=config.gossip_interval)
+    app = create_app(
+        build_node(config),
+        gossip_interval=config.gossip_interval,
+        vigia_interval=config.vigia_interval,
+    )
     uvicorn.run(app, host=config.http_host, port=config.http_port)
 
 

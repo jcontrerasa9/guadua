@@ -180,6 +180,8 @@ class GossipNode:
         self.last_seen: dict[str, float] = {}  # vecino → última vez que llegó algo suyo
         # vecino → primera vez que su vector mostró que no nos falta nada de lo que él tiene
         self.caught_up: dict[str, float] = {}
+        # Apagado simulado (D9): ni envía ni atiende tramas, como un equipo sin energía.
+        self.muted = False
 
     def peers_alive(self, within: float = 10.0) -> tuple[str, ...]:
         """Vecinos de los que llegó algo en los últimos `within` segundos."""
@@ -188,6 +190,8 @@ class GossipNode:
 
     async def tick(self) -> None:
         """Una ronda: le cuenta a cada vecino qué tiene."""
+        if self.muted:
+            return
         self.stats.rounds += 1
         message = encode_vector(self.store.version_vector(), self.store.digest())
         for peer in self.peers:
@@ -216,6 +220,8 @@ class GossipNode:
 
     async def handle(self, source: str, frame: bytes) -> None:
         """Atiende una trama. Nunca lanza por datos del canal: lo que no sirve se cuenta."""
+        if self.muted:
+            return  # apagado: la trama se pierde
         if source in self.peers:
             self.last_seen[source] = self.monotonic()
         if not frame:
