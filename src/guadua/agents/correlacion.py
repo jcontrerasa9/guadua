@@ -14,8 +14,13 @@ from difflib import SequenceMatcher
 from enum import Enum
 from typing import Literal
 
+from guadua.agents.correlacion_confianza import (
+    calcular_confianza_y_rumor,
+    detectar_contradicciones,
+)
 from guadua.protocol.header import GEOHASH_ALPHABET, Incident
 from guadua.store.event_types import (
+    ConfirmacionCampo,
     IncidenteAgrupado,
     ReporteNormalizado,
     validate_event,
@@ -232,6 +237,11 @@ class Correlacionador:
 
         reports_by_id: dict[str, tuple[ReporteNormalizado, float]] = {}
         incidents_events: dict[str, list[tuple[Event, IncidenteAgrupado]]] = defaultdict(list)
+        channels_by_id: dict[str, str] = {}
+        confs_by_incident: dict[str, list[ConfirmacionCampo]] = defaultdict(list)
+        confs_info_by_incident: dict[str, list[tuple[ConfirmacionCampo, str, float]]] = defaultdict(
+            list
+        )
 
         for e in existing_events:
             if e.type == "reporte_normalizado":
@@ -240,6 +250,14 @@ class Correlacionador:
             elif e.type == "incidente_agrupado":
                 inc_payload = IncidenteAgrupado.model_validate(e.payload)
                 incidents_events[inc_payload.incident_id].append((e, inc_payload))
+            elif e.type == "reporte":
+                channels_by_id[e.payload["report_id"]] = e.payload.get("channel")
+            elif e.type == "confirmacion_campo":
+                c = ConfirmacionCampo.model_validate(e.payload)
+                confs_by_incident[c.incident_id].append(c)
+                confs_info_by_incident[c.incident_id].append(
+                    (c, f"{e.origin_node}:{e.seq}", e.received_at)
+                )
 
         # Registrar el reporte actual para la construcción de grupos
         reports_by_id[norm_report.report_id] = (norm_report, event.received_at)
@@ -292,7 +310,6 @@ class Correlacionador:
             incident_id = mejor_grupo.incident_id
             report_ids = (*mejor_grupo.report_ids, norm_report.report_id)
             link: Literal["seguro", "dudoso", "nuevo"] = "seguro"
-            confidence = CONFIDENCE_SEGURO
         elif candidatos_dudoso:
             # NOTA CONTRACTUAL (Regla 9): El contrato no especifica grupo de referencia
             # para vínculos dudosos y no se cambian contratos. El reporte dudoso queda
@@ -300,22 +317,124 @@ class Correlacionador:
             incident_id = norm_report.report_id
             report_ids = (norm_report.report_id,)
             link = "dudoso"
-            confidence = CONFIDENCE_DUDOSO
         else:
             # Incidente nuevo
             incident_id = norm_report.report_id
             report_ids = (norm_report.report_id,)
             link = "nuevo"
-            confidence = CONFIDENCE_NUEVO
 
-        # 5. Construir y validar evento inmutable
+        # 5. Calcular confianza, rumor y contradicciones de las fuentes del grupo
+        grupo_reportes = [reports_by_id[r_id][0] for r_id in report_ids if r_id in reports_by_id]
+        grupo_miembros = [reports_by_id[r_id] for r_id in report_ids if r_id in reports_by_id]
+        confs = confs_by_incident.get(incident_id, [])
+        confs_info = confs_info_by_incident.get(incident_id, [])
+
+        confidence, rumor = calcular_confianza_y_rumor(
+            grupo_reportes,
+            channels=channels_by_id,
+            confirmaciones=confs,
+            ubicacion_dudosa=(link == "dudoso"),
+        )
+        contradictions = detectar_contradicciones(
+            grupo_miembros,
+            confirmaciones=confs_info,
+        )
+
+        # 6. Construir y validar evento inmutable
         payload = IncidenteAgrupado(
             incident_id=incident_id,
             report_ids=report_ids,
             link=link,
             confidence=confidence,
-            rumor=False,
-            contradictions=(),
+            rumor=rumor,
+            contradictions=contradictions,
+        )
+
+        seq = self.next_seq()
+        nuevo_evento = Event(
+            origin_node=self.node_id,
+            seq=seq,
+            category=EventCategory.DERIVADO,
+            type="incidente_agrupado",
+            payload=payload.model_dump(),
+            refs=(event.id,),
+            received_at=event.received_at,
+        )
+
+        validate_event(nuevo_evento)
+        store.append(nuevo_evento)
+        return nuevo_evento
+
+    def procesar_confirmacion_campo(
+        self,
+        event: Event,
+        store: EventStore,
+    ) -> Event | None:
+        """Procesa un evento confirmacion_campo y publica un nuevo incidente_agrupado."""
+        if event.type != "confirmacion_campo":
+            raise ValueError(f"Se esperaba evento confirmacion_campo, se recibió: {event.type!r}")
+
+        conf_payload = ConfirmacionCampo.model_validate(event.payload)
+        incident_id = conf_payload.incident_id
+
+        existing_events = store.since({})
+
+        incidents: list[tuple[Event, IncidenteAgrupado]] = []
+        reports_by_id: dict[str, tuple[ReporteNormalizado, float]] = {}
+        channels_by_id: dict[str, str] = {}
+        confs_list: list[ConfirmacionCampo] = []
+        confs_with_info: list[tuple[ConfirmacionCampo, str, float]] = []
+
+        for e in existing_events:
+            if e.type == "incidente_agrupado" and e.payload.get("incident_id") == incident_id:
+                incidents.append((e, IncidenteAgrupado.model_validate(e.payload)))
+            elif e.type == "reporte_normalizado":
+                r_payload = ReporteNormalizado.model_validate(e.payload)
+                reports_by_id[r_payload.report_id] = (r_payload, e.received_at)
+            elif e.type == "reporte":
+                channels_by_id[e.payload["report_id"]] = e.payload.get("channel")
+            elif e.type == "confirmacion_campo" and e.payload.get("incident_id") == incident_id:
+                c = ConfirmacionCampo.model_validate(e.payload)
+                confs_list.append(c)
+                confs_with_info.append((c, f"{e.origin_node}:{e.seq}", e.received_at))
+
+        if not incidents:
+            return None
+
+        incidents.sort(key=lambda item: (item[0].received_at, item[0].seq))
+        _, latest_inc = incidents[-1]
+
+        # Asegurar inclusión de este evento si aún no estaba en store.since({})
+        event_info = f"{event.origin_node}:{event.seq}"
+        if not any(info[1] == event_info for info in confs_with_info):
+            confs_list.append(conf_payload)
+            confs_with_info.append((conf_payload, event_info, event.received_at))
+
+        grupo_reportes = [
+            reports_by_id[r_id][0] for r_id in latest_inc.report_ids if r_id in reports_by_id
+        ]
+        grupo_miembros = [
+            reports_by_id[r_id] for r_id in latest_inc.report_ids if r_id in reports_by_id
+        ]
+
+        confidence, rumor = calcular_confianza_y_rumor(
+            grupo_reportes,
+            channels=channels_by_id,
+            confirmaciones=confs_list,
+            ubicacion_dudosa=(latest_inc.link == "dudoso"),
+        )
+        contradictions = detectar_contradicciones(
+            grupo_miembros,
+            confirmaciones=confs_with_info,
+        )
+
+        payload = IncidenteAgrupado(
+            incident_id=incident_id,
+            report_ids=latest_inc.report_ids,
+            link=latest_inc.link,
+            confidence=confidence,
+            rumor=rumor,
+            contradictions=contradictions,
         )
 
         seq = self.next_seq()
@@ -427,3 +546,14 @@ def correlacionar_reporte(
     """Función de conveniencia para procesar un reporte normalizado con el agente."""
     agente = Correlacionador(node_id, next_seq)
     return agente.procesar_reporte_normalizado(event, store)
+
+
+def correlacionar_confirmacion_campo(
+    event: Event,
+    store: EventStore,
+    node_id: str,
+    next_seq: Callable[[], int],
+) -> Event | None:
+    """Función de conveniencia para procesar una confirmación de campo con el agente."""
+    agente = Correlacionador(node_id, next_seq)
+    return agente.procesar_confirmacion_campo(event, store)

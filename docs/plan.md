@@ -72,7 +72,7 @@ Lo que N8 dejó fuera a propósito y en qué tarea va. Ficha completa: `docs/fic
 | D3a | Riesgo para rescatistas en triaje | Jacobo | Señales de riesgo marcadas en el evento de urgencia sin cambiar la urgencia | ☐ |
 | D3b | Riesgo para rescatistas en coordinación | Oscar | La ficha recomienda la unidad adecuada (p. ej., HazMat) | ✅ |
 | D3c | Franja de advertencia de riesgo en las tarjetas | Oscar | Visible sin abrir el desplegable | ✅ |
-| D4 | Confianza y rumores a fondo + correlación agéntica | Oscar | 40 copias "me contaron" → confianza baja; 3 testigos directos → alta | ☐ |
+| D4 | Confianza y rumores a fondo + correlación agéntica | Oscar | 40 copias "me contaron" → confianza baja; 3 testigos directos → alta | ✅ |
 | D5a | Preguntas de seguimiento: agente de recepción | **SIN ASIGNAR** | Máximo 1 pregunta por reporte, visible en el tablero | ☐ |
 | D5b | Preguntas de seguimiento: tarjeta Sí / No en la PWA | Oscar | Se responde con un toque al volver la señal | ☐ |
 | D6 | Agente vigía | **SIN ASIGNAR** | Casos olvidados generan solicitudes; nunca cambia prioridades | ☐ |
@@ -100,7 +100,7 @@ Se asignan al terminar el nivel 1, según cómo vaya cada frente:
 
 ## Decisiones abiertas (de §18)
 
-- [ ] Tope para reportes de segunda mano en la fórmula de confianza.
+- [x] Tope para reportes de segunda mano en la fórmula de confianza (fijado en 0.25 para mantener rumores en confianza baja).
 - [ ] Documentos oficiales (EMRE, PMGRD): qué entra al RAG y qué entidades son reales.
 - [ ] Modelo de Gemini en la capa gratuita.
 - [ ] Modelo de Ollama para los agentes sin Internet.

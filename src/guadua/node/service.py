@@ -14,7 +14,10 @@ from typing import TYPE_CHECKING, Literal
 
 from guadua import __version__
 from guadua.agents.coordinacion import AgenteCoordinacion
-from guadua.agents.correlacion import correlacionar_reporte
+from guadua.agents.correlacion import (
+    correlacionar_confirmacion_campo,
+    correlacionar_reporte,
+)
 from guadua.classifier.triage import UrgencyClassifier, default_classifier
 from guadua.node.api import DecisionAck, DecisionRequest, Health, MessageAck
 from guadua.node.intake import parse_message, reporte_event
@@ -179,6 +182,8 @@ class Node:
                     self._start_triage(event)
                 case "incidente_agrupado":
                     self.coordinacion.procesar_incidente(event, self.store)
+                case "confirmacion_campo":
+                    self._process_confirmacion_campo(event)
 
     def do_work(self, work: Work) -> None:
         """Un paso pendiente que la resiliencia (N12) encontró en el registro: el de un nodo
@@ -197,6 +202,8 @@ class Node:
                 self.coordinacion.procesar_incidente(work.event, self.store)
             case "replanear":
                 self.coordinacion.procesar_decision(work.event, self.store)
+            case "confirmacion_campo":
+                self._process_confirmacion_campo(work.event)
 
     def _has(self, event_type: str, report_id: str) -> bool:
         return any(
@@ -213,6 +220,15 @@ class Node:
         grouped = correlacionar_reporte(normalized, self.store, self.node_id, self.next_seq)
         if grouped is not None:
             self._after_append(grouped)  # el agente ya lo guardó
+
+    def _process_confirmacion_campo(self, confirmacion: Event) -> None:
+        """Correlación (D4). Actualiza confianza y contradicciones si el campo confirma
+        o descarta."""
+        grouped = correlacionar_confirmacion_campo(
+            confirmacion, self.store, self.node_id, self.next_seq
+        )
+        if grouped is not None:
+            self._after_append(grouped)
 
     def _estimate_urgency(self, normalized: Event) -> None:
         """Publica `urgencia_estimada`. Si falla, la correlación y el resto siguen igual."""
