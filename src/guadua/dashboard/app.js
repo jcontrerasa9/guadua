@@ -6,8 +6,10 @@ import {
   computeConfidence,
   computeRiskWarning,
   createInitialNodeState,
+  DASHBOARD_MOCK_PEOPLE,
   formatDecisionRequest,
   formatTimeAgo,
+  matchSoughtPeople,
   nodesStartingWith,
   partitionAndSortIncidents,
   updateNodeHealth,
@@ -28,6 +30,8 @@ const state = {
   operator: localStorage.getItem("guadua_operator") || "comandante-1",
   barriosMap: new Map(), // code -> { code, name, lat, lon }
   incidents: [],
+  safePeople: [],
+  soughtText: "",
   detailCache: new Map(), // incident_id -> IncidentDetail
   mapInstance: null,
   mapMarkersLayer: null,
@@ -133,6 +137,10 @@ async function fetchMockJson(endpoint, options = {}) {
     }
     const ack = validList.find((v) => v.schema === "DecisionAck");
     return { ok: true, status: 201, data: ack?.body || { event_id: "A:58" } };
+  }
+
+  if (endpoint === "/api/people") {
+    return { ok: true, status: 200, data: DASHBOARD_MOCK_PEOPLE };
   }
 
   return { ok: false, status: 404, data: { error: `Ruta mock no implementada: ${method} ${endpoint}` } };
@@ -687,7 +695,7 @@ async function checkNodeHealthAndPoll() {
 
   updateNodeStatusUi();
 
-  // 2. Si hay nodo conectado, consultar incidentes
+  // 2. Si hay nodo conectado, consultar incidentes y personas a salvo
   if (state.nodeState.connectedNode) {
     const incRes = await fetchJson("/api/incidents");
     if (incRes.ok && incRes.data?.incidents) {
@@ -695,6 +703,90 @@ async function checkNodeHealthAndPoll() {
       renderFeed();
       updateLastSyncTime();
     }
+
+    const peopleRes = await fetchJson("/api/people");
+    if (peopleRes.ok && Array.isArray(peopleRes.data?.people)) {
+      state.safePeople = peopleRes.data.people;
+      renderSafePeople();
+    }
+  }
+}
+
+function renderSoughtMatches() {
+  const container = document.getElementById("sought-matches-list");
+  if (!container) return;
+
+  const text = state.soughtText ? state.soughtText.trim() : "";
+  if (!text) {
+    container.innerHTML = "";
+    return;
+  }
+
+  const matches = matchSoughtPeople(state.soughtText, state.safePeople);
+  if (matches.length === 0) {
+    container.innerHTML = "";
+    return;
+  }
+
+  container.innerHTML = matches
+    .map(
+      (m) => `
+      <div class="sought-match ${m.found ? "found" : "not-found"}">
+        <span class="sought-name"><strong>${escapeHtml(m.query)}</strong></span>
+        <span class="sought-status">${escapeHtml(m.statusText)}</span>
+      </div>
+    `,
+    )
+    .join("");
+}
+
+function renderSafePeople() {
+  const countEl = document.getElementById("safe-people-count");
+  if (countEl) {
+    countEl.textContent = String(state.safePeople.length);
+  }
+
+  renderSoughtMatches();
+
+  const listEl = document.getElementById("safe-people-list");
+  if (!listEl) return;
+
+  if (state.safePeople.length === 0) {
+    listEl.innerHTML = `<p style="font-size: 0.8125rem; color: var(--text-muted);">No hay reportes de personas a salvo aún.</p>`;
+    return;
+  }
+
+  listEl.innerHTML = state.safePeople
+    .map((p) => {
+      const nameHtml = p.name
+        ? `<span class="safe-person-name">${escapeHtml(p.name)}</span>`
+        : `<span class="safe-person-anon">(Sin nombre)</span>`;
+      const barrioHtml = p.barrio_label
+        ? `<span>📍 ${escapeHtml(p.barrio_label)}</span>`
+        : "";
+      const timeHtml = p.received_at
+        ? `<span>${formatTimeAgo(p.received_at)}</span>`
+        : "";
+      return `
+        <div class="safe-person-item">
+          ${nameHtml}
+          <div class="safe-person-meta">
+            ${barrioHtml}
+            ${timeHtml}
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function setupSoughtInput() {
+  const soughtInput = document.getElementById("sought-names-input");
+  if (soughtInput) {
+    soughtInput.addEventListener("input", () => {
+      state.soughtText = soughtInput.value;
+      renderSoughtMatches();
+    });
   }
 }
 
@@ -752,6 +844,7 @@ async function init() {
 
   setupOperator();
   setupModal();
+  setupSoughtInput();
   initMap();
   await loadBarrios();
 
