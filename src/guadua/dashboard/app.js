@@ -14,6 +14,11 @@ import {
   partitionAndSortIncidents,
   updateNodeHealth,
 } from "./logic.js";
+import {
+  checkConvergence,
+  HttpSimulationClient,
+  MockSimulationClient,
+} from "./simulation.js";
 
 // Constantes del sistema
 export const POLL_INTERVAL_MS = 5000;
@@ -23,11 +28,15 @@ export const DEFAULT_NODES = [
   "http://localhost:8002",
 ];
 
+const defaultOrigin = typeof window !== "undefined" && window.location ? window.location.origin : "";
+const defaultOperator =
+  typeof localStorage !== "undefined" ? localStorage.getItem("guadua_operator") || "comandante-1" : "comandante-1";
+
 // Estado global de la aplicación
-const state = {
+export const state = {
   // Primero el nodo que sirvió este tablero; los demás, de respaldo.
-  nodeState: createInitialNodeState(nodesStartingWith(window.location.origin, DEFAULT_NODES)),
-  operator: localStorage.getItem("guadua_operator") || "comandante-1",
+  nodeState: createInitialNodeState(nodesStartingWith(defaultOrigin, DEFAULT_NODES)),
+  operator: defaultOperator,
   barriosMap: new Map(), // code -> { code, name, lat, lon }
   incidents: [],
   safePeople: [],
@@ -37,6 +46,7 @@ const state = {
   mapMarkersLayer: null,
   pendingEdit: null, // { incident, fichaId }
   mockFixture: null,
+  simClient: null,
 };
 
 // --- Abstracción de red: fetchJson -------------------------------------------
@@ -49,7 +59,10 @@ const state = {
  * @returns {Promise<{ ok: boolean, status: number, data: any }>}
  */
 export async function fetchJson(endpoint, options = {}) {
-  const urlParams = new URLSearchParams(window.location.search);
+  const urlParams =
+    typeof window !== "undefined" && window.location
+      ? new URLSearchParams(window.location.search)
+      : new URLSearchParams();
   const isMock = urlParams.get("mock") === "1";
 
   if (isMock) {
@@ -710,6 +723,9 @@ async function checkNodeHealthAndPoll() {
       renderSafePeople();
     }
   }
+
+  // 3. Monitorear convergencia de hashes en la barra de simulación
+  await updateHashesUi();
 }
 
 function renderSoughtMatches() {
@@ -829,11 +845,145 @@ function setupOperator() {
   }
 }
 
+// --- Barra de Simulación para el Jurado (D9) ----------------------------------
+
+export async function updateHashesUi() {
+  if (!state.simClient) return;
+
+  try {
+    const hashes = await state.simClient.getHashes();
+    const convergence = checkConvergence(hashes);
+
+    const badge = document.getElementById("sim-convergence-badge");
+    if (badge) {
+      if (convergence.converged) {
+        badge.classList.remove("diverged");
+        badge.textContent = convergence.message || "3/3 Nodos Convergidos";
+      } else {
+        badge.classList.add("diverged");
+        badge.textContent = convergence.message || "Divergencia (sincronizando)";
+      }
+    }
+
+    const firstHash = hashes["A"] || "";
+    for (const nodeId of ["A", "B", "C"]) {
+      const codeEl = document.getElementById(`sim-hash-${nodeId.toLowerCase()}`);
+      const boxEl = document.getElementById(`sim-hash-box-${nodeId.toLowerCase()}`);
+      const hashVal = hashes[nodeId] || "";
+
+      if (codeEl) {
+        codeEl.textContent = hashVal ? `${hashVal.slice(0, 8)}…` : "—";
+        codeEl.title = hashVal || "Sin hash";
+      }
+      if (boxEl) {
+        const isKilled = state.simClient.killedNodes?.has(nodeId);
+        const isDiverged = !convergence.converged && hashVal !== firstHash;
+        boxEl.classList.toggle("killed", Boolean(isKilled));
+        boxEl.classList.toggle("diverged", Boolean(isDiverged));
+      }
+    }
+  } catch (err) {
+    console.warn("Error actualizando hashes de simulación:", err);
+  }
+}
+
+export function setupSimulationBar(client = null) {
+  state.simClient = client || new MockSimulationClient();
+
+  // 1. Botones de perfil de canal
+  const profileBtns = [
+    { id: "btn-sim-profile-wifi", profile: "wifi" },
+    { id: "btn-sim-profile-lora", profile: "radio_lora" },
+    { id: "btn-sim-profile-sms", profile: "sms" },
+  ];
+
+  for (const { id, profile } of profileBtns) {
+    const btn = document.getElementById(id);
+    if (btn) {
+      btn.addEventListener("click", async () => {
+        await state.simClient.setProfile(profile);
+        for (const p of profileBtns) {
+          const b = document.getElementById(p.id);
+          if (b) b.classList.toggle("active", p.profile === profile);
+        }
+        const statusEl = document.getElementById("sim-status-msg");
+        if (statusEl) {
+          statusEl.textContent = `Perfil de canal cambiado a: ${profile.toUpperCase()}`;
+        }
+      });
+    }
+  }
+
+  // 2. Botón ráfaga
+  const burstBtn = document.getElementById("btn-sim-burst");
+  if (burstBtn) {
+    burstBtn.addEventListener("click", async () => {
+      await state.simClient.burst(10);
+      const statusEl = document.getElementById("sim-status-msg");
+      if (statusEl) {
+        statusEl.textContent = "Ráfaga de 10 reportes sintéticos inyectada.";
+      }
+      await updateHashesUi();
+    });
+  }
+
+  // 3. Botón inyectar radio
+  const radioBtn = document.getElementById("btn-sim-radio");
+  if (radioBtn) {
+    radioBtn.addEventListener("click", async () => {
+      await state.simClient.injectRadio("clip_colapso_dos_incidentes");
+      const statusEl = document.getElementById("sim-status-msg");
+      if (statusEl) {
+        statusEl.textContent = "Clip de radio VHF inyectado (2 incidentes transcritos).";
+      }
+      await updateHashesUi();
+    });
+  }
+
+  // 4. Botón apagar nodo A
+  const killBtn = document.getElementById("btn-sim-kill-a");
+  if (killBtn) {
+    killBtn.addEventListener("click", async () => {
+      const res = await state.simClient.killNode("A");
+      const statusEl = document.getElementById("sim-status-msg");
+      if (res.killed) {
+        killBtn.textContent = "❤️ Revivir nodo A";
+        killBtn.classList.add("active-killed");
+        if (statusEl) {
+          statusEl.textContent = "Nodo A apagado (simulando caída de red o equipo).";
+        }
+      } else {
+        killBtn.textContent = "💀 Apagar nodo A";
+        killBtn.classList.remove("active-killed");
+        if (statusEl) {
+          statusEl.textContent = "Nodo A recuperado y sincronizado.";
+        }
+      }
+      await updateHashesUi();
+    });
+  }
+
+  // 5. Botón refrescar hashes
+  const refreshBtn = document.getElementById("btn-sim-refresh-hashes");
+  if (refreshBtn) {
+    refreshBtn.addEventListener("click", async () => {
+      await updateHashesUi();
+      const statusEl = document.getElementById("sim-status-msg");
+      if (statusEl) {
+        statusEl.textContent = "Hashes actualizados.";
+      }
+    });
+  }
+}
+
 // --- Inicialización Principal -------------------------------------------------
 
 async function init() {
   // Configurar nodos desde URL si vienen como ?nodes=url1,url2
-  const urlParams = new URLSearchParams(window.location.search);
+  const urlParams =
+    typeof window !== "undefined" && window.location
+      ? new URLSearchParams(window.location.search)
+      : new URLSearchParams();
   const nodesParam = urlParams.get("nodes");
   if (nodesParam) {
     const customNodes = nodesParam.split(",").map((n) => n.trim()).filter(Boolean);
@@ -847,6 +997,8 @@ async function init() {
   setupSoughtInput();
   initMap();
   await loadBarrios();
+  setupSimulationBar();
+  await updateHashesUi();
 
   // Primera consulta de salud e incidentes
   await checkNodeHealthAndPoll();
@@ -856,4 +1008,7 @@ async function init() {
 }
 
 // Iniciar aplicación al cargar el DOM
-window.addEventListener("DOMContentLoaded", init);
+if (typeof window !== "undefined" && window.addEventListener) {
+  window.addEventListener("DOMContentLoaded", init);
+}
+

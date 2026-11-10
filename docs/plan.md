@@ -78,7 +78,7 @@ Lo que N8 dejó fuera a propósito y en qué tarea va. Ficha completa: `docs/fic
 | D6 | Agente vigía | **SIN ASIGNAR** | Casos olvidados generan solicitudes; nunca cambia prioridades | ☐ |
 | D7 | Radio VHF con `faster-whisper` | Oscar | Clip con dos incidentes → dos reportes ligados al mismo audio | ☐ |
 | D8 | RAG híbrido (FTS5 + embeddings) y tabla de recursos | **SIN ASIGNAR** | Implementa `Retriever`; ~20 preguntas, sección esperada en el top 3 | ☐ |
-| D9 | Barra de simulación para el jurado | Oscar | Cambia perfil, lanza ráfaga, inyecta radio, apaga A y muestra hashes | ☐ |
+| D9 | Barra de simulación para el jurado | Oscar | Cambia perfil, lanza ráfaga, inyecta radio, apaga A y muestra hashes | ✅ |
 | D10 | HTTPS en el celular (`adb reverse`, luego `mkcert`) | Oscar | GPS y modo offline funcionan en un teléfono real | ☐ |
 
 ## Nivel 3 · Extras (solo si el nivel 2 corre de punta a punta)

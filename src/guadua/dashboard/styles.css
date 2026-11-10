@@ -841,3 +841,178 @@ body {
   align-items: center;
 }
 
+/* --- Barra de Simulación para el Jurado (D9) --- */
+.simulation-bar {
+  background-color: #0f172a;
+  color: #e2e8f0;
+  border-bottom: 2px solid #334155;
+  padding: 0.5rem 1.5rem;
+  position: relative;
+  z-index: 50;
+}
+
+.simulation-summary {
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  user-select: none;
+  outline: none;
+}
+
+.simulation-title {
+  color: #f8fafc;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.convergence-badge {
+  padding: 0.2rem 0.65rem;
+  border-radius: 9999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background-color: #064e3b;
+  color: #34d399;
+  border: 1px solid #059669;
+  transition: all 0.2s ease;
+}
+
+.convergence-badge.diverged {
+  background-color: #78350f;
+  color: #fbbf24;
+  border: 1px solid #d97706;
+}
+
+.simulation-content {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1.25rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.25rem;
+  border-top: 1px solid #334155;
+  margin-top: 0.5rem;
+}
+
+.sim-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sim-group-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sim-buttons {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.btn-sim {
+  background-color: #334155;
+  color: #f8fafc;
+  border: 1px solid #475569;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-sim:hover {
+  background-color: #475569;
+}
+
+.btn-sim.active {
+  background-color: #2563eb;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+.btn-sim-action:hover {
+  background-color: #0284c7;
+  color: #ffffff;
+}
+
+.btn-sim-danger {
+  background-color: #7f1d1d;
+  border-color: #991b1b;
+  color: #fca5a5;
+}
+
+.btn-sim-danger:hover {
+  background-color: #991b1b;
+  color: #ffffff;
+}
+
+.btn-sim-danger.active-killed {
+  background-color: #ef4444;
+  color: #ffffff;
+  border-color: #f87171;
+}
+
+.sim-hashes-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sim-hashes-list {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.sim-hash-item {
+  background-color: #020617;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  padding: 0.2rem 0.45rem;
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  font-size: 0.6875rem;
+  transition: all 0.2s ease;
+}
+
+.sim-hash-item.diverged {
+  border-color: #f59e0b;
+}
+
+.sim-hash-item.killed {
+  border-color: #ef4444;
+  background-color: #450a0a;
+}
+
+.sim-node-tag {
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.sim-hash-code {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: #38bdf8;
+}
+
+.sim-status-line {
+  width: 100%;
+  font-size: 0.6875rem;
+  color: #94a3b8;
+  font-style: italic;
+  display: flex;
+  justify-content: flex-end;
+}
+
+
