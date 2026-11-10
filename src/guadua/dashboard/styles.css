@@ -782,6 +782,21 @@ button:disabled {
   background-size: 40px 40px;
 }
 
+/* Calles de OpenStreetMap oscurecidas: combinan con el panel y dejan leer los barrios */
+.osm-tiles {
+  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.35);
+}
+
+.leaflet-container .leaflet-control-attribution {
+  background-color: rgba(11, 13, 12, 0.75);
+  color: var(--ink-muted);
+  font-size: 10px;
+}
+
+.leaflet-container .leaflet-control-attribution a {
+  color: var(--ink-text);
+}
+
 /* Nombre del barrio sobre el mapa sin teselas */
 .barrio-label {
   color: rgba(242, 240, 234, 0.75);

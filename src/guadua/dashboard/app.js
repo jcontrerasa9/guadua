@@ -75,6 +75,8 @@ export const state = {
   mapSignature: "", // incidentes del último encuadre del mapa
   duplicates: new Map(), // incident_id → posibles duplicados (logic.possibleDuplicates)
   barrioLayer: null,
+  baseLayer: null, // calles de OpenStreetMap (solo con conexión)
+  tileErrors: 0,
   decisionFilter: readDecisionFilter(), // selector Por decidir / Despachados / Todos
 };
 
@@ -219,9 +221,50 @@ function initMap() {
     zoom: 14,
     attributionControl: false,
   });
+  L.control.attribution({ prefix: false }).addTo(state.mapInstance);
+
+  // Mapa base: calles de OpenStreetMap solo con Internet. Sin red queda el fondo liso con
+  // los barrios: el tablero funciona igual (regla 3), solo sin el detalle de las calles.
+  state.baseLayer = L.tileLayer(OSM_TILES, {
+    maxZoom: 19,
+    className: "osm-tiles",
+    attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
+  });
+  state.baseLayer.on("tileload", () => {
+    state.tileErrors = 0;
+    paintMapNotice(true);
+  });
+  state.baseLayer.on("tileerror", () => {
+    // Red que dice estar en línea pero no llega a OpenStreetMap: se vuelve al fondo liso
+    state.tileErrors += 1;
+    if (state.tileErrors >= MAX_TILE_ERRORS) setBaseLayer(false);
+  });
+  window.addEventListener("online", () => setBaseLayer(true));
+  window.addEventListener("offline", () => setBaseLayer(false));
+  setBaseLayer(navigator.onLine);
 
   // Capa para marcadores y círculos de incidentes
   state.mapMarkersLayer = L.layerGroup().addTo(state.mapInstance);
+}
+
+const OSM_TILES = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const MAX_TILE_ERRORS = 4;
+
+function setBaseLayer(on) {
+  if (!state.mapInstance || !state.baseLayer) return;
+  state.tileErrors = 0;
+  if (on && !state.mapInstance.hasLayer(state.baseLayer)) {
+    state.baseLayer.addTo(state.mapInstance);
+    state.baseLayer.bringToBack();
+  } else if (!on && state.mapInstance.hasLayer(state.baseLayer)) {
+    state.mapInstance.removeLayer(state.baseLayer);
+  }
+  paintMapNotice(on);
+}
+
+function paintMapNotice(withStreets) {
+  const notice = document.getElementById("map-notice");
+  if (notice) notice.classList.toggle("hidden", withStreets);
 }
 
 const LEVEL_COLORS = {
