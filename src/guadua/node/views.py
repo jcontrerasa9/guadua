@@ -15,6 +15,10 @@ node/api.py. Reglas:
 - Un reporte que la correlación todavía no agrupó es su propio incidente, con su report_id.
 - Estado: sin ficha · pendiente · aprobada / editada / rechazada · conflicto si hay dos
   decisiones distintas sobre la misma ficha.
+- **Pregunta de seguimiento** (D5a): el detalle muestra qué preguntó el agente de
+  recepción, por qué, quién la decidió y la respuesta (o "esperando respuesta"). Si una
+  partición dejó dos preguntas para un reporte, vale la más antigua y cuenta la primera
+  respuesta a cualquiera de ellas.
 - **Tras una partición** (N12) dos nodos pueden haber agrupado o fichado el mismo caso. Un
   reporte va solo en el primer incidente que lo agrupó, y una ficha anterior sin decisión
   (paralela, no replaneada) se muestra en los pasos; vale la más reciente.
@@ -26,16 +30,19 @@ from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
+from guadua.agents.recepcion import answer_summary
 from guadua.classifier.urgency import Urgency
-from guadua.node.api import AgentStep, IncidentCard, IncidentDetail
+from guadua.node.api import AgentStep, IncidentCard, IncidentDetail, Question
 from guadua.node.pipeline import normalize
 from guadua.protocol.header import Incident, People
 from guadua.store.event_types import (
     Decision,
     Ficha,
     IncidenteAgrupado,
+    PreguntaSeguimiento,
     Reporte,
     ReporteNormalizado,
+    RespuestaSeguimiento,
     UrgenciaEstimada,
     event_id_str,
 )
@@ -105,6 +112,8 @@ class _Log:
     incidents: dict[str, Event] = field(default_factory=dict)
     fichas: dict[str, list[Event]] = field(default_factory=lambda: defaultdict(list))
     decisions: dict[EventId, list[Event]] = field(default_factory=lambda: defaultdict(list))
+    questions: dict[str, list[Event]] = field(default_factory=lambda: defaultdict(list))
+    answers: dict[str, list[Event]] = field(default_factory=lambda: defaultdict(list))
 
     @classmethod
     def read(cls, events: Iterable[Event]) -> _Log:
@@ -127,6 +136,10 @@ class _Log:
                     log.fichas[event.payload["incident_id"]].append(event)
                 case "decision" if event.refs:
                     log.decisions[event.refs[0]].append(event)
+                case "pregunta_seguimiento":
+                    log.questions[event.payload["report_id"]].append(event)
+                case "respuesta_seguimiento":
+                    log.answers[event.payload["question_id"]].append(event)
         for event in derived:  # después de los reportes, que pueden llegar en otro orden
             report = log.reports.get(event.payload["report_id"])
             if report is None:
@@ -264,6 +277,8 @@ def _build(iid: str, incident_event: Event | None, members: list[_Report], log: 
         if not log.decisions.get(old.id):
             detail = f"ficha paralela {event_id_str(old)} sin decisión: vale la más reciente"
             steps.append(AgentStep(agent="coordinacion", detail=detail))
+    for r in members:
+        steps.extend(_question_steps(r.data.report_id, log))
     if ficha:
         origin = "plantilla" if ficha.from_template else "redactada con LLM"
         detail = f"ficha {event_id_str(ficha_event)}: {_suggestion(ficha)}; {origin}"
@@ -299,6 +314,63 @@ def _build(iid: str, incident_event: Event | None, members: list[_Report], log: 
         "citations": ficha.citations if ficha else (),
         "steps": tuple(steps),
     }
+
+
+def _question_and_answer(report_id: str, log: _Log) -> tuple[Event, Event | None] | None:
+    """La pregunta que vale (la más antigua) y la primera respuesta a cualquiera de ellas."""
+    asked = sorted(log.questions.get(report_id, ()), key=_key)
+    if not asked:
+        return None
+    answers = [a for q in asked for a in log.answers.get(event_id_str(q), ())]
+    return asked[0], min(answers, key=_key, default=None)
+
+
+def _question_steps(report_id: str, log: _Log) -> list[AgentStep]:
+    found = _question_and_answer(report_id, log)
+    if found is None:
+        return []
+    event, answer_event = found
+    q = PreguntaSeguimiento.model_validate(event.payload)
+    who = f"agente · {q.llm}" if q.llm else "reglas"
+    if answer_event is None:
+        options = f" (opciones: {' · '.join(q.options)} · No sé)" if q.options else ""
+        said = f"preguntó al ciudadano «{q.text}»{options}: esperando respuesta"
+    else:
+        answer = RespuestaSeguimiento.model_validate(answer_event.payload)
+        said = f"dato del ciudadano: {answer_summary(q, answer)}"
+    return [AgentStep(agent="recepcion", detail=f"{said}. Motivo: {q.reason} ({who})")]
+
+
+QUESTION_TTL_S = 300.0  # una pregunta se ofrece 5 min desde que llegó su reporte
+
+
+def pending_questions(
+    events: Iterable[Event], device_id: str, *, now: float, ttl_s: float = QUESTION_TTL_S
+) -> list[Question]:
+    """GET /api/questions/{device_id}: preguntas sin responder de ese dispositivo, como
+    máximo una por reporte, **la del reporte más reciente primero**. Solo las de los
+    últimos `ttl_s` segundos: pasado ese tiempo la pregunta ya no le sirve al ciudadano
+    (la PWA mostraría primero la de un reporte viejo). El evento no se borra; deja de
+    ofrecerse."""
+    log = _Log.read(events)
+    prefix = device_id.lower() + "-"
+    pending: list[Event] = []
+    for report_id in log.questions:
+        if not report_id.startswith(prefix):
+            continue
+        found = _question_and_answer(report_id, log)
+        if found is not None and found[1] is None and now - found[0].received_at <= ttl_s:
+            pending.append(found[0])
+    return [
+        Question(
+            question_id=event_id_str(e),
+            report_id=e.payload["report_id"],
+            text=e.payload["text"],
+            kind=e.payload["kind"],
+            options=tuple(e.payload["options"]),
+        )
+        for e in sorted(pending, key=_key, reverse=True)
+    ]
 
 
 _DETAIL_ONLY = set(IncidentDetail.model_fields) - set(IncidentCard.model_fields)

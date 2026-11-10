@@ -127,6 +127,7 @@ def test_report_becomes_card_with_pending_ficha(api: TestClient) -> None:
     types = [e.type for e in api.app.state.node.store.since({})]
     assert types == [
         "reporte", "reporte_normalizado", "urgencia_estimada", "incidente_agrupado", "ficha",
+        "pregunta_seguimiento",  # D5a: atrapados sin dato de si alguien no respira
     ]  # fmt: skip
 
 
@@ -156,7 +157,7 @@ def test_approve_then_conflict(api: TestClient) -> None:
     api.post("/api/messages", content=message())
     approved = _decide(api, "aprobar")
     assert approved.status_code == 201
-    assert check(approved, "DecisionAck", "POST /api/decisions → 201") == {"event_id": "A:6"}
+    assert check(approved, "DecisionAck", "POST /api/decisions → 201") == {"event_id": "A:7"}
     card = api.get("/api/incidents").json()["incidents"][0]
     assert card["status"] == "aprobada"
     second = _decide(api, "rechazar")

@@ -35,7 +35,8 @@ from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING, Literal
 
-from guadua.store.event_types import Reasignacion
+from guadua.agents.recepcion import needs_question
+from guadua.store.event_types import Reasignacion, Reporte, ReporteNormalizado
 from guadua.store.events import Event, EventCategory, EventId
 
 if TYPE_CHECKING:
@@ -45,7 +46,9 @@ logger = logging.getLogger("guadua.resilience")
 
 DEFAULT_PEER_TIMEOUT = 10.0  # s sin latidos para dar a un vecino por caído (5 rondas de 2 s)
 
-type WorkKind = Literal["normalizar", "urgencia", "agrupar", "triaje", "ficha", "replanear"]
+type WorkKind = Literal[
+    "normalizar", "urgencia", "agrupar", "preguntar", "triaje", "ficha", "replanear"
+]
 
 
 # --- Dueño ------------------------------------------------------------------------------------
@@ -106,7 +109,8 @@ def pending_work(events: Iterable[Event], *, with_triage: bool = True) -> list[W
 
     - `reporte` sin `reporte_normalizado` de su report_id → normalizar
     - `reporte_normalizado` sin `urgencia_estimada` → urgencia; sin `incidente_agrupado`
-      que lo incluya → agrupar
+      que lo incluya → agrupar; sin `pregunta_seguimiento` cuando las reglas piden una
+      (D5a) → preguntar
     - `urgencia_estimada` ambigua de N7 que ninguna otra reemplaza → triaje (solo si hay
       agente: sin LLM el caso ya quedó "ambiguo, revisar", que es seguro)
     - último `incidente_agrupado` de un incidente sin `ficha` → ficha
@@ -116,6 +120,7 @@ def pending_work(events: Iterable[Event], *, with_triage: bool = True) -> list[W
     normalized: set[str] = set()
     estimated: set[str] = set()
     grouped: set[str] = set()
+    asked: set[str] = set()
     replaced: set[EventId] = set()
     incidents: dict[str, Event] = {}
     fichas: dict[str, list[Event]] = defaultdict(list)
@@ -127,6 +132,8 @@ def pending_work(events: Iterable[Event], *, with_triage: bool = True) -> list[W
             case "urgencia_estimada":
                 estimated.add(e.payload["report_id"])
                 replaced.update(e.refs)
+            case "pregunta_seguimiento":
+                asked.add(e.payload["report_id"])
             case "incidente_agrupado":
                 grouped.update(e.payload["report_ids"])
                 iid = e.payload["incident_id"]
@@ -145,6 +152,8 @@ def pending_work(events: Iterable[Event], *, with_triage: bool = True) -> list[W
                 work.append(Work("urgencia", e, e.id))
             if rid not in grouped:
                 work.append(Work("agrupar", e, e.id))
+            if rid not in asked and _needs_question(e, by_id):
+                work.append(Work("preguntar", e, e.id))
         elif (
             e.type == "urgencia_estimada"
             and with_triage
@@ -165,6 +174,16 @@ def pending_work(events: Iterable[Event], *, with_triage: bool = True) -> list[W
         if max(fichas[ficha.payload["incident_id"]], key=_order).id == ficha.id:
             work.append(Work("replanear", e, ficha.id))
     return work
+
+
+def _needs_question(normalized: Event, by_id: dict[EventId, Event]) -> bool:
+    reporte = by_id.get(normalized.refs[0]) if normalized.refs else None
+    if reporte is None or reporte.type != "reporte":
+        return False
+    return needs_question(
+        Reporte.model_validate(reporte.payload),
+        ReporteNormalizado.model_validate(normalized.payload),
+    )
 
 
 # --- Servicio -----------------------------------------------------------------------------
@@ -289,6 +308,7 @@ class Resilience:
             if w.key not in self._tried
             and node.owns(w.anchor)
             and not (w.kind == "triaje" and w.event.id in node.triage_running)
+            and not (w.kind == "preguntar" and w.event.id in node.asking)
         ]
         done = 0
         for work in todo:

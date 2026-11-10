@@ -14,6 +14,8 @@ Variables (todas opcionales; sin ninguna, arranca un nodo "A" solo, en memoria):
     SARD_CHANNEL_SEED     semilla de los fallos                   0
     SARD_GOSSIP_INTERVAL  segundos entre rondas                   2.0
     SARD_PEER_TIMEOUT     segundos sin latidos → vecino caído     10.0
+    SARD_QUESTION_KINDS   tipos de pregunta que muestra la PWA    si_no
+                          (si_no, opciones, texto; separados por coma)
 """
 
 from __future__ import annotations
@@ -21,6 +23,8 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+
+QUESTION_KINDS = frozenset({"si_no", "opciones", "texto"})  # agents/recepcion.ALL_KINDS
 
 
 class ConfigError(ValueError):
@@ -42,6 +46,7 @@ class NodeConfig:
     channel_seed: int = 0
     gossip_interval: float = 2.0
     peer_timeout: float = 10.0
+    question_kinds: tuple[str, ...] = ("si_no",)
 
     def __post_init__(self) -> None:
         if not self.node_id.isalnum():
@@ -51,6 +56,12 @@ class NodeConfig:
         missing = [p for p in self.peers if p not in self.peer_addrs]
         if self.peer_addrs and missing:
             raise ConfigError(f"faltan direcciones en SARD_PEER_ADDRS para {missing}")
+        bad = set(self.question_kinds) - QUESTION_KINDS
+        if not self.question_kinds or bad:
+            raise ConfigError(
+                f"SARD_QUESTION_KINDS inválido: {sorted(bad) or 'vacío'} "
+                f"(opciones: {sorted(QUESTION_KINDS)})"
+            )
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> NodeConfig:
@@ -78,6 +89,9 @@ class NodeConfig:
             channel_seed=int(number("SARD_CHANNEL_SEED", "0", int)),
             gossip_interval=float(number("SARD_GOSSIP_INTERVAL", "2.0", float)),
             peer_timeout=float(number("SARD_PEER_TIMEOUT", "10.0", float)),
+            question_kinds=tuple(
+                k.strip() for k in env.get("SARD_QUESTION_KINDS", "si_no").split(",") if k.strip()
+            ),
         )
 
 

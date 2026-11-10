@@ -18,14 +18,29 @@ from guadua.agents.correlacion import (
     correlacionar_confirmacion_campo,
     correlacionar_reporte,
 )
+from guadua.agents.recepcion import DEFAULT_KINDS, AgenteRecepcion, QuestionCase
 from guadua.classifier.triage import UrgencyClassifier, default_classifier
 from guadua.node.api import DecisionAck, DecisionRequest, Health, MessageAck
-from guadua.node.intake import parse_message, reporte_event
+from guadua.node.intake import (
+    IntakeError,
+    ParsedAnswer,
+    check_answer,
+    parse_message,
+    reporte_event,
+    respuesta_event,
+)
 from guadua.node.pipeline import normalized_event, urgency_event
 from guadua.providers.llm import LLMProvider
 from guadua.providers.transport import Transport
 from guadua.services.resilience import DEFAULT_PEER_TIMEOUT, Ownership, Resilience, Work
-from guadua.store.event_types import Decision, UrgenciaEstimada, event_id_str, validate_event
+from guadua.store.event_types import (
+    Decision,
+    PreguntaSeguimiento,
+    QuestionKind,
+    UrgenciaEstimada,
+    event_id_str,
+    validate_event,
+)
 from guadua.store.events import Event, EventCategory, EventId, EventStore
 from guadua.store.gossip import GossipNode
 
@@ -61,16 +76,23 @@ class Node:
         llm: LLMProvider | None = None,
         peer_timeout: float = DEFAULT_PEER_TIMEOUT,
         monotonic: Callable[[], float] = time.monotonic,
+        recepcion_llm: LLMProvider | None = None,
+        question_kinds: frozenset[QuestionKind] = DEFAULT_KINDS,
     ) -> None:
         """`classifier="default"` entrena el de data/sinteticos (una vez por proceso);
         None deja solo las reglas. Sin `llm` no hay agente de triaje (N8): los casos dudosos
         quedan "ambiguo, revisar" con la urgencia de N7. `peer_timeout` y `monotonic` son de
-        la resiliencia (N12): segundos sin latidos para dar un vecino por caído y su reloj."""
+        la resiliencia (N12): segundos sin latidos para dar un vecino por caído y su reloj.
+        `recepcion_llm` es el del agente de recepción (D5a); sin él, las preguntas de
+        seguimiento salen de las reglas. `question_kinds`: los tipos de pregunta que la PWA
+        sabe mostrar."""
         self.node_id = node_id
         self.classifier = default_classifier() if classifier == "default" else classifier
         self.triaje = _agente_triaje(llm)
         self.agent_tasks: set[asyncio.Future] = set()  # ciclos del agente en curso
         self.triage_running: set[EventId] = set()  # urgencias que el agente está revisando
+        self.recepcion = AgenteRecepcion(recepcion_llm, kinds=question_kinds)
+        self.asking: set[EventId] = set()  # reportes normalizados con la pregunta en curso
         self.store = store
         self.clock = clock
         self._seq = self._max_own_seq()
@@ -110,11 +132,34 @@ class Node:
         return Health(node=self.node_id, version=__version__, peers_alive=alive)
 
     def receive_message(self, data: bytes) -> MessageAck:
-        """Bytes de la PWA → evento `reporte`. Lanza IntakeError (→ 400) si no sirven."""
+        """Bytes de la PWA → evento `reporte` o `respuesta_seguimiento`. Lanza IntakeError
+        (→ 400) si no sirven."""
         message = parse_message(data)
+        if isinstance(message, ParsedAnswer):
+            return self._receive_answer(message)
         if message.report_id in self._report_ids:
             return MessageAck(report_id=message.report_id, duplicate=True)
         event = reporte_event(
+            message, node_id=self.node_id, seq=self.next_seq(), received_at=self.clock()
+        )
+        self.record(event)
+        return MessageAck(report_id=message.report_id)
+
+    def _receive_answer(self, message: ParsedAnswer) -> MessageAck:
+        """Vale la primera respuesta de cada pregunta; las demás son duplicadas. Si el nodo
+        aún no conoce la pregunta (no le llegó por gossip), la acepta igual."""
+        qid = message.answer.question_id
+        if any(
+            e.type == "respuesta_seguimiento" and e.payload["question_id"] == qid
+            for e in self.store.since({})
+        ):
+            return MessageAck(report_id=message.report_id, duplicate=True)
+        question = self.store.get(parse_event_id(qid))
+        if question is not None:
+            if question.type != "pregunta_seguimiento":
+                raise IntakeError(f"{qid} no es una pregunta de seguimiento")
+            check_answer(PreguntaSeguimiento.model_validate(question.payload), message)
+        event = respuesta_event(
             message, node_id=self.node_id, seq=self.next_seq(), received_at=self.clock()
         )
         self.record(event)
@@ -178,6 +223,7 @@ class Node:
                 case "reporte_normalizado":
                     self._estimate_urgency(event)
                     self._group(event)
+                    self._ask(event)
                 case "urgencia_estimada":
                     self._start_triage(event)
                 case "incidente_agrupado":
@@ -198,6 +244,8 @@ class Node:
                 self._group(work.event)
             case "triaje":
                 self._start_triage(work.event)
+            case "preguntar":
+                self._ask(work.event)
             case "ficha":
                 self.coordinacion.procesar_incidente(work.event, self.store)
             case "replanear":
@@ -279,6 +327,58 @@ class Node:
             self._publish_triage(case, f.result())
 
         future.add_done_callback(done)
+
+    def _ask(self, normalized: Event) -> None:
+        """Agente de recepción (D5a): como máximo una pregunta de seguimiento por reporte.
+
+        Con LLM corre en otro hilo, como el triaje; sin bucle de asyncio o sin LLM, en línea.
+        Una falla nunca tumba el nodo: la pregunta es una ayuda, no un paso obligatorio.
+        """
+        if normalized.id in self.asking:
+            return
+        try:
+            case = self.recepcion.prepare(normalized, self.store)
+        except Exception:
+            logger.exception("%s: falló la recepción de %s:%s", self.node_id, *normalized.id)
+            return
+        if case is None:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if loop is None or not self.recepcion.needs_llm(case):
+            self._publish_question(case, self.recepcion.run(case))
+            return
+        future = loop.run_in_executor(None, self.recepcion.run, case)
+        self.agent_tasks.add(future)
+        self.asking.add(normalized.id)
+
+        def done(f: asyncio.Future) -> None:
+            self.agent_tasks.discard(f)
+            self.asking.discard(normalized.id)
+            if f.cancelled():
+                return
+            if (exc := f.exception()) is not None:
+                logger.error("%s: falló el agente de recepción: %r", self.node_id, exc)
+                return
+            self._publish_question(case, f.result())
+
+        future.add_done_callback(done)
+
+    def _publish_question(self, case: QuestionCase, payload: PreguntaSeguimiento | None) -> None:
+        if payload is None:
+            return
+        normalized = case.normalized_event
+        if not self.owns(normalized.id) or self._has("pregunta_seguimiento", case.report_id):
+            logger.warning("%s: la pregunta de %s ya no le toca", self.node_id, case.report_id)
+            return  # máximo una por reporte, aunque el LLM haya tardado
+        try:
+            self.record(
+                self.recepcion.event(case, payload, node_id=self.node_id, seq=self.next_seq())
+            )
+        except Exception:
+            logger.exception("%s: no se pudo publicar la pregunta", self.node_id)
 
     def _publish_triage(self, case: TriageCase, payload: UrgenciaEstimada) -> None:
         urgency = case.urgency_event

@@ -35,7 +35,7 @@ from guadua.node.api import (
 )
 from guadua.node.intake import IntakeError
 from guadua.node.service import Conflict, Node, NotFound
-from guadua.node.views import incident_cards, incident_detail
+from guadua.node.views import incident_cards, incident_detail, pending_questions
 
 logger = logging.getLogger("guadua.node")
 
@@ -131,10 +131,12 @@ def create_app(node: Node, *, gossip_interval: float | None = 2.0) -> FastAPI:
         except Conflict as exc:
             return _error(str(exc), 409)
 
-    # Nivel 2: existen con su formato, todavía vacías.
     @app.get("/api/questions/{device_id}", response_model=QuestionList)
     async def questions(device_id: str) -> QuestionList:
-        return QuestionList(questions=())
+        pending = pending_questions(node.store.since({}), device_id, now=node.clock())
+        return QuestionList(questions=tuple(pending))
+
+    # Nivel 2: existe con su formato, todavía vacía.
 
     @app.get("/api/people", response_model=PeopleList)
     async def people() -> PeopleList:

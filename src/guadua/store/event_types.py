@@ -94,11 +94,35 @@ class TranscripcionRadio(Payload):
     direct: bool  # "estamos en el sitio" (True) frente a "nos comentan" (False)
 
 
-class RespuestaSeguimiento(Payload):
-    """Nivel 2. Respuesta del ciudadano a una pregunta del agente de recepción."""
+type QuestionKind = Literal["si_no", "opciones", "texto"]
+type QuestionKey = Literal[
+    "no_respira_o_sangrado", "gas_o_cables", "atrapados", "personas", "libre"
+]
+type AnswerKind = Literal["si", "no", "no_se", "opcion", "texto"]
 
-    question_id: str
-    answer: bool
+MAX_OPTIONS = 4
+MAX_QUESTION_ID = 32  # bytes UTF-8 del question_id en el mensaje de respuesta
+
+
+class RespuestaSeguimiento(Payload):
+    """Nivel 2. Respuesta del ciudadano a una pregunta del agente de recepción.
+
+    `question_id` es el id del evento `pregunta_seguimiento` ("B:31"); el evento lleva esa
+    pregunta en `refs[0]`. "No sé" siempre es una respuesta válida.
+    """
+
+    question_id: str = Field(pattern=EVENT_ID_PATTERN, max_length=MAX_QUESTION_ID)
+    answer: AnswerKind
+    option: int | None = Field(default=None, ge=0, lt=MAX_OPTIONS)  # solo con "opcion"
+    text: str | None = Field(default=None, min_length=1)  # solo con "texto"
+
+    @model_validator(mode="after")
+    def _matches_answer(self) -> RespuestaSeguimiento:
+        if (self.answer == "opcion") != (self.option is not None):
+            raise ValueError("option va solo, y siempre, con la respuesta opcion")
+        if (self.answer == "texto") != (self.text is not None):
+            raise ValueError("text va solo, y siempre, con la respuesta texto")
+        return self
 
 
 class ConfirmacionCampo(Payload):
@@ -179,6 +203,38 @@ class Ficha(Payload):
     from_template: bool = False  # True si se redactó sin LLM
 
 
+class PreguntaSeguimiento(Payload):
+    """Agente 1 (recepción). Como máximo una por reporte (diseño §10).
+
+    `key` es una pregunta del catálogo (agents/recepcion.py) o "libre" si la redactó el
+    LLM. `options` va solo con `kind="opciones"`; "No sé" no va en las opciones porque
+    siempre está disponible. El evento lleva el `reporte_normalizado` en `refs[0]`.
+    """
+
+    report_id: str = Field(pattern=REPORT_ID_PATTERN)
+    key: QuestionKey
+    kind: QuestionKind
+    text: str = Field(min_length=1)
+    options: tuple[str, ...] = ()
+    reason: str = Field(min_length=1)  # por qué se pregunta: se ve en el tablero
+    source: Literal["reglas", "agente"]
+    llm: str | None = None  # qué modelo la decidió, p. ej. "gemini/…"; None con reglas
+
+    @model_validator(mode="after")
+    def _consistent(self) -> PreguntaSeguimiento:
+        if (self.kind == "opciones") != bool(self.options):
+            raise ValueError("options va solo, y siempre, con kind opciones")
+        if self.options and not 2 <= len(self.options) <= MAX_OPTIONS:
+            raise ValueError(f"una pregunta de opciones lleva de 2 a {MAX_OPTIONS} opciones")
+        if any(not o.strip() for o in self.options) or len(set(self.options)) != len(self.options):
+            raise ValueError("las opciones no pueden estar vacías ni repetirse")
+        if self.key == "libre" and self.source != "agente":
+            raise ValueError("solo el agente redacta preguntas libres")
+        if (self.source == "agente") != (self.llm is not None):
+            raise ValueError("llm va solo, y siempre, con source agente")
+        return self
+
+
 # --- Decisiones humanas: vienen del tablero ---------------------------------------------
 
 
@@ -205,6 +261,7 @@ CATALOG: dict[str, tuple[EventCategory, type[Payload]]] = {
     "reasignacion": (EventCategory.HECHO, Reasignacion),
     "reporte_normalizado": (EventCategory.DERIVADO, ReporteNormalizado),
     "urgencia_estimada": (EventCategory.DERIVADO, UrgenciaEstimada),
+    "pregunta_seguimiento": (EventCategory.DERIVADO, PreguntaSeguimiento),
     "incidente_agrupado": (EventCategory.DERIVADO, IncidenteAgrupado),
     "ficha": (EventCategory.DERIVADO, Ficha),
     "decision": (EventCategory.DECISION, Decision),
@@ -223,12 +280,18 @@ def validate_event(event: Event) -> Payload:
     category, model = entry
     if event.category != category:
         raise EventTypeError(f"{event.type} debe ser {category.value}, no {event.category.value}")
+    if event.type in ("pregunta_seguimiento", "respuesta_seguimiento") and not event.refs:
+        raise EventTypeError(f"{event.type} debe referenciar el evento en el que se basa")
     if event.type == "decision" and not event.refs:
         raise EventTypeError("una decisión debe referenciar la ficha en refs[0]")
     try:
         payload = model.model_validate(event.payload)
     except ValidationError as exc:
         raise EventTypeError(f"payload inválido para {event.type}: {exc}") from exc
+    if isinstance(payload, RespuestaSeguimiento):
+        node, seq = payload.question_id.split(":")
+        if event.refs[:1] != ((node, int(seq)),):
+            raise EventTypeError("una respuesta debe referenciar su pregunta en refs[0]")
     if isinstance(payload, Reasignacion):
         if payload.from_node == event.origin_node:
             raise EventTypeError("un nodo no puede reasignarse su propio trabajo")
