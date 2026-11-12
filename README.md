@@ -1,6 +1,6 @@
 # SARD: Guadua
 
-Prototipo para la hackathon SARD: reportes de emergencia distribuidos que funcionan **sin Internet**.
+Proyecto GANADOR de la hackathon SARD de ExpoASI 2026: reportes de emergencia distribuidos que funcionan **sin Internet**.
 Diseño completo en [docs/diseno.md](docs/diseno.md); plan de trabajo en [docs/plan.md](docs/plan.md).
 
 ## Entregables
